@@ -4,13 +4,15 @@ import os
 from flask import Flask
 
 from . import api
-from . import db
+from . import database
+
 
 
 
 def create_app(test_config=None):
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
+    app.config['DEV'] = True
 
     logging.basicConfig(level=logging.DEBUG,
                         format=f'%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s')
@@ -34,7 +36,7 @@ def create_app(test_config=None):
         pass
 
     app.register_blueprint(api.bp)
-    db.init_app(app)
+    database.init_app(app)
     # a simple page that says hello
     @app.route('/hello')
     def hello():

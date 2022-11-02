@@ -1,6 +1,14 @@
 """Module providing database tables and operations support."""
+from dataclasses import dataclass
+import logging
+import os
+
+import click
+
+import flask
 from sqlalchemy import (
     Column,
+    create_engine,
     ForeignKey,
     Integer,
     Boolean,
@@ -16,6 +24,8 @@ from sqlalchemy.inspection import inspect
 Base = declarative_base()
 # session = sessionmaker()(bind=engine)
 
+
+@dataclass
 class BaseTable(Base):
     """
     Define fields common of all tables in database
@@ -27,10 +37,10 @@ class BaseTable(Base):
     """
     __abstract__ = True
 
-    id = Column(Integer, primary_key=True)
-    deprecated = Column(Boolean, default=False)
-    deleted = Column(Boolean, default=False)
-    extra_metadata = Column(JSON, nullable=True, default=None)
+    id: int = Column(Integer, primary_key=True)
+    deprecated: bool = Column(Boolean, default=False)
+    deleted: bool = Column(Boolean, default=False)
+    extra_metadata: str = Column(JSON, nullable=True, default=None)
 
     # def __init__(self, deleted=False, extra_metadata=None):
     #     self.deleted = deleted
@@ -52,6 +62,8 @@ class BaseTable(Base):
     #         print(f"Error: {error}")
     #         session.rollback()
 
+
+@dataclass
 class Project(BaseTable):
     """
     Project:
@@ -67,12 +79,9 @@ class Project(BaseTable):
     fms_id = Column(String, nullable=True, default=None)
     name = Column(String, nullable=False, unique=True, default=None)
 
-    # def __init__(self, name=None):
-    #     super().__init__()
-    #     self.name = name
 
-    def __repr__(self):
-        return f"Project({self.fms_id!r}, {self.name!r}, {self.deprecated!r}, {self.deleted!r}, {self.extra_metadata!r})"
+    # def __repr__(self):
+    #     return f"Project({self.fms_id!r}, {self.name!r}, {self.deprecated!r}, {self.deleted!r}, {self.extra_metadata!r})"
 
     # def insert(self, engine):
     #     """
@@ -90,6 +99,8 @@ class Project(BaseTable):
     #         print(f"Error: {error}")
     #         session.rollback()
 
+
+@dataclass
 class Patient(BaseTable):
     """
     Patient:
@@ -129,6 +140,8 @@ class Patient(BaseTable):
     def __repr__(self):
         return f"Patient({self.project!r}, {self.fms_id!r}, {self.name!r}, {self.alias!r}, {self.cohort!r}, {self.institution!r}, {self.deprecated!r}, {self.deleted!r}, {self.extra_metadata!r})"
 
+
+@dataclass
 class Experiment(BaseTable):
     """
     Experiment:
@@ -155,6 +168,8 @@ class Experiment(BaseTable):
     def __repr__(self):
         return f"Experiment({self.run!r}, {self.project!r}, {self.sequencing_technology!r}, {self.deprecated!r}, {self.deleted!r}, {self.extra_metadata!r})"
 
+
+@dataclass
 class Sample(BaseTable):
     """
     Sample:
@@ -190,6 +205,8 @@ class Sample(BaseTable):
     def __repr__(self):
         return f"Sample({self.patient!r}, {self.experiment!r}, {self.fms_id!r}, {self.name!r}, {self.tumour!r}, {self.alias!r}, {self.deprecated!r}, {self.deleted!r}, {self.extra_metadata!r})"
 
+
+@dataclass
 class ExperimentRun(Base):
     """
     ExperimentRun:
@@ -204,6 +221,8 @@ class ExperimentRun(Base):
     # def __repr__(self):
     #     return f"ExperimentRun({self.})"
 
+
+@dataclass
 class Run(BaseTable):
     """
     Patient:
@@ -234,6 +253,8 @@ class Run(BaseTable):
     def __repr__(self):
         return f"Run({self.experiment!r}, {self.fms_id!r}, {self.lab_id!r}, {self.name!r}, {self.date!r}, {self.deprecated!r}, {self.deleted!r}, {self.extra_metadata!r})"
 
+
+@dataclass
 class Readset(BaseTable):
     """
     Readset:
@@ -279,6 +300,8 @@ class Readset(BaseTable):
     def __repr__(self):
         return f"Readset({self.sample!r}, {self.run!r}, {self.name!r}, {self.lane!r}, {self.adapter1!r}, {self.adapter2!r}, {self.sequencing_type!r}, {self.quality_offset!r}, {self.alias!r}, {self.deprecated!r}, {self.deleted!r}, {self.extra_metadata!r})"
 
+
+@dataclass
 class Step(BaseTable):
     """
     Step:
@@ -309,6 +332,8 @@ class Step(BaseTable):
     def __repr__(self):
         return f"Step({self.sample!r}, {self.readset!r}, {self.name!r}, {self.status!r}, {self.deprecated!r}, {self.deleted!r}, {self.extra_metadata!r})"
 
+
+@dataclass
 class Job(BaseTable):
     """
     Job:
@@ -345,6 +370,8 @@ class Job(BaseTable):
     def __repr__(self):
         return f"Job({self.step!r}, {self.name!r}, {self.start!r}, {self.stop!r}, {self.status!r}, {self.type!r}, {self.deprecated!r}, {self.deleted!r}, {self.extra_metadata!r})"
 
+
+@dataclass
 class Metric(BaseTable):
     """
     Metric:
@@ -379,6 +406,8 @@ class Metric(BaseTable):
     def __repr__(self):
         return f"Metric({self.job!r}, {self.name!r}, {self.value!r}, {self.flag!r}, {self.deliverable!r}, {self.aggregate!r}, {self.deprecated!r}, {self.deleted!r}, {self.extra_metadata!r})"
 
+
+@dataclass
 class File(BaseTable):
     """
     File:
@@ -414,6 +443,8 @@ class File(BaseTable):
     def __repr__(self):
         return f"File({self.job!r}, {self.path!r}, {self.type!r}, {self.description!r}, {self.creation!r}, {self.deliverable!r}, {self.deprecated!r}, {self.deleted!r}, {self.extra_metadata!r})"
 
+
+@dataclass
 class Tool(BaseTable):
     """
     Tool:
@@ -552,17 +583,37 @@ def insert(engine, update, entry, *relations):
             session.rollback()
 
 
-def init_db():
-    db = get_db()
 
-    with current_app.open_resource('schema.sql') as f:
-        db.executescript(f.read().decode('utf8'))
+
+def get_engine():
+
+    if flask.current_app.config['DEV']:
+        #sqlite db
+        db_uri = 'sqlite:///{}'.format(os.path.join(flask.current_app.instance_path, "tracking_db.sql"))
+    else:
+        db_uri = flask.current_app.config['DB_URI']
+
+    logging.info('Connecting to {}'.format(db_uri))
+
+    if 'engine' not in flask.g:
+        flask.g.engine = create_engine(db_uri, echo=True)
+    return flask.g.engine
+
+
+def init_db():
+    engine = get_engine()
+    Base.metadata.create_all(engine)
+
+def close_db(e=None):
+    engine = flask.g.pop('engine', None)
+    if engine is not None:
+        engine.dispose()
 
 @click.command('init-db')
 def init_db_command():
     """Clear the existing data and create new tables."""
     init_db()
-    click.echo('Initialized the database.')
+    click.echo('Database initialized')
 
 def init_app(app):
     app.teardown_appcontext(close_db)

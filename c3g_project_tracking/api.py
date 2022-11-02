@@ -1,34 +1,34 @@
-from flask import Blueprint
 import logging
+
+from flask import Blueprint, jsonify
+
+from . import database
+from . import db_action
 
 log = logging.getLogger(__name__)
 
-bp = Blueprint('base_api', __name__, url_prefix='/parent')
+bp = Blueprint('base_api', __name__, url_prefix='/')
 
 
-@bp.route('/<truite>')
-def root(truite):
+@bp.route('/project')
+def project():
+    return jsonify(db_action.projects())
 
+
+@bp.route('get/<truite>')
+def test(truite):
     log.info(truite)
     return 'The C3G Assembly tracking API'
 
 
-@bp.route('/projects')
-def root():
-
-    log.info(truite)
-    return 'The C3G Assembly tracking API'
 
 
 @bp.route('/list_all_sample')
-def root():
-    database.list_all_sample
-    log.info(truite)
-    return 'The C3G Assembly tracking API'
-
+def list_all_sample():
+    pass
 
 
 @bp.route('/ingest_run_processin')
-def root():
-    log.info(truite)
+def ingest_run_processin():
+    log.info()
     return 'The C3G Assembly tracking API'
