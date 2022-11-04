@@ -1,14 +1,13 @@
+import inspect
+
 from . import database
-from . import model
+from .model import Project
 from sqlalchemy import select
 
 
 def projects():
     session = database.get_session()
-    return [i[0] for i in session.execute((select([model.Project]))).fetchall()]
-
-
-
+    return [i[0] for i in session.execute((select([Project]))).fetchall()]
 
 def add_patient(engine, project_name, patient):
     """
@@ -48,7 +47,7 @@ def insert(engine, update, entry, *relations):
     entry: Table object ex. Patient(name="Zbla")
     *relations: Table object having a relation with entry ex. Project(name="Pwet")
     """
-    local_session = sessionmaker(autoflush=False, autocommit=False, bind=engine)
+    local_session = database.get_session()
     session = local_session()
 
     # for relation in i.relationships:

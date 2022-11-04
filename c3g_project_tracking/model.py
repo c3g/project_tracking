@@ -16,6 +16,7 @@ from sqlalchemy.orm import relationship, registry
 
 mapper_registry = registry()
 
+
 @dataclass
 class BaseTable:
     """
@@ -30,11 +31,10 @@ class BaseTable:
     __sa_dataclass_metadata_key__ = "sa"
     id: int = field(
         init=False,
-        metadata={"sa":
-                      Column(Integer, primary_key=True)})
+        metadata={"sa": Column(Integer, primary_key=True)})
     deprecated: bool = field(default=None, metadata={"sa": Column(Boolean)})
     deleted: bool = field(default=None, metadata={"sa": Column(Boolean)})
-    extra_metadata: JSON = field(default=None, metadata={"sa":  Column(JSON, nullable=True)})
+    extra_metadata: dict = field(default=None, metadata={"sa":  Column(JSON, nullable=True)})
 
 
 @mapper_registry.mapped
@@ -66,7 +66,6 @@ class Project(BaseTable):
     __sa_dataclass_metadata_key__ = "sa"
     fms_id: str = field(default=None, metadata={"sa": Column(String, nullable=True)})
     name: str = field(default=None, metadata={"sa": Column(String, nullable=False, unique=True)})
-
 
 
 @mapper_registry.mapped
@@ -208,9 +207,9 @@ class Readset(BaseTable):
     alias: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
 
     sample: List[Sample] = field(default=None,
-                                   metadata={"sa": relationship("Sample", backref="readset", lazy=False)})
+                                 metadata={"sa": relationship("Sample", backref="readset", lazy=False)})
     run: List[Run] = field(default=None,
-                                   metadata={"sa": relationship("Run", backref="readset", lazy=False)})
+                           metadata={"sa": relationship("Run", backref="readset", lazy=False)})
 
 
 @mapper_registry.mapped
@@ -258,13 +257,12 @@ class Job(BaseTable):
     """
     __tablename__ = "job"
     _sa_dataclass_metadata_key__ = "sa"
-    step_id: id =  field(init=False, metadata={"sa":  Column(Integer, ForeignKey("step.id"))})
+    step_id: id = field(init=False, metadata={"sa":  Column(Integer, ForeignKey("step.id"))})
     name: str = field(default=None, metadata={"sa":  Column(String, nullable=False, default=None)})
     start: datetime = field(default=None, metadata={"sa":  Column(DateTime, nullable=True, default=None)})
     stop: datetime = field(default=None, metadata={"sa":  Column(DateTime, nullable=True, default=None)})
     status: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
     type: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-
     step: List[Readset] = field(default=None,
                                 metadata={"sa": relationship("Step", backref="job", lazy=False)})
 

@@ -28,7 +28,7 @@ def get_engine(db_uri=None):
 
 def get_session():
     if 'session' not in flask.g:
-        flask.g.session = sessionmaker()(bind=get_engine())
+        flask.g.session = sessionmaker()(bind=get_engine(), autoflush=False, autocommit=False)
     return flask.g.session
 
 
@@ -42,6 +42,7 @@ def close_db(e=None):
     engine = flask.g.pop('engine', None)
     if engine is not None:
         engine.dispose()
+
 
 @click.command('init-db')
 def init_db_command():
