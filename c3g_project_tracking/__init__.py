@@ -5,22 +5,21 @@ from flask import Flask
 
 from . import api
 from . import database
-
+# from . import db
 
 
 
 def create_app(test_config=None):
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
-    app.config['DEV'] = True
 
     logging.basicConfig(level=logging.DEBUG,
                         format=f'%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s')
 
     app.config.from_mapping(
         SECRET_KEY='dev',
-        DATABASE=os.path.join(app.instance_path, 'flaskr.sqlite'),
-    )
+        SQLALCHEMY_DATABASE_URI='sqlite:///{}'.format(os.path.join(app.instance_path, "tracking_db.sql")),
+     )
 
     if test_config is None:
         # load the instance config, if it exists, when not testing
@@ -34,6 +33,7 @@ def create_app(test_config=None):
         os.makedirs(app.instance_path)
     except OSError:
         pass
+
 
     app.register_blueprint(api.bp)
     database.init_app(app)

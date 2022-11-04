@@ -2,7 +2,6 @@ import logging
 
 from flask import Blueprint, jsonify
 
-from . import database
 from . import db_action
 
 log = logging.getLogger(__name__)
@@ -10,10 +9,9 @@ log = logging.getLogger(__name__)
 bp = Blueprint('base_api', __name__, url_prefix='/')
 
 
-@bp.route('/project')
-def project():
+@bp.route('/projects')
+def projects():
     return jsonify(db_action.projects())
-
 
 @bp.route('get/<truite>')
 def test(truite):
