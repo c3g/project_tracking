@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
+[project]
+name = "c3g_project_tracking"
+version = "0.0.1"
+authors = [
+  { name="P-O Quirion", email="po.quirion@mcgill.ca" },
+  { name="Paul Streteowich", email="paul.stretenowich@mcgill.ca" },
+]
+description = "API and DB to track C3G assembler"
+readme = "README.md"
+requires-python = ">=3.10.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "flask>=2.2.2",
+    "sqlalchemy>=1.4.42",
+    "gunicorn>=20.1.0",
+]
+[project.urls]
+"Homepage" = "https://github.com/C3G/c3g_project_tracking"
+"Bug Tracker" = "https://github.com/pypa/c3g_project_tracking/issues"

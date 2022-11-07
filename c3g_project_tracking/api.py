@@ -20,7 +20,6 @@ def test(truite):
 
 
 
-
 @bp.route('/list_all_sample')
 def list_all_sample():
     pass
