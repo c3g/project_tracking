@@ -1,12 +1,12 @@
+import csv
+import json
 import os
 import tempfile
+
 
 import pytest
 from c3g_project_tracking import create_app, api
 from c3g_project_tracking.database import get_session, init_db
-
-with open(os.path.join(os.path.dirname(__file__), 'data/event_file.csv'), 'rb') as f:
-    _data_csv = f.read().decode('utf8')
 
 
 
@@ -35,3 +35,19 @@ def client(app):
 @pytest.fixture
 def runner(app):
     return app.test_cli_runner()
+
+
+@pytest.fixture()
+def ingestion_json():
+
+    data = {}
+    with open(os.path.join(os.path.dirname(__file__), 'data/event.csv'), 'r') as fp:
+        csvReader = csv.DictReader(fp)
+
+        for row in csvReader:
+            # Assuming a column named 'No' to
+            # be the primary key
+            key = '{}_{}_{}_{}'.format(row['Sample ID'], row['Run ID'], row['Library ID'], row['Lane'])
+            data[key] = row
+
+    return json.dumps(data)

@@ -1,7 +1,10 @@
-def test_create(client, app):
+def test_create(client, app, ingestion_json):
 
     assert client.get('/ingest_run_processing').status_code == 200
-    client.post('/ingest_run_processing', data={'title': 'created', 'body': ''})
+
+
+    client.post('/ingest_run_processing', data=ingestion_json)
+
 
     # check here that project, readset et all is created properly
     # with app.app_context():
