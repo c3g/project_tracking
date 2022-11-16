@@ -7,7 +7,8 @@ from sqlalchemy import (
     create_engine,
     )
 
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.ext.declarative import declarative_base
 
 
 def get_engine(db_uri=None):
@@ -28,7 +29,11 @@ def get_engine(db_uri=None):
 
 def get_session():
     if 'session' not in flask.g:
-        flask.g.session = sessionmaker()(bind=get_engine(), autoflush=False, autocommit=False)
+        flask.g.session = scoped_session(sessionmaker(bind=get_engine(),
+                                                      autoflush=False,
+                                                      autocommit=False))
+        Base = declarative_base()
+        Base.query = flask.g.session.query_property()
     return flask.g.session
 
 
@@ -39,10 +44,9 @@ def init_db():
 
 
 def close_db(e=None):
-    engine = flask.g.pop('engine', None)
-    if engine is not None:
-        engine.dispose()
-
+    session = flask.g.pop('session', None)
+    if session is not None:
+        session.remove()
 
 @click.command('init-db')
 def init_db_command():
