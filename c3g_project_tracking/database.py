@@ -54,7 +54,7 @@ def init_db(db_uri=None):
     if db_uri is None:
         db_uri = flask.current_app.config["SQLALCHEMY_DATABASE_URI"]
     engine = get_engine(db_uri)
-    model.reg.metadata.create_all(engine)
+    model.mapper_registry.metadata.create_all(engine)
 
 
 def close_db(e=None):
