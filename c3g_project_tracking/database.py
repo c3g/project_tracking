@@ -16,7 +16,7 @@ class Engine:
     ENGINE = None
     SESSION = None
 
-def get_engine(db_uri):
+def get_engine(db_uri=None):
 
     logging.info('Connecting to {}'.format(db_uri))
 
@@ -51,9 +51,7 @@ def get_session(no_app=False):
 
 def init_db(db_uri=None):
     from . import model
-    if db_uri is None:
-        db_uri = flask.current_app.config["SQLALCHEMY_DATABASE_URI"]
-    engine = get_engine(db_uri)
+    engine = get_engine(db_uri=db_uri)
     model.mapper_registry.metadata.create_all(engine)
 
 
@@ -65,7 +63,9 @@ def close_db(e=None):
 @click.command('init-db')
 def init_db_command():
     """Clear the existing data and create new tables."""
-    init_db()
+    if db_uri is None:
+        db_uri = flask.current_app.config["SQLALCHEMY_DATABASE_URI"]
+    init_db(db_uri)
     click.echo('Database initialized')
 
 
