@@ -12,7 +12,12 @@ from sqlalchemy import (
     JSON,
     DateTime,
     )
-from sqlalchemy.orm import relationship, registry
+from sqlalchemy.orm import (
+    relationship,
+    registry,
+    Mapped,
+    mapped_column
+    )
 
 mapper_registry = registry()
 
@@ -25,29 +30,20 @@ class BaseTable:
         id integer [PK]
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __abstract__ = True
+
     __sa_dataclass_metadata_key__ = "sa"
-    id: int = field(
-        init=False,
-        metadata={"sa": Column(Integer, primary_key=True)})
+
+    id: int = field(init=False, metadata={"sa": Column(Integer, primary_key=True)})
     deprecated: bool = field(default=None, metadata={"sa": Column(Boolean)})
     deleted: bool = field(default=None, metadata={"sa": Column(Boolean)})
+    creation: datetime = field(default=None, metadata={"sa":  Column(DateTime, nullable=True)})
+    modification: datetime = field(default=None, metadata={"sa":  Column(DateTime, nullable=True)})
     extra_metadata: dict = field(default=None, metadata={"sa":  Column(JSON, nullable=True)})
-
-
-@mapper_registry.mapped
-class ExperimentRun:
-    """
-    ExperimentRun:
-        experiment_id integer [PK, ref: > experiment.id]
-        run_id integer [PK, ref: > run.id]
-    """
-    __tablename__ = "experiment_run"
-
-    experiment_id = Column(Integer, ForeignKey("experiment.id"), primary_key=True)
-    run_id = Column(Integer, ForeignKey("run.id"), primary_key=True)
 
 
 @mapper_registry.mapped
@@ -60,10 +56,14 @@ class Project(BaseTable):
         name text (unique)
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "project"
+
     __sa_dataclass_metadata_key__ = "sa"
+
     fms_id: str = field(default=None, metadata={"sa": Column(String, nullable=True)})
     name: str = field(default=None, metadata={"sa": Column(String, nullable=False, unique=True)})
 
@@ -82,9 +82,12 @@ class Patient(BaseTable):
         institution text
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "patient"
+
     _sa_dataclass_metadata_key__ = "sa"
 
     project_id: int = field(default=None, metadata={"sa": Column(Integer, ForeignKey("project.id"))})
@@ -108,6 +111,8 @@ class Experiment(BaseTable):
         sequencing_technology text
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "experiment"
@@ -132,6 +137,8 @@ class Run(BaseTable):
         date timestamp
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "run"
@@ -158,6 +165,8 @@ class Sample(BaseTable):
         alias blob
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "sample"
@@ -192,6 +201,8 @@ class Readset(BaseTable):
         alias blob
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "readset"
@@ -224,6 +235,8 @@ class Step(BaseTable):
         status text
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "step"
@@ -253,6 +266,8 @@ class Job(BaseTable):
         type text
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "job"
@@ -281,6 +296,8 @@ class Metric(BaseTable):
         aggregate text //operation to perform for aggregating metric per sample
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "metric"
@@ -310,6 +327,8 @@ class File(BaseTable):
         deliverable boolean
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "file"
@@ -336,6 +355,8 @@ class Tool(BaseTable):
         version text
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "tool"
