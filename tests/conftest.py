@@ -2,7 +2,7 @@ import csv
 import json
 import os
 import tempfile
-
+import logging
 
 import pytest
 from c3g_project_tracking import create_app, api
@@ -40,14 +40,13 @@ def runner(app):
 @pytest.fixture()
 def ingestion_json():
 
-    data = {}
+    data = []
     with open(os.path.join(os.path.dirname(__file__), 'data/event.csv'), 'r') as fp:
         csvReader = csv.DictReader(fp)
 
         for row in csvReader:
             # Assuming a column named 'No' to
             # be the primary key
-            key = '{}_{}_{}_{}'.format(row['Sample ID'], row['Run ID'], row['Library ID'], row['Lane'])
-            data[key] = row
+            data.append(row)
 
     return json.dumps(data)
