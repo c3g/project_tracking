@@ -40,7 +40,7 @@ def get_session():
 def init_db():
     from . import model
     engine = get_engine()
-    model.mapper_registry.metadata.create_all(engine)
+    model.Base.metadata.create_all(engine)
 
 
 def close_db(e=None):
