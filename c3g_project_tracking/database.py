@@ -67,7 +67,7 @@ def close_db(e=None):
         session.remove()
 
 @click.command('init-db')
-def init_db_command():
+def init_db_command(db_uri=None):
     """Clear the existing data and create new tables."""
     if db_uri is None:
         db_uri = flask.current_app.config["SQLALCHEMY_DATABASE_URI"]
