@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 from dataclasses import dataclass, field
 from typing import List
 from datetime import datetime
@@ -11,47 +12,118 @@ from sqlalchemy import (
     String,
     JSON,
     DateTime,
+    Enum,
+    Table
     )
-from sqlalchemy.orm import relationship, registry
+from sqlalchemy.orm import (
+    relationship,
+    DeclarativeBase,
+    Mapped,
+    mapped_column
+    )
 
-mapper_registry = registry()
+class Base(DeclarativeBase):
+    """
+    Base declarative table
+    """
+    pass
 
+class LaneEnum(enum.Enum):
+    """
+    lane enum
+    """
+    ONE = "1"
+    TWO = "2"
+    THREE = "3"
+    FOUR = "4"
 
-@dataclass
-class BaseTable:
+class SequencingTypeEnum(enum.Enum):
+    """
+    sequencing_type enum
+    """
+    SINGLE_END = "SINGLE_END"
+    PAIRED_END = "PAIRED_END"
+
+class StatusEnum(enum.Enum):
+    """
+    status enum
+    """
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    DONE = "DONE"
+    FAILED = "FAILED"
+
+class FlagEnum(enum.Enum):
+    """
+    flag enum
+    """
+    PASS = "PASS"
+    WARNING = "WARNING"
+    FAILED = "FAILED"
+
+class AggregateEnum(enum.Enum):
+    """
+    aggregate enum
+    """
+    SUM = "SUM"
+    AVERAGE = "AVERAGE"
+    N = "N" # for NOT aggregating for metric at sample level
+
+readset_metric = Table(
+    "readset_metric",
+    Base.metadata,
+    Column("readset_id", ForeignKey("readset.id"), primary_key=True),
+    Column("metric_id", ForeignKey("metric.id"), primary_key=True),
+)
+
+readset_job = Table(
+    "readset_job",
+    Base.metadata,
+    Column("readset_id", ForeignKey("readset.id"), primary_key=True),
+    Column("job_id", ForeignKey("job.id"), primary_key=True),
+)
+
+readset_operation = Table(
+    "readset_operation",
+    Base.metadata,
+    Column("readset_id", ForeignKey("readset.id"), primary_key=True),
+    Column("operation_id", ForeignKey("operation.id"), primary_key=True),
+)
+
+operation_bundle = Table(
+    "operation_bundle",
+    Base.metadata,
+    Column("operation_id", ForeignKey("operation.id"), primary_key=True),
+    Column("bundle_id", ForeignKey("bundle.id"), primary_key=True),
+)
+
+bundle_bundle = Table(
+    "bundle_bundle",
+    Base.metadata,
+    Column("bundle_id", ForeignKey("bundle.id"), primary_key=True),
+    Column("reference_id", ForeignKey("bundle.id"), primary_key=True),
+)
+
+class BaseTable(Base):
     """
     Define fields common of all tables in database
     BaseTable:
         id integer [PK]
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __abstract__ = True
-    __sa_dataclass_metadata_key__ = "sa"
-    id: int = field(
-        init=False,
-        metadata={"sa": Column(Integer, primary_key=True)})
-    deprecated: bool = field(default=None, metadata={"sa": Column(Boolean)})
-    deleted: bool = field(default=None, metadata={"sa": Column(Boolean)})
-    extra_metadata: dict = field(default=None, metadata={"sa":  Column(JSON, nullable=True)})
 
+    id: Mapped[int] = mapped_column(primary_key=True)
+    deprecated: Mapped[bool] = mapped_column(default=False)
+    deleted: Mapped[bool] = mapped_column(default=False)
+    creation: Mapped[datetime] = mapped_column(default=datetime.now(), nullable=True)
+    modification: Mapped[datetime] = mapped_column(default=None, nullable=True)
+    extra_metadata: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
 
-@mapper_registry.mapped
-class ExperimentRun:
-    """
-    ExperimentRun:
-        experiment_id integer [PK, ref: > experiment.id]
-        run_id integer [PK, ref: > run.id]
-    """
-    __tablename__ = "experiment_run"
-
-    experiment_id = Column(Integer, ForeignKey("experiment.id"), primary_key=True)
-    run_id = Column(Integer, ForeignKey("run.id"), primary_key=True)
-
-
-@mapper_registry.mapped
-@dataclass
 class Project(BaseTable):
     """
     Project:
@@ -60,16 +132,17 @@ class Project(BaseTable):
         name text (unique)
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "project"
-    __sa_dataclass_metadata_key__ = "sa"
-    fms_id: str = field(default=None, metadata={"sa": Column(String, nullable=True)})
-    name: str = field(default=None, metadata={"sa": Column(String, nullable=False, unique=True)})
 
+    fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
+    name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
 
-@mapper_registry.mapped
-@dataclass
+    patient: Mapped[list["Patient"]] = relationship(back_populates="project")
+
 class Patient(BaseTable):
     """
     Patient:
@@ -82,193 +155,215 @@ class Patient(BaseTable):
         institution text
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "patient"
-    _sa_dataclass_metadata_key__ = "sa"
 
-    project_id: int = field(default=None, metadata={"sa": Column(Integer, ForeignKey("project.id"))})
-    fms_id: str = field(default=None, metadata={"sa": Column(String, nullable=True)})
-    name: str = field(default=None, metadata={"sa": Column(String, nullable=False, unique=True)})
-    alias: str = field(default=None, metadata={"sa": Column(String, nullable=True)})
-    cohort: str = field(default=None, metadata={"sa": Column(String, nullable=True)})
-    institution: str = field(default=None, metadata={"sa": Column(String, nullable=True)})
+    project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
+    fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
+    name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
+    alias: Mapped[str] = mapped_column(default=None, nullable=True)
+    cohort: Mapped[str] = mapped_column(default=None, nullable=True)
+    institution: Mapped[str] = mapped_column(default=None, nullable=True)
 
-    project: List[Project] = field(default_factory=list,
-                                   metadata={"sa": relationship("Project", backref="patient", lazy=False)})
+    project: Mapped["Project"] = relationship(back_populates="patient")
+    sample: Mapped[list["Sample"]] = relationship(back_populates="patient")
 
-
-@mapper_registry.mapped
-@dataclass
-class Experiment(BaseTable):
-    """
-    Experiment:
-        id integer [PK]
-        project_id integer [ref: > project.id]
-        sequencing_technology text
-        deprecated boolean
-        deleted boolean
-        extra_metadata json
-    """
-    __tablename__ = "experiment"
-    _sa_dataclass_metadata_key__ = "sa"
-    project_id: int = field(init=False, metadata={"sa": Column(Integer, ForeignKey("project.id"))})
-    sequencing_technology: str = field(default=None, metadata={"sa": Column(String, nullable=True)})
-
-    run: List[Run] = field(default=None, metadata={"sa": relationship('Run', secondary='experiment_run')})
-    project: List[Project] = field(default=None,
-                                   metadata={"sa": relationship("Project", backref="experiment", lazy=False)})
-
-
-@mapper_registry.mapped
-@dataclass
-class Run(BaseTable):
-    """
-    Patient:
-        id integer [PK]
-        fms_id integer
-        lab_id text
-        name text (unique)
-        date timestamp
-        deprecated boolean
-        deleted boolean
-        extra_metadata json
-    """
-    __tablename__ = "run"
-    _sa_dataclass_metadata_key__ = "sa"
-    fms_id: str = field(default=None, metadata={"sa":  Column(String, nullable=True)})
-    lab_id: str = field(default=None, metadata={"sa":  Column(String, nullable=True)})
-    name: str = field(default=None, metadata={"sa":  Column(String, nullable=False, unique=True)})
-    date: datetime = field(default=None, metadata={"sa":  Column(DateTime, nullable=True)})
-    experiment: List[Experiment] = field(default_factory=list,
-                                         metadata={"sa": relationship('Experiment', secondary='experiment_run')})
-
-
-@mapper_registry.mapped
-@dataclass
 class Sample(BaseTable):
     """
     Sample:
         id integer [PK]
         patient_id integer [ref: > patient.id]
-        experiment_id integer [ref: > experiment.id]
         fms_id integer
-        name text (unique)
+        name text
         tumour boolean
         alias blob
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "sample"
-    _sa_dataclass_metadata_key__ = "sa"
-    patient_id: int = field(init=False, metadata={"sa":  Column(Integer, ForeignKey("patient.id"))})
-    experiment_id: int = field(init=False, metadata={"sa":  Column(Integer, ForeignKey("experiment.id"))})
-    fms_id: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-    name: str = field(default=None, metadata={"sa":  Column(String, nullable=False, unique=True, default=None)})
-    tumour: bool = field(default=None, metadata={"sa":  Column(Boolean, default=False)})
-    alias: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
 
-    patient: List[Patient] = field(default=None,
-                                   metadata={"sa": relationship("Patient", backref="sample", lazy=False)})
-    experiment: List[Experiment] = field(default=None,
-                                         metadata={"sa": relationship("Experiment", backref="sample", lazy=False)})
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patient.id"), default=None)
+    fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
+    name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
+    tumour: Mapped[bool] = mapped_column(default=False)
+    alias: Mapped[str] = mapped_column(default=None, nullable=True)
 
+    patient: Mapped["Patient"] = relationship(back_populates="sample")
+    readset: Mapped[list["Readset"]] = relationship(back_populates="sample")
 
-@mapper_registry.mapped
-@dataclass
+class Experiment(BaseTable):
+    """
+    Experiment:
+        id integer [PK]
+        sequencing_technology text
+        type text
+        library_kit text
+        kit_expiration_date text
+        deprecated boolean
+        deleted boolean
+        creation timestamp
+        modification timestamp
+        extra_metadata json
+    """
+    __tablename__ = "experiment"
+
+    sequencing_technology: Mapped[str] = mapped_column(default=None, nullable=True)
+    type: Mapped[str] = mapped_column(default=None, nullable=True)
+    library_kit: Mapped[str] = mapped_column(default=None, nullable=True)
+    kit_expiration_date: Mapped[str] = mapped_column(default=None, nullable=True)
+
+    readset: Mapped[list["Readset"]] = relationship(back_populates="experiment")
+
+class Run(BaseTable):
+    """
+    Patient:
+        id integer [PK]
+        fms_id text
+        name text
+        instrument text
+        date timestamp
+        deprecated boolean
+        deleted boolean
+        creation timestamp
+        modification timestamp
+        extra_metadata json
+    """
+    __tablename__ = "run"
+
+    fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
+    name: Mapped[str] = mapped_column(default=None, nullable=True)
+    instrument: Mapped[str] = mapped_column(default=None, nullable=True)
+    date: Mapped[datetime] = mapped_column(default=None, nullable=True)
+
+    readset: Mapped[list["Readset"]] = relationship(back_populates="run")
+
 class Readset(BaseTable):
     """
     Readset:
         id integer [PK]
         sample_id integer [ref: > sample.id]
+        experiment_id  text [ref: > experiment.id]
         run_id integer [ref: > run.id]
-        name text (unique)
-        lane text
+        name text
+        lane lane
         adapter1 text
         adapter2 text
-        sequencing_type text
+        sequencing_type sequencing_type
         quality_offset text
         alias blob
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "readset"
-    _sa_dataclass_metadata_key__ = "sa"
-    sample_id: int = field(init=False, metadata={"sa":  Column(Integer, ForeignKey("sample.id"))})
-    run_id: int = field(init=False, metadata={"sa":  Column(Integer, ForeignKey("run.id"))})
-    name: str = field(default=None, metadata={"sa":  Column(String, nullable=False, unique=True, default=None)})
-    lane: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-    adapter1: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-    adapter2: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-    sequencing_type: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-    quality_offset: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-    alias: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
 
-    sample: List[Sample] = field(default=None,
-                                 metadata={"sa": relationship("Sample", backref="readset", lazy=False)})
-    run: List[Run] = field(default=None,
-                           metadata={"sa": relationship("Run", backref="readset", lazy=False)})
+    sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id"), default=None)
+    experiment_id: Mapped[int] = mapped_column(ForeignKey("experiment.id"), default=None)
+    run_id: Mapped[int] = mapped_column(ForeignKey("run.id"), default=None)
+    name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
+    lane: Mapped[Enum(LaneEnum)] = mapped_column(Enum, default=None, nullable=True)
+    adapter1: Mapped[str] = mapped_column(default=None, nullable=True)
+    adapter2: Mapped[str] = mapped_column(default=None, nullable=True)
+    sequencing_type: Mapped[Enum(SequencingTypeEnum)] = mapped_column(Enum, default=None, nullable=True)
+    quality_offset: Mapped[str] = mapped_column(default=None, nullable=True)
+    alias: Mapped[str] = mapped_column(default=None, nullable=True)
 
+    sample: Mapped["Sample"] = relationship(back_populates="readset")
+    experiment: Mapped["Experiment"] = relationship(back_populates="readset")
+    run: Mapped["Run"] = relationship(back_populates="readset")
+    operation: Mapped[list["Operation"]] = relationship(secondary=readset_operation, back_populates="readset")
+    job: Mapped[list["Job"]] = relationship(secondary=readset_job, back_populates="readset")
+    metric: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readset")
 
-@mapper_registry.mapped
-@dataclass
-class Step(BaseTable):
+class Operation(BaseTable):
     """
-    Step:
+    Operation:
         id integer [PK]
-        sample_id integer [ref: > sample.id]
-        readset_id integer [ref: > readset.id]
+        operation_config_id integer [ref: > operation_config.id]
+        platform text
+        cmd_line text
         name text
-        status text
+        status status
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
-    __tablename__ = "step"
-    _sa_dataclass_metadata_key__ = "sa"
-    sample_id: int = field(init=False, metadata={"sa":  Column(Integer, ForeignKey("sample.id"))})
-    readset_id: int = field(init=False, metadata={"sa":  Column(Integer, ForeignKey("readset.id"))})
-    name: str = field(default=None, metadata={"sa":  Column(String, nullable=False, default=None)})
-    status: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
+    __tablename__ = "operation"
 
-    sample: List[Sample] = field(default=None,
-                                 metadata={"sa": relationship("Sample", backref="step", lazy=False)})
-    readset: List[Readset] = field(default=None,
-                                   metadata={"sa": relationship("Readset", backref="step", lazy=False)})
+    operation_config_id: Mapped[int] = mapped_column(ForeignKey("operation_config.id"), default=None)
+    platform: Mapped[str] = mapped_column(default=None, nullable=True)
+    cmd_line: Mapped[str] = mapped_column(default=None, nullable=True)
+    name: Mapped[str] = mapped_column(default=None, nullable=True)
+    status: Mapped[Enum(LaneEnum)] = mapped_column(Enum, default=None, nullable=True)
 
+    operation_config: Mapped["OperationConfig"] = relationship(back_populates="operation")
+    job: Mapped[list["Job"]] = relationship(back_populates="operation")
+    bundle: Mapped[list["Bundle"]] = relationship(secondary=operation_bundle, back_populates="operation")
+    readset: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="operation")
 
-@mapper_registry.mapped
-@dataclass
+class OperationConfig(BaseTable):
+    """
+    OperationConfig:
+        id integer [PK]
+        config_bundle_id integer [ref: > bundle.id]
+        name text
+        version test
+        deprecated boolean
+        deleted boolean
+        creation timestamp
+        modification timestamp
+        extra_metadata json
+    """
+    __tablename__ = "operation_config"
+
+    config_bundle_id: Mapped[int] = mapped_column(ForeignKey("bundle.id"), default=None)
+    name: Mapped[str] = mapped_column(default=None, nullable=True)
+    version: Mapped[str] = mapped_column(default=None, nullable=True)
+
+    operation: Mapped[list["Operation"]] = relationship(back_populates="operation_config")
+    bundle: Mapped["Bundle"] = relationship(back_populates="operation_config")
+
 class Job(BaseTable):
     """
     Job:
         id integer [PK]
-        step_id integer [ref: > step.id]
+        operation_id integer [ref: > operation.id]
+        readset_id integer
         name text
         start timestamp
         stop timestamp
-        status text
+        status status
         type text
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "job"
-    _sa_dataclass_metadata_key__ = "sa"
-    step_id: id = field(init=False, metadata={"sa":  Column(Integer, ForeignKey("step.id"))})
-    name: str = field(default=None, metadata={"sa":  Column(String, nullable=False, default=None)})
-    start: datetime = field(default=None, metadata={"sa":  Column(DateTime, nullable=True, default=None)})
-    stop: datetime = field(default=None, metadata={"sa":  Column(DateTime, nullable=True, default=None)})
-    status: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-    type: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-    step: List[Readset] = field(default=None,
-                                metadata={"sa": relationship("Step", backref="job", lazy=False)})
 
+    operation_id: Mapped[int] = mapped_column(ForeignKey("operation.id"), default=None)
+    name: Mapped[str] = mapped_column(default=None, nullable=True)
+    start: Mapped[datetime] = mapped_column(default=None, nullable=True)
+    stop: Mapped[datetime] = mapped_column(default=None, nullable=True)
+    status: Mapped[Enum(LaneEnum)] = mapped_column(Enum, default=None, nullable=True)
+    type: Mapped[str] = mapped_column(default=None, nullable=True)
 
-@mapper_registry.mapped
-@dataclass
+    operation: Mapped["Operation"] = relationship(back_populates="job")
+    metric: Mapped[list["Metric"]] = relationship(back_populates="job")
+    bundle: Mapped[list["Bundle"]] = relationship(back_populates="job")
+    readset: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="job")
+
 class Metric(BaseTable):
     """
     Metric:
@@ -281,68 +376,66 @@ class Metric(BaseTable):
         aggregate text //operation to perform for aggregating metric per sample
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "metric"
-    _sa_dataclass_metadata_key__ = "sa"
-    job_id: int = field(init=False, metadata={"sa":  Column(Integer, ForeignKey("job.id"))})
-    name: str = field(default=None, metadata={"sa":  Column(String, nullable=False)})
-    value: str = field(default=None, metadata={"sa":  Column(String, nullable=True)})
-    flag: str = field(default=None, metadata={"sa":  Column(String, nullable=True)})
-    deliverable: bool = field(default=None, metadata={"sa":  Column(Boolean)})
-    aggregate: str = field(default=None, metadata={"sa":  Column(String, nullable=True)})
 
-    job: List[Job] = field(default=None,
-                           metadata={"sa": relationship("Job", backref="metric", lazy=False)})
+    job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None)
+    name: Mapped[str] = mapped_column(default=None, nullable=True)
+    value: Mapped[str] = mapped_column(default=None, nullable=True)
+    flag: Mapped[Enum(FlagEnum)] = mapped_column(Enum, default=None, nullable=True)
+    deliverable: Mapped[bool] = mapped_column(default=False)
+    aggregate: Mapped[Enum(AggregateEnum)] = mapped_column(Enum, default=None, nullable=True)
+
+    job: Mapped["Job"] = relationship(back_populates="metric")
+    readset: Mapped[list["Readset"]] = relationship(secondary=readset_metric, back_populates="metric")
 
 
-@mapper_registry.mapped
-@dataclass
+class Bundle(BaseTable):
+    """
+    Bundle:
+        id integer [PK]
+        job_id integer [ref: > job.id]
+        uri text
+        deliverable bool
+        deprecated boolean
+        deleted boolean
+        creation timestamp
+        modification timestamp
+        extra_metadata json
+    """
+    __tablename__ = "bundle"
+
+    job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None)
+    uri: Mapped[str] = mapped_column(default=None, nullable=True)
+    deliverable: Mapped[bool] = mapped_column(default=False)
+
+    job: Mapped["Job"] = relationship(back_populates="bundle")
+    file: Mapped[list["File"]] = relationship(back_populates="bundle")
+    operation: Mapped[list["Operation"]] = relationship(secondary=operation_bundle, back_populates="bundle")
+    bundle: Mapped[list["Bundle"]] = relationship(secondary=bundle_bundle, back_populates="bundle")
+
 class File(BaseTable):
     """
     File:
         id integer [PK]
-        job_id integer [ref: > job.id]
-        path text
+        bundle_id integer [ref: > bundle.id]
+        content text
         type text
-        description text
-        creation timestamp
         deliverable boolean
         deprecated boolean
         deleted boolean
+        creation timestamp
+        modification timestamp
         extra_metadata json
     """
     __tablename__ = "file"
-    _sa_dataclass_metadata_key__ = "sa"
-    job_id: int = field(init=False, metadata={"sa":  Column(Integer, ForeignKey("job.id"))})
-    path: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-    type: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-    description: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-    creation: datetime = field(default=None, metadata={"sa":  Column(DateTime, nullable=True, default=None)})
-    deliverable: bool = field(default=None, metadata={"sa":  Column(Boolean, default=False)})
 
-    job: List[Job] = field(default=None,
-                           metadata={"sa": relationship("Job", backref="file", lazy=False)})
+    bundle_id: Mapped[int] = mapped_column(ForeignKey("bundle.id"), default=None)
+    content: Mapped[str] = mapped_column(default=None, nullable=True)
+    type: Mapped[str] = mapped_column(default=None, nullable=True)
+    deliverable: Mapped[bool] = mapped_column(default=False)
 
-
-@mapper_registry.mapped
-@dataclass
-class Tool(BaseTable):
-    """
-    Tool:
-        id integer [PK]
-        job_id integer [ref: > job.id]
-        name text
-        version text
-        deprecated boolean
-        deleted boolean
-        extra_metadata json
-    """
-    __tablename__ = "tool"
-    _sa_dataclass_metadata_key__ = "sa"
-    job_id: int = field(init=False, metadata={"sa":  Column(Integer, ForeignKey("job.id"))})
-    name: str = field(default=None, metadata={"sa":  Column(String, nullable=True, default=None)})
-    version: str = field(default=None, metadata={"sa": Column(String, nullable=True, default=None)})
-
-    job: List[Job] = field(default=None,
-                           metadata={"sa": relationship("Job", backref="tool", lazy=False)})
+    bundle: Mapped["Bundle"] = relationship(back_populates="file")
