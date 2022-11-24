@@ -4,6 +4,7 @@ import enum
 from dataclasses import dataclass, field
 from typing import List
 from datetime import datetime
+
 from sqlalchemy import (
     Column,
     ForeignKey,
@@ -22,11 +23,6 @@ from sqlalchemy.orm import (
     mapped_column
     )
 
-class Base(DeclarativeBase):
-    """
-    Base declarative table
-    """
-    pass
 
 class LaneEnum(enum.Enum):
     """
@@ -37,12 +33,14 @@ class LaneEnum(enum.Enum):
     THREE = "3"
     FOUR = "4"
 
+
 class SequencingTypeEnum(enum.Enum):
     """
     sequencing_type enum
     """
     SINGLE_END = "SINGLE_END"
     PAIRED_END = "PAIRED_END"
+
 
 class StatusEnum(enum.Enum):
     """
@@ -53,6 +51,7 @@ class StatusEnum(enum.Enum):
     DONE = "DONE"
     FAILED = "FAILED"
 
+
 class FlagEnum(enum.Enum):
     """
     flag enum
@@ -60,6 +59,7 @@ class FlagEnum(enum.Enum):
     PASS = "PASS"
     WARNING = "WARNING"
     FAILED = "FAILED"
+
 
 class AggregateEnum(enum.Enum):
     """
@@ -69,12 +69,29 @@ class AggregateEnum(enum.Enum):
     AVERAGE = "AVERAGE"
     N = "N" # for NOT aggregating for metric at sample level
 
+
+class Base(DeclarativeBase):
+    """
+    Base declarative table
+    """
+    # this is needed for the enum to work properly right now
+    # see https://github.com/sqlalchemy/sqlalchemy/discussions/8856
+    type_annotation_map = {
+        LaneEnum: Enum(LaneEnum),
+        SequencingTypeEnum: Enum(SequencingTypeEnum),
+        StatusEnum: Enum(StatusEnum),
+        FlagEnum: Enum(FlagEnum),
+        AggregateEnum: Enum(AggregateEnum)
+    }
+
+
 readset_metric = Table(
     "readset_metric",
     Base.metadata,
     Column("readset_id", ForeignKey("readset.id"), primary_key=True),
     Column("metric_id", ForeignKey("metric.id"), primary_key=True),
 )
+
 
 readset_job = Table(
     "readset_job",
@@ -83,12 +100,14 @@ readset_job = Table(
     Column("job_id", ForeignKey("job.id"), primary_key=True),
 )
 
+
 readset_operation = Table(
     "readset_operation",
     Base.metadata,
     Column("readset_id", ForeignKey("readset.id"), primary_key=True),
     Column("operation_id", ForeignKey("operation.id"), primary_key=True),
 )
+
 
 operation_bundle = Table(
     "operation_bundle",
@@ -97,11 +116,12 @@ operation_bundle = Table(
     Column("bundle_id", ForeignKey("bundle.id"), primary_key=True),
 )
 
+
 bundle_bundle = Table(
     "bundle_bundle",
     Base.metadata,
-    Column("bundle_id", ForeignKey("bundle.id"), primary_key=True),
-    Column("reference_id", ForeignKey("bundle.id"), primary_key=True),
+    Column("bundle_id", Integer, ForeignKey("bundle.id"), primary_key=True),
+    Column("reference_id", Integer, ForeignKey("bundle.id"), primary_key=True),
 )
 
 class BaseTable(Base):
@@ -124,6 +144,9 @@ class BaseTable(Base):
     modification: Mapped[datetime] = mapped_column(default=None, nullable=True)
     extra_metadata: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
 
+    def __repr__(self):
+        return "id {} ".format(self.id)
+
 class Project(BaseTable):
     """
     Project:
@@ -142,6 +165,7 @@ class Project(BaseTable):
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
 
     patient: Mapped[list["Patient"]] = relationship(back_populates="project")
+
 
 class Patient(BaseTable):
     """
@@ -170,6 +194,7 @@ class Patient(BaseTable):
 
     project: Mapped["Project"] = relationship(back_populates="patient")
     sample: Mapped[list["Sample"]] = relationship(back_populates="patient")
+
 
 class Sample(BaseTable):
     """
@@ -269,10 +294,10 @@ class Readset(BaseTable):
     experiment_id: Mapped[int] = mapped_column(ForeignKey("experiment.id"), default=None)
     run_id: Mapped[int] = mapped_column(ForeignKey("run.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    lane: Mapped[Enum(LaneEnum)] = mapped_column(Enum, default=None, nullable=True)
+    lane: Mapped[LaneEnum]  =  mapped_column(default=None, nullable=True)
     adapter1: Mapped[str] = mapped_column(default=None, nullable=True)
     adapter2: Mapped[str] = mapped_column(default=None, nullable=True)
-    sequencing_type: Mapped[Enum(SequencingTypeEnum)] = mapped_column(Enum, default=None, nullable=True)
+    sequencing_type: Mapped[SequencingTypeEnum] = mapped_column(default=None, nullable=True)
     quality_offset: Mapped[str] = mapped_column(default=None, nullable=True)
     alias: Mapped[str] = mapped_column(default=None, nullable=True)
 
@@ -304,12 +329,13 @@ class Operation(BaseTable):
     platform: Mapped[str] = mapped_column(default=None, nullable=True)
     cmd_line: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
-    status: Mapped[Enum(LaneEnum)] = mapped_column(Enum, default=None, nullable=True)
+    status: Mapped[StatusEnum] = mapped_column(default=StatusEnum.PENDING)
 
     operation_config: Mapped["OperationConfig"] = relationship(back_populates="operation")
     job: Mapped[list["Job"]] = relationship(back_populates="operation")
     bundle: Mapped[list["Bundle"]] = relationship(secondary=operation_bundle, back_populates="operation")
-    readset: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="operation")
+    readset: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operation")
+
 
 class OperationConfig(BaseTable):
     """
@@ -326,12 +352,13 @@ class OperationConfig(BaseTable):
     """
     __tablename__ = "operation_config"
 
-    config_bundle_id: Mapped[int] = mapped_column(ForeignKey("bundle.id"), default=None)
+    config_bundle_id: Mapped[int] = mapped_column(ForeignKey("bundle.id"), default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     version: Mapped[str] = mapped_column(default=None, nullable=True)
 
     operation: Mapped[list["Operation"]] = relationship(back_populates="operation_config")
-    bundle: Mapped["Bundle"] = relationship(back_populates="operation_config")
+    bundle: Mapped["Bundle"] = relationship(back_populates = "operation_config")
+
 
 class Job(BaseTable):
     """
@@ -356,7 +383,7 @@ class Job(BaseTable):
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     start: Mapped[datetime] = mapped_column(default=None, nullable=True)
     stop: Mapped[datetime] = mapped_column(default=None, nullable=True)
-    status: Mapped[Enum(LaneEnum)] = mapped_column(Enum, default=None, nullable=True)
+    status: Mapped[StatusEnum] = mapped_column(default=None, nullable=True)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
 
     operation: Mapped["Operation"] = relationship(back_populates="job")
@@ -385,9 +412,9 @@ class Metric(BaseTable):
     job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     value: Mapped[str] = mapped_column(default=None, nullable=True)
-    flag: Mapped[Enum(FlagEnum)] = mapped_column(Enum, default=None, nullable=True)
+    flag: Mapped[FlagEnum] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
-    aggregate: Mapped[Enum(AggregateEnum)] = mapped_column(Enum, default=None, nullable=True)
+    aggregate: Mapped[AggregateEnum] = mapped_column(default=None, nullable=True)
 
     job: Mapped["Job"] = relationship(back_populates="metric")
     readset: Mapped[list["Readset"]] = relationship(secondary=readset_metric, back_populates="metric")
@@ -408,14 +435,20 @@ class Bundle(BaseTable):
     """
     __tablename__ = "bundle"
 
-    job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None)
-    uri: Mapped[str] = mapped_column(default=None, nullable=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None, nullable=True)
+    uri: Mapped[str]
     deliverable: Mapped[bool] = mapped_column(default=False)
 
     job: Mapped["Job"] = relationship(back_populates="bundle")
     file: Mapped[list["File"]] = relationship(back_populates="bundle")
+    operation_config: Mapped[list["OperationConfig"]] = relationship(back_populates="bundle")
     operation: Mapped[list["Operation"]] = relationship(secondary=operation_bundle, back_populates="bundle")
-    bundle: Mapped[list["Bundle"]] = relationship(secondary=bundle_bundle, back_populates="bundle")
+
+    reference: Mapped[list["Bundle"]] = relationship("Bundle", secondary=bundle_bundle,
+                                                     primaryjoin="Bundle.id ==bundle_bundle.c.bundle_id",
+                                                     secondaryjoin="Bundle.id ==bundle_bundle.c.reference_id",
+                                                     backref="bundle")
+
 
 class File(BaseTable):
     """

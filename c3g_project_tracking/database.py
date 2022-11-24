@@ -37,7 +37,7 @@ def get_session(no_app=False):
             Engine.SESSION = sessionmaker(bind=get_engine(db_uri),
                                           autoflush=False,
                                           autocommit=False)
-        return Engine.SESSION
+        return Engine.SESSION()
 
     if 'session' not in flask.g:
         db_uri = flask.current_app.config["SQLALCHEMY_DATABASE_URI"]
