@@ -21,6 +21,7 @@ def create_app(test_config=None):
         SQLALCHEMY_DATABASE_URI='sqlite:///{}'.format(os.path.join(app.instance_path, "tracking_db.sql")),
          # SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://postgres:toto@localhost/c3g_track?client_encoding=utf8",
     )
+    app.config.from_prefixed_env("C3G")
 
     if test_config is None:
         # load the instance config, if it exists, when not testing
