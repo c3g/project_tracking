@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 def projects():
     session = database.get_session()
-    return [i[0] for i in session.execute((select([Project]))).fetchall()]
+    return [i[0] for i in session.execute((select(Project))).fetchall()]
 
 def add_patient(engine, project_name, patient):
     """
