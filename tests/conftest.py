@@ -6,7 +6,7 @@ import logging
 
 import pytest
 from c3g_project_tracking import create_app, api
-from c3g_project_tracking.database import get_session, init_db
+from c3g_project_tracking.database import get_session, init_db, close_db
 
 
 
@@ -26,6 +26,21 @@ def app():
 
     os.close(db_fd)
     os.unlink(db_path)
+
+@pytest.fixture
+def not_app_db():
+    db_fd, db_path = tempfile.mkstemp()
+
+    db = get_session(no_app=True, db_uri="sqlite:///{}".format(db_path))
+    init_db()
+
+    try:
+        yield db
+    finally:
+        close_db(no_app=True)
+        os.close(db_fd)
+        os.unlink(db_path)
+
 
 @pytest.fixture
 def client(app):

@@ -326,12 +326,14 @@ class Operation(BaseTable):
     __tablename__ = "operation"
 
     operation_config_id: Mapped[int] = mapped_column(ForeignKey("operation_config.id"), default=None)
+    project_id: Mapped[int] = mapped_column(ForeignKey("project.id"))
     platform: Mapped[str] = mapped_column(default=None, nullable=True)
     cmd_line: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     status: Mapped[StatusEnum] = mapped_column(default=StatusEnum.PENDING)
 
     operation_config: Mapped["OperationConfig"] = relationship(back_populates="operation")
+    project: Mapped["Project"] = relationship()
     job: Mapped[list["Job"]] = relationship(back_populates="operation")
     bundle: Mapped[list["Bundle"]] = relationship(secondary=operation_bundle, back_populates="operation")
     readset: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operation")
@@ -411,7 +413,7 @@ class Metric(BaseTable):
 
     job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
-    value: Mapped[str] = mapped_column(default=None, nullable=True)
+    value: Mapped[str] = mapped_column()
     flag: Mapped[FlagEnum] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
     aggregate: Mapped[AggregateEnum] = mapped_column(default=None, nullable=True)
@@ -466,8 +468,8 @@ class File(BaseTable):
     """
     __tablename__ = "file"
 
-    bundle_id: Mapped[int] = mapped_column(ForeignKey("bundle.id"), default=None)
-    content: Mapped[str] = mapped_column(default=None, nullable=True)
+    content: Mapped[str] = mapped_column()
+    bundle_id: Mapped[int] = mapped_column(ForeignKey("bundle.id"), default=None, nullable=True)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
 
