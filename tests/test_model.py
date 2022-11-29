@@ -57,4 +57,3 @@ def test_add_model(not_app_db):
     assert m1.name == metric_name
     assert r1.name == re1_name
     assert r1.metric[0].value == me1_value
-
