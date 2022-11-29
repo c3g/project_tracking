@@ -1,7 +1,7 @@
 import pytest
 import sqlalchemy
 
-from c3g_project_tracking.database import get_session
+from project_tracking.database import get_session
 
 
 def test_get_session(app):

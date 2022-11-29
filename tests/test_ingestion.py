@@ -1,5 +1,5 @@
 from flask import g
-from c3g_project_tracking import model, database
+from project_tracking import model, database
 def test_create(client, app, ingestion_json):
 
 
@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
     data = json.dumps(data)
 
-    import c3g_project_tracking
-    app = c3g_project_tracking.create_app()
+    import project_tracking
+    app = project_tracking.create_app()
 
     test_create(app.test_client(),app, data)

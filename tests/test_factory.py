@@ -1,4 +1,4 @@
-from c3g_project_tracking import create_app
+from project_tracking import create_app
 
 
 def test_config():

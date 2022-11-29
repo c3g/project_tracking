@@ -5,8 +5,8 @@ import tempfile
 import logging
 
 import pytest
-from c3g_project_tracking import create_app, api
-from c3g_project_tracking.database import get_session, init_db, close_db
+from project_tracking import create_app, api
+from project_tracking.database import get_session, init_db, close_db
 
 
 

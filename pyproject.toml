@@ -11,10 +11,10 @@ testpaths = [
 
 [tool.coverage]
 run.branch = true
-run.source = ["c3g_project_tracking"]
+run.source = ["project_tracking"]
 
 [project]
-name = "c3g_project_tracking"
+name = "project_tracking"
 version = "0.0.1"
 authors = [
   { name="P-O Quirion", email="po.quirion@mcgill.ca" },

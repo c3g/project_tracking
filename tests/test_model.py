@@ -1,6 +1,6 @@
 import datetime
 from sqlalchemy.orm import relationship, sessionmaker
-from c3g_project_tracking import database, model
+from project_tracking import database, model
 
 
 def test_add_model(not_app_db):
