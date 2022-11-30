@@ -34,12 +34,14 @@ def not_app_db():
     db = get_session(no_app=True, db_uri="sqlite:///{}".format(db_path))
     init_db()
 
+    print(db_path)
+
     try:
         yield db
     finally:
         close_db(no_app=True)
         os.close(db_fd)
-        os.unlink(db_path)
+        # os.unlink(db_path)
 
 
 @pytest.fixture

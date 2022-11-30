@@ -170,9 +170,9 @@ class BaseTable(Base):
                         )
         for column in selected_col:
             # check in class if column is instrumented
-                key = column
-                val = getattr(self, column)
-                dico[key] = val
+            key = column
+            val = getattr(self, column)
+            dico[key] = val
         return dico
 
     @property
@@ -207,6 +207,7 @@ class Project(BaseTable):
         id integer [PK]
         fms_id integer
         name text (unique)
+        alias json
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -217,6 +218,7 @@ class Project(BaseTable):
 
     fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
+    alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
 
     patient: Mapped[list["Patient"]] = relationship(back_populates="project")
 
@@ -228,7 +230,7 @@ class Patient(BaseTable):
         project_id integer [ref: > project.id]
         fms_id integer
         name text (unique)
-        alias blob
+        alias json
         cohort text
         institution text
         deprecated boolean
@@ -242,7 +244,7 @@ class Patient(BaseTable):
     project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
     fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[str] = mapped_column(default=None, nullable=True)
+    alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
     cohort: Mapped[str] = mapped_column(default=None, nullable=True)
     institution: Mapped[str] = mapped_column(default=None, nullable=True)
 
@@ -256,9 +258,9 @@ class Sample(BaseTable):
         id integer [PK]
         patient_id integer [ref: > patient.id]
         fms_id integer
-        name text
+        name text (unique)
+        alias json
         tumour boolean
-        alias blob
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -270,8 +272,8 @@ class Sample(BaseTable):
     patient_id: Mapped[int] = mapped_column(ForeignKey("patient.id"), default=None)
     fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
+    alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
     tumour: Mapped[bool] = mapped_column(default=False)
-    alias: Mapped[str] = mapped_column(default=None, nullable=True)
 
     patient: Mapped["Patient"] = relationship(back_populates="sample")
     readset: Mapped[list["Readset"]] = relationship(back_populates="sample")
@@ -329,13 +331,13 @@ class Readset(BaseTable):
         sample_id integer [ref: > sample.id]
         experiment_id  text [ref: > experiment.id]
         run_id integer [ref: > run.id]
-        name text
+        name text (unique)
+        alias json
         lane lane
         adapter1 text
         adapter2 text
         sequencing_type sequencing_type
         quality_offset text
-        alias blob
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -348,12 +350,12 @@ class Readset(BaseTable):
     experiment_id: Mapped[int] = mapped_column(ForeignKey("experiment.id"), default=None)
     run_id: Mapped[int] = mapped_column(ForeignKey("run.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
+    alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
     lane: Mapped[LaneEnum]  =  mapped_column(default=None, nullable=True)
     adapter1: Mapped[str] = mapped_column(default=None, nullable=True)
     adapter2: Mapped[str] = mapped_column(default=None, nullable=True)
     sequencing_type: Mapped[SequencingTypeEnum] = mapped_column(default=None, nullable=True)
     quality_offset: Mapped[str] = mapped_column(default=None, nullable=True)
-    alias: Mapped[str] = mapped_column(default=None, nullable=True)
 
     sample: Mapped["Sample"] = relationship(back_populates="readset")
     experiment: Mapped["Experiment"] = relationship(back_populates="readset")
