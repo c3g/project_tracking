@@ -10,6 +10,7 @@ git clone  git@github.com:c3g/project_tracking.git
 cd project_tracking
 python -m venv venv
 source ./venv/bin/activate
+pip install  --upgrade pip
 pip install -e  .
 # Seting the db url is optiopnal, the default will be in the app installation folder
 export C3G_SQLALCHEMY_DATABASE_URI="sqlite:////tmp/my_test_db.sql" 

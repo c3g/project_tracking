@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+import json
 import enum
-from dataclasses import dataclass, field
-from typing import List
+import logging
 from datetime import datetime
+from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import (
     Column,
     ForeignKey,
     Integer,
-    Boolean,
-    String,
     JSON,
-    DateTime,
     Enum,
     Table
     )
@@ -20,7 +20,9 @@ from sqlalchemy.orm import (
     relationship,
     DeclarativeBase,
     Mapped,
-    mapped_column
+    mapped_column,
+    collections,
+    attributes
     )
 
 
@@ -144,8 +146,60 @@ class BaseTable(Base):
     modification: Mapped[datetime] = mapped_column(default=None, nullable=True)
     extra_metadata: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
 
+
     def __repr__(self):
-        return "id {} ".format(self.id)
+        """
+        returns:
+         {tablename: {mapped_columns}} only and not the relationships Attributes
+        """
+        dico = {}
+        dico[self.__tablename__] = {c.key: getattr(self, c.key) for c in self.__table__.columns}
+        return dico.__repr__()
+
+    @property
+    def dico(self):
+        """
+        Dictionary of table columns *and* of the relation columns
+        """
+        dico = {}
+        # select the column and the relationship
+        selected_col = (x for x in dir(self.__class__) # loops over all attribute of the class
+                        if not x.startswith('_') and
+                        isinstance(getattr(self.__class__, x), attributes.InstrumentedAttribute) and
+                        getattr(self, x, False)   # To drop ref to join table that do exist in the class
+                        )
+        for column in selected_col:
+            # check in class if column is instrumented
+                key = column
+                val = getattr(self, column)
+                dico[key] = val
+        return dico
+
+    @property
+    def dumps(self):
+        """
+        flat serializer
+        Returning only ids of the referenced objects
+
+        """
+        dumps = {}
+        for key, val in self.dico.items():
+            if isinstance(val, datetime):
+                val = val.isoformat()
+            elif isinstance(val, Decimal):
+                val = float(val)
+            elif isinstance(val, set):
+                val = sorted(val)
+            elif isinstance(val, (list, set, collections.List, collections.Set)):
+                val = sorted([e.id for e in val])
+            elif isinstance(val, DeclarativeBase):
+                val = val.id
+            elif isinstance(val, enum.Enum):
+                val = val.value
+            dumps[key] = val
+        return json.dumps(dumps)
+
+
 
 class Project(BaseTable):
     """
@@ -438,7 +492,7 @@ class Bundle(BaseTable):
     __tablename__ = "bundle"
 
     job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None, nullable=True)
-    uri: Mapped[str]
+    uri: Mapped[str] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
 
     job: Mapped["Job"] = relationship(back_populates="bundle")
@@ -448,8 +502,7 @@ class Bundle(BaseTable):
 
     reference: Mapped[list["Bundle"]] = relationship("Bundle", secondary=bundle_bundle,
                                                      primaryjoin="Bundle.id ==bundle_bundle.c.bundle_id",
-                                                     secondaryjoin="Bundle.id ==bundle_bundle.c.reference_id",
-                                                     backref="bundle")
+                                                     secondaryjoin="Bundle.id ==bundle_bundle.c.reference_id")
 
 
 class File(BaseTable):
