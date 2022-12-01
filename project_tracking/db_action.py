@@ -58,7 +58,6 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         session = database.get_session()
 
     project = session.execute(select(Project).where(Project.name == project_name)).first()[0]
-    # print(project[0])
 
     bundle_config = Bundle(uri="abacus://lb/robot/research/processing/novaseq/2022/220511_A01433_0166_BHM3YVDSX2_MoHRun74-novaseq")
     file_config = File(content="filename", type="event", bundle=bundle_config)
@@ -67,7 +66,6 @@ def ingest_run_processing(project_name, ingest_data, session=None):
     job = Job(name="run_processing_parsing", status=StatusEnum("DONE"), start=datetime.now(), stop=datetime.now(), operation=operation)
     session.add(file_config)
     for line in ingest_data:
-        # print(line)
         sample_name = line["Sample Name"]
         result = re.search(r"^((MoHQ-(JG|CM|GC|MU|MR|XX)-\w+)-\w+)-\w+-\w+(D|R)(T|N)", sample_name)
         patient_name = result.group(1)
@@ -121,3 +119,37 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         session.rollback()
 
     return operation
+
+def digest_readset(run_name, session=None):
+    """Creating readset file for GenPipes"""
+    if not session:
+        session = database.get_session()
+
+    readset_header = 'Sample\tReadset\tLibraryType\tRunType\tRun\tLane\tAdapter1\tAdapter2\tQualityOffset\tBED\tFASTQ1\tFASTQ2\tBAM'
+
+    readsets = session.scalars(select(Readset).where(Run.name == run_name).join(Run)).all()
+
+    for readset in readsets:
+        readset_name = readset.name
+        sample_name = session.scalars(select(Sample).where(Readset.name == readset_name).join(Readset)).first()
+        library_type = readset_name.split("_")
+        run_type = readset.sequencing_type.value
+        run = run_name
+        lane = readset.lane.value
+        adapter1 = readset.adapter1
+        adapter2 = readset.adapter2
+        quality_offset = readset.quality_offset
+        bed = ""
+        files = session.scalars(select(File).select_from(Bundle).join(File).select_from(Operation).join(Operation)).all()
+            # .select_from(Readset).where(Readset.name == readset_name)).all()
+        for file in files:
+            print(file)
+            if file.type in ["fastq", "fq", "fq.gz", "fastq.gz"]:
+                if 1 == 1: # If R1
+                    fastq1 = file.content
+                elif 2 ==2: # If R2
+                    fastq2 = file.content
+            if file.type == "bam":
+                bam = file.content
+        exit()
+        print(lane)

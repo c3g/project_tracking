@@ -53,8 +53,12 @@ def test_create(not_app_db, ingestion_json):
         assert not_app_db.scalars(select(model.Sample).where(model.Sample.name == sample_name)).first().name == sample_name
         readset_name = f"{sample_name}_{line['Library ID']}_{line['Lane']}"
         assert not_app_db.scalars(select(model.Readset).where(model.Readset.name == readset_name)).first().name == readset_name
+        run_name = line["Processing Folder Name"].split("_")[-1].split("-")[0]
         # assert not_app_db.scalars(select(model.Bundle).where(model.Bundle.name == readset_name)).first().name == readset_name
         # assert 1 == 2
+
+    db_action.digest_readset(run_name, not_app_db)
+    assert 1 == 2
     # with not_app_db as db:
         # Query
         # db.add(project)
