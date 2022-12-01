@@ -4,9 +4,15 @@ import json
 import os
 import logging
 from sqlalchemy import select, exc
+from datetime import datetime
 
 from . import database
 from .model import (
+    LaneEnum,
+    SequencingTypeEnum,
+    StatusEnum,
+    FlagEnum,
+    AggregateEnum,
     Project,
     Patient,
     Sample,
@@ -42,8 +48,8 @@ def ingest_run_processing(project_name, ingest_data, session=None):
     bundle_config = Bundle(uri="abacus://lb/robot/research/processing/novaseq/2022/220511_A01433_0166_BHM3YVDSX2_MoHRun74-novaseq")
     file_config = File(content="filename", type="event", bundle=bundle_config)
     operation_config = OperationConfig(name="ingestion", version="0.1", bundle=bundle_config)
-    operation = Operation(platform="abacus", name="ingestion", operation_config=operation_config, project=project)
-    job = Job(name="run_processing_parsing", operation=operation)
+    operation = Operation(platform="abacus", name="ingestion", status=StatusEnum("DONE"), operation_config=operation_config, project=project)
+    job = Job(name="run_processing_parsing", status=StatusEnum("DONE"), start=datetime.now(), stop=datetime.now(), operation=operation)
     session.add(file_config)
     for line in ingest_data:
         # print(line)
@@ -57,17 +63,23 @@ def ingest_run_processing(project_name, ingest_data, session=None):
             tumour = True
         patient = Patient(name=patient_name, cohort=cohort, institution=institution, project=project)
         sample = Sample(name=sample_name, tumour=tumour, patient=patient)
-        experiment = Experiment(type=line["Library Type"])
+        if session.execute(select(Experiment).where(Experiment.type == line["Library Type"])).first():
+            experiment = session.execute(select(Experiment).where(Experiment.type == line["Library Type"])).first()[0]
+        else:
+            experiment = Experiment(type=line["Library Type"])
         run_name = line["Processing Folder Name"].split("_")[-1].split("-")[0]
         instrument = line["Processing Folder Name"].split("_")[-1].split("-")[-1]
-        # print(run_name, instrument)
         run = Run(name=run_name, instrument=instrument)
+        if session.execute(select(Experiment).where(Experiment.type == line["Library Type"])).first():
+            run = session.execute(select(Run).where(Run.name == run_name).where(Run.instrument == instrument)).first()[0]
+        else:
+            run = Run(name=run_name, instrument=instrument)
         readset = Readset(
             name=f"{sample_name}_{line['Library ID']}_{line['Lane']}",
-            lane=line['Lane'],
+            lane=LaneEnum(line['Lane']),
             adapter1=line["i7 Adapter Sequence"],
             adapter2=line["i5 Adapter Sequence"],
-            sequencing_type=line["Run Type"],
+            sequencing_type=SequencingTypeEnum(line["Run Type"]),
             quality_offset="33",
             sample=sample,
             experiment=experiment,
@@ -78,13 +90,14 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         content = os.path.basename(line["Path"])
         file_type = os.path.splitext(line["Path"])[-1]
         file = File(content=content, type=file_type, bundle=bundle)
-        cluster_metric = Metric(name="Clusters", value=line["Clusters"], job=job, readset=[readset])
-        bases_metric = Metric(name="Bases", value=line["Bases"], job=job, readset=[readset])
-        avgqual_metric = Metric(name="Avg. Qual", value=line["Avg. Qual"], job=job, readset=[readset])
-        duprate_metric = Metric(name="Dup. Rate (%)", value=line["Dup. Rate (%)"], job=job, readset=[readset])
+        Metric(name="Clusters", value=line["Clusters"], job=job, readset=[readset])
+        Metric(name="Bases", value=line["Bases"], job=job, readset=[readset])
+        Metric(name="Avg. Qual", value=line["Avg. Qual"], job=job, readset=[readset])
+        Metric(name="Dup. Rate (%)", value=line["Dup. Rate (%)"], job=job, readset=[readset])
 
         session.add(readset)
         session.add(file)
+        session.flush()
 
     try:
         session.commit()
