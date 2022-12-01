@@ -34,6 +34,21 @@ def projects():
     session = database.get_session()
     return [i[0] for i in session.execute((select(Project))).fetchall()]
 
+def create_project(project_name, fms_id=None, session=None):
+    """Creating new project"""
+    if not session:
+        session = database.get_session()
+
+    project = Project(name=project_name, fms_id=fms_id)
+
+    session.add(project)
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
 def ingest_run_processing(project_name, ingest_data, session=None):
     """Ingesting run for MoH"""
     if not isinstance(ingest_data, dict):
