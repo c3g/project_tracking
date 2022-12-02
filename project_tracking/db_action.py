@@ -13,6 +13,7 @@ from .model import (
     StatusEnum,
     FlagEnum,
     AggregateEnum,
+    readset_file,
     Project,
     Patient,
     Sample,
@@ -87,6 +88,10 @@ def ingest_run_processing(project_name, ingest_data, session=None):
             run = session.execute(select(Run).where(Run.name == run_name).where(Run.instrument == instrument)).first()[0]
         else:
             run = Run(name=run_name, instrument=instrument)
+        bundle = Bundle(uri="abacus://lb/robot/research/processing/novaseq/2022/220511_A01433_0166_BHM3YVDSX2_MoHRun74-novaseq", job=job)
+        content = os.path.basename(line["Path"])
+        file_type = os.path.splitext(line["Path"])[-1][1:]
+        file = File(content=content, type=file_type, bundle=bundle)
         readset = Readset(
             name=f"{sample_name}_{line['Library ID']}_{line['Lane']}",
             lane=LaneEnum(line['Lane']),
@@ -98,11 +103,8 @@ def ingest_run_processing(project_name, ingest_data, session=None):
             experiment=experiment,
             run=run,
             operation=[operation],
-            job=[job])
-        bundle = Bundle(uri="abacus://lb/robot/research/processing/novaseq/2022/220511_A01433_0166_BHM3YVDSX2_MoHRun74-novaseq", job=job)
-        content = os.path.basename(line["Path"])
-        file_type = os.path.splitext(line["Path"])[-1]
-        file = File(content=content, type=file_type, bundle=bundle)
+            job=[job],
+            file=[file])
         Metric(name="Clusters", value=line["Clusters"], job=job, readset=[readset])
         Metric(name="Bases", value=line["Bases"], job=job, readset=[readset])
         Metric(name="Avg. Qual", value=line["Avg. Qual"], job=job, readset=[readset])
@@ -131,7 +133,8 @@ def digest_readset(run_name, session=None):
 
     for readset in readsets:
         readset_name = readset.name
-        sample_name = session.scalars(select(Sample).where(Readset.name == readset_name).join(Readset)).first()
+        sample_name = readset.sample.name
+        # sample_name = session.scalars(select(Sample.name).where(Readset.name == readset_name).join(Readset)).first()
         library_type = readset_name.split("_")
         run_type = readset.sequencing_type.value
         run = run_name
@@ -140,8 +143,12 @@ def digest_readset(run_name, session=None):
         adapter2 = readset.adapter2
         quality_offset = readset.quality_offset
         bed = ""
-        files = session.scalars(select(File).select_from(Bundle).join(File).select_from(Operation).join(Operation)).all()
+        # print(readset_name, sample_name)
+        # print(select(File).where(Readset.name == readset_name))
+        # files = session.scalars(select(File).where(Readset.name == readset_name)).all()
+        # print(files)
             # .select_from(Readset).where(Readset.name == readset_name)).all()
+        files = readset.file
         for file in files:
             print(file)
             if file.type in ["fastq", "fq", "fq.gz", "fastq.gz"]:
@@ -151,5 +158,5 @@ def digest_readset(run_name, session=None):
                     fastq2 = file.content
             if file.type == "bam":
                 bam = file.content
-        exit()
+        # exit()
         print(lane)

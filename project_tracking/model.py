@@ -87,6 +87,14 @@ class Base(DeclarativeBase):
     }
 
 
+readset_file = Table(
+    "readset_file",
+    Base.metadata,
+    Column("readset_id", ForeignKey("readset.id"), primary_key=True),
+    Column("file_id", ForeignKey("file.id"), primary_key=True),
+)
+
+
 readset_metric = Table(
     "readset_metric",
     Base.metadata,
@@ -125,6 +133,7 @@ bundle_bundle = Table(
     Column("bundle_id", Integer, ForeignKey("bundle.id"), primary_key=True),
     Column("reference_id", Integer, ForeignKey("bundle.id"), primary_key=True),
 )
+
 
 class BaseTable(Base):
     """
@@ -360,6 +369,7 @@ class Readset(BaseTable):
     sample: Mapped["Sample"] = relationship(back_populates="readset")
     experiment: Mapped["Experiment"] = relationship(back_populates="readset")
     run: Mapped["Run"] = relationship(back_populates="readset")
+    file: Mapped[list["File"]] = relationship(secondary=readset_file, back_populates="readset")
     operation: Mapped[list["Operation"]] = relationship(secondary=readset_operation, back_populates="readset")
     job: Mapped[list["Job"]] = relationship(secondary=readset_job, back_populates="readset")
     metric: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readset")
@@ -528,4 +538,5 @@ class File(BaseTable):
     type: Mapped[str] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
 
+    readset: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="file")
     bundle: Mapped["Bundle"] = relationship(back_populates="file")
