@@ -3,9 +3,13 @@ import re
 import json
 import os
 import logging
-from sqlalchemy import select, exc
-from datetime import datetime
+import csv
 
+from datetime import datetime
+from sqlalchemy import select, exc
+from pathlib import Path
+
+from . import vocabulary as vb
 from . import database
 from .model import (
     LaneEnum,
@@ -58,60 +62,118 @@ def ingest_run_processing(project_name, ingest_data, session=None):
     if not session:
         session = database.get_session()
 
-    project = session.execute(select(Project).where(Project.name == project_name)).first()[0]
+    project = session.scalars(select(Project).where(Project.name == project_name)).first()
 
-    bundle_config = Bundle(uri="abacus://lb/robot/research/processing/novaseq/2022/220511_A01433_0166_BHM3YVDSX2_MoHRun74-novaseq")
-    file_config = File(content="filename", type="event", bundle=bundle_config)
-    operation_config = OperationConfig(name="ingestion", version="0.1", bundle=bundle_config)
-    operation = Operation(platform="abacus", name="ingestion", status=StatusEnum("DONE"), operation_config=operation_config, project=project)
-    job = Job(name="run_processing_parsing", status=StatusEnum("DONE"), start=datetime.now(), stop=datetime.now(), operation=operation)
+    bundle_config = Bundle(uri=ingest_data[vb.BUNDLE_URI])
+    file_config = File(
+        content=ingest_data[vb.FILE_CONFIG_CONTENT],
+        type=ingest_data[vb.FILE_CONFIG_TYPE],
+        bundle=bundle_config
+        )
+    operation_config = OperationConfig(
+        name="ingestion",
+        version="0.1",
+        bundle=bundle_config
+        )
+    operation = Operation(
+        platform="abacus",
+        name="ingestion",
+        status=StatusEnum("DONE"),
+        operation_config=operation_config,
+        project=project
+        )
+    job = Job(
+        name="run_processing_parsing",
+        status=StatusEnum("DONE"),
+        start=datetime.now(),
+        stop=datetime.now(),
+        operation=operation
+        )
     session.add(file_config)
-    for line in ingest_data:
-        sample_name = line["Sample Name"]
-        result = re.search(r"^((MoHQ-(JG|CM|GC|MU|MR|XX)-\w+)-\w+)-\w+-\w+(D|R)(T|N)", sample_name)
-        patient_name = result.group(1)
-        cohort = result.group(2)
-        institution = result.group(3)
-        tumour = False
-        if sample_name.endswith("DT"):
-            tumour = True
-        patient = Patient(name=patient_name, cohort=cohort, institution=institution, project=project)
-        sample = Sample(name=sample_name, tumour=tumour, patient=patient)
-        if session.execute(select(Experiment).where(Experiment.type == line["Library Type"])).first():
-            experiment = session.execute(select(Experiment).where(Experiment.type == line["Library Type"])).first()[0]
-        else:
-            experiment = Experiment(type=line["Library Type"])
-        run_name = line["Processing Folder Name"].split("_")[-1].split("-")[0]
-        instrument = line["Processing Folder Name"].split("_")[-1].split("-")[-1]
-        run = Run(name=run_name, instrument=instrument)
-        if session.execute(select(Experiment).where(Experiment.type == line["Library Type"])).first():
-            run = session.execute(select(Run).where(Run.name == run_name).where(Run.instrument == instrument)).first()[0]
-        else:
-            run = Run(name=run_name, instrument=instrument)
-        bundle = Bundle(uri="abacus://lb/robot/research/processing/novaseq/2022/220511_A01433_0166_BHM3YVDSX2_MoHRun74-novaseq", job=job)
-        content = os.path.basename(line["Path"])
-        file_type = os.path.splitext(line["Path"])[-1][1:]
-        file = File(content=content, type=file_type, bundle=bundle)
-        readset = Readset(
-            name=f"{sample_name}_{line['Library ID']}_{line['Lane']}",
-            lane=LaneEnum(line['Lane']),
-            adapter1=line["i7 Adapter Sequence"],
-            adapter2=line["i5 Adapter Sequence"],
-            sequencing_type=SequencingTypeEnum(line["Run Type"]),
-            quality_offset="33",
-            sample=sample,
-            experiment=experiment,
-            run=run,
-            operation=[operation],
-            job=[job],
-            file=[file])
-        Metric(name="Clusters", value=line["Clusters"], job=job, readset=[readset])
-        Metric(name="Bases", value=line["Bases"], job=job, readset=[readset])
-        Metric(name="Avg. Qual", value=line["Avg. Qual"], job=job, readset=[readset])
-        Metric(name="Dup. Rate (%)", value=line["Dup. Rate (%)"], job=job, readset=[readset])
+    # Defining Experiment
+    experiment = session.scalars(
+        select(Experiment)
+        .where(Experiment.sequencing_technology == ingest_data[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY])
+        .where(Experiment.type == ingest_data[vb.EXPERIMENT_TYPE])
+        .where(Experiment.library_kit == ingest_data[vb.EXPERIMENT_LIBRARY_KIT])
+        .where(Experiment.kit_expiration_date == ingest_data[vb.EXPERIMENT_KIT_EXPIRATION_DATE])
+        ).first()
+    if not experiment:
+        experiment = Experiment(
+            sequencing_technology=ingest_data[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY],
+            type=ingest_data[vb.EXPERIMENT_TYPE],
+            library_kit=ingest_data[vb.EXPERIMENT_LIBRARY_KIT],
+            kit_expiration_date=datetime.strptime(ingest_data[vb.EXPERIMENT_KIT_EXPIRATION_DATE], "%d/%m/%Y")
+            )
+    # Defining Run
+    run = session.scalars(
+        select(Run)
+        .where(Run.fms_id == ingest_data[vb.RUN_FMS_ID])
+        .where(Run.name == ingest_data[vb.RUN_NAME])
+        .where(Run.instrument == ingest_data[vb.RUN_INSTRUMENT])
+        .where(Run.date == ingest_data[vb.RUN_DATE])
+        ).first()
+    if not run:
+        run = Run(
+            fms_id=ingest_data[vb.RUN_FMS_ID],
+            name=ingest_data[vb.RUN_NAME],
+            instrument=ingest_data[vb.RUN_INSTRUMENT],
+            date=datetime.strptime(ingest_data[vb.RUN_DATE], "%d/%m/%Y %H:%M:%S")
+            )
+    # Defining Bundle
+    bundle = Bundle(uri=ingest_data[vb.BUNDLE_URI], job=job)
+    for patient_json in ingest_data[vb.PATIENT]:
+        patient = Patient(name=patient_json[vb.PATIENT_NAME], cohort=patient_json[vb.PATIENT_COHORT], institution=patient_json[vb.PATIENT_INSTITUTION], project=project)
+        for sample_json in patient_json[vb.SAMPLE]:
+            sample = Sample(
+                name=sample_json[vb.SAMPLE_NAME],
+                tumour=sample_json[vb.SAMPLE_TUMOUR],
+                patient=patient
+                )
+            for readset_json in sample_json[vb.READSET]:
+                readset = Readset(
+                    name=readset_json[vb.READSET_NAME],
+                    lane=LaneEnum(readset_json[vb.READSET_LANE]),
+                    adapter1=readset_json[vb.READSET_ADAPTER1],
+                    adapter2=readset_json[vb.READSET_ADAPTER2],
+                    sequencing_type=SequencingTypeEnum(readset_json[vb.READSET_SEQUENCING_TYPE]),
+                    quality_offset=readset_json[vb.READSET_QUALITY_OFFSET],
+                    sample=sample,
+                    experiment=experiment,
+                    run=run,
+                    operation=[operation],
+                    job=[job]
+                    )
+                for file_json in readset_json[vb.FILE]:
+                    suffixes = Path(file_json[vb.FILE_CONTENT]).suffixes
+                    file_type = os.path.splitext(file_json[vb.FILE_CONTENT])[-1][1:]
+                    if ".gz" in suffixes:
+                        file_type = "".join(suffixes)[1:]
+                    try:
+                        File(
+                            content=file_json[vb.FILE_CONTENT],
+                            type=file_type,
+                            extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
+                            bundle=bundle,
+                            readset=[readset]
+                            )
+                    except KeyError:
+                        File(
+                            content=file_json[vb.FILE_CONTENT],
+                            type=file_type,
+                            bundle=bundle,
+                            readset=[readset]
+                            )
+                for metric_json in readset_json[vb.METRIC]:
+                    Metric(
+                        name=metric_json[vb.METRIC_NAME],
+                        value=metric_json[vb.METRIC_VALUE],
+                        job=job,
+                        readset=[readset]
+                        )
 
         session.add(readset)
-        session.add(file)
+        # session.add(file)
         session.flush()
 
     try:
@@ -122,41 +184,60 @@ def ingest_run_processing(project_name, ingest_data, session=None):
 
     return operation
 
-def digest_readset(run_name, session=None):
+def digest_readset(run_name, output_file, session=None):
     """Creating readset file for GenPipes"""
     if not session:
         session = database.get_session()
 
-    readset_header = 'Sample\tReadset\tLibraryType\tRunType\tRun\tLane\tAdapter1\tAdapter2\tQualityOffset\tBED\tFASTQ1\tFASTQ2\tBAM'
+    readset_header = [
+        "Sample",
+        "Readset",
+        "LibraryType",
+        "RunType",
+        "Run",
+        "Lane",
+        "Adapter1",
+        "Adapter2",
+        "QualityOffset",
+        "BED",
+        "FASTQ1",
+        "FASTQ2",
+        "BAM"
+        ]
 
     readsets = session.scalars(select(Readset).where(Run.name == run_name).join(Run)).all()
 
-    for readset in readsets:
-        readset_name = readset.name
-        sample_name = readset.sample.name
-        # sample_name = session.scalars(select(Sample.name).where(Readset.name == readset_name).join(Readset)).first()
-        library_type = readset_name.split("_")
-        run_type = readset.sequencing_type.value
-        run = run_name
-        lane = readset.lane.value
-        adapter1 = readset.adapter1
-        adapter2 = readset.adapter2
-        quality_offset = readset.quality_offset
-        bed = ""
-        # print(readset_name, sample_name)
-        # print(select(File).where(Readset.name == readset_name))
-        # files = session.scalars(select(File).where(Readset.name == readset_name)).all()
-        # print(files)
-            # .select_from(Readset).where(Readset.name == readset_name)).all()
-        files = readset.file
-        for file in files:
-            print(file)
-            if file.type in ["fastq", "fq", "fq.gz", "fastq.gz"]:
-                if 1 == 1: # If R1
-                    fastq1 = file.content
-                elif 2 ==2: # If R2
-                    fastq2 = file.content
-            if file.type == "bam":
-                bam = file.content
-        # exit()
-        print(lane)
+    print(os.path.dirname(__file__))
+    with open(output_file, "w") as out_readset_file:
+        tsv_writer = csv.DictWriter(out_readset_file, delimiter='\t', fieldnames=readset_header)
+        tsv_writer.writeheader()
+        for readset in readsets:
+            files = readset.file
+            for file in files:
+                if file.type in ["fastq", "fq", "fq.gz", "fastq.gz"]:
+                    bam = ""
+                    if file.extra_metadata == "R1":
+                        fastq1 = file.content
+                    elif file.extra_metadata == "R2":
+                        fastq2 = file.content
+                elif file.type == "bam":
+                    bam = file.content
+                    fastq1 = ""
+                    fastq2 = ""
+            readset_line = {
+                "Sample": readset.sample.name,
+                "Readset": readset.name,
+                "LibraryType": readset.experiment.library_kit,
+                "RunType": readset.sequencing_type.value,
+                "Run": run_name,
+                "Lane": readset.lane.value,
+                "Adapter1": readset.adapter1,
+                "Adapter2": readset.adapter2,
+                "QualityOffset": readset.quality_offset,
+                "BED": "",
+                "FASTQ1": fastq1,
+                "FASTQ2": fastq2,
+                "BAM": bam
+                }
+            print(readset_line)
+            tsv_writer.writerow(readset_line)

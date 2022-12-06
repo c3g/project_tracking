@@ -67,7 +67,7 @@ def runner(app):
 
 
 @pytest.fixture()
-def ingestion_json():
+def ingestion_csv():
     data = []
     with open(os.path.join(os.path.dirname(__file__), 'data/event.csv'), 'r') as fp:
         csvReader = csv.DictReader(fp)
@@ -78,3 +78,9 @@ def ingestion_json():
             data.append(row)
 
     return json.dumps(data)
+
+@pytest.fixture()
+def ingestion_json():
+    with open(os.path.join(os.path.dirname(__file__), 'data/event.json'), 'r') as file:
+        data = json.load(file)
+    return data

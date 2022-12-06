@@ -4,12 +4,14 @@ PROJECT_FMS_ID = "project_fms_id"
 PROJECT_NAME = "project_name"
 
 # patient table
+PATIENT = "patient"
 PATIENT_FMS_ID = "patient_fms_id"
 PATIENT_NAME = "patient_name"
 PATIENT_COHORT = "patient_cohort"
 PATIENT_INSTITUTION = "patient_institution"
 
 # sample table
+SAMPLE = "sample"
 SAMPLE_FMS_ID = "sample_fms_id"
 SAMPLE_NAME = "sample_name"
 SAMPLE_TUMOUR = "sample_tumour"
@@ -27,6 +29,7 @@ RUN_INSTRUMENT = "run_instrument"
 RUN_DATE = "run_date"
 
 # readset table
+READSET = "readset"
 READSET_NAME = "readset_name"
 READSET_LANE = "readset_lane"
 READSET_ADAPTER1 = "readset_adapter1"
@@ -52,10 +55,16 @@ BUNDLE_URI = "bundle_uri"
 BUNDLE_DELIVERABLE = "bundle_deliverable"
 
 # file table
+FILE = "file"
 FILE_CONTENT = "file_content"
 # FILE_TYPE = "file_type" # parsed from content while ingesting
 # Not sure if coming from JSON?
 FILE_DELIVERABLE = "file_deliverable"
+
+# file table: event file
+FILE_CONFIG_CONTENT = "file_config_content"
+FILE_CONFIG_TYPE = "file_config_type"
+FILE_EXTRA_METADATA = "file_extra_metadata"
 
 # job table
 # Following is not coming from JSON
@@ -66,11 +75,14 @@ FILE_DELIVERABLE = "file_deliverable"
 # JOB_TYPE = "job_type" # What do we want for this one?
 
 # metric table
+METRIC = "metric"
+METRIC_NAME = "metric_name"
+METRIC_VALUE = "metric_value"
 # Following is not coming from JSON
 # METRIC_FLAG = "metric_flag"
 # Defining all metrics in the table?
-METRIC_RAW_READS_COUNT = "metric_raw_reads_count"
-METRIC_RAW_DUPLICATION_RATE = "metric_raw_duplication_rate"
-METRIC_RAW_MEDIAN_INSERT_SIZE = "metric_raw_median_insert_size"
-METRIC_RAW_MEAN_INSERT_SIZE = "metric_raw_mean_insert_size"
-METRIC_RAW_MEAN_COVERAGE = "metric_raw_mean_coverage"
+# METRIC_RAW_READS_COUNT = "metric_raw_reads_count"
+# METRIC_RAW_DUPLICATION_RATE = "metric_raw_duplication_rate"
+# METRIC_RAW_MEDIAN_INSERT_SIZE = "metric_raw_median_insert_size"
+# METRIC_RAW_MEAN_INSERT_SIZE = "metric_raw_mean_insert_size"
+# METRIC_RAW_MEAN_COVERAGE = "metric_raw_mean_coverage"

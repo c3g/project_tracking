@@ -1,11 +1,13 @@
 import json
 import re
 import pprint
+import os
 
 from sqlalchemy import select
 
 from flask import g
 from project_tracking import model, database, db_action
+from project_tracking import vocabulary as vb
 
 print = pprint.pprint
 
@@ -31,7 +33,7 @@ def test_create_api(client, app, ingestion_json):
 
 
 def test_create(not_app_db, ingestion_json):
-    project_name = "MoH"
+    project_name = ingestion_json[vb.PROJECT_NAME]
     # project = model.Project(name=project_name)
     # with not_app_db as db:
     #     db.add(project)
@@ -44,20 +46,16 @@ def test_create(not_app_db, ingestion_json):
     assert isinstance(ret, model.Operation)
     assert not_app_db.scalars(select(model.Project)).first().name == project_name
 
-    ingest_data = json.loads(ingestion_json)
-    for line in ingest_data:
-        sample_name = line["Sample Name"]
-        result = re.search(r"^((MoHQ-(JG|CM|GC|MU|MR|XX)-\w+)-\w+)-\w+-\w+(D|R)(T|N)", sample_name)
-        patient_name = result.group(1)
-        assert not_app_db.scalars(select(model.Patient).where(model.Patient.name == patient_name)).first().name == patient_name
-        assert not_app_db.scalars(select(model.Sample).where(model.Sample.name == sample_name)).first().name == sample_name
-        readset_name = f"{sample_name}_{line['Library ID']}_{line['Lane']}"
-        assert not_app_db.scalars(select(model.Readset).where(model.Readset.name == readset_name)).first().name == readset_name
-        run_name = line["Processing Folder Name"].split("_")[-1].split("-")[0]
-        # assert not_app_db.scalars(select(model.Bundle).where(model.Bundle.name == readset_name)).first().name == readset_name
-        # assert 1 == 2
+    # ingest_data = json.loads(ingestion_json)
 
-    db_action.digest_readset(run_name, not_app_db)
+    for patient_json in ingestion_json[vb.PATIENT]:
+        assert not_app_db.scalars(select(model.Patient).where(model.Patient.name == patient_json[vb.PATIENT_NAME])).first().name == patient_json[vb.PATIENT_NAME]
+        for sample_json in patient_json[vb.SAMPLE]:
+            assert not_app_db.scalars(select(model.Sample).where(model.Sample.name == sample_json[vb.SAMPLE_NAME])).first().name == sample_json[vb.SAMPLE_NAME]
+            for readset_json in sample_json[vb.READSET]:
+                assert not_app_db.scalars(select(model.Readset).where(model.Readset.name == readset_json[vb.READSET_NAME])).first().name == readset_json[vb.READSET_NAME]
+
+    db_action.digest_readset(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/readset_file.tsv"), session=not_app_db)
     assert 1 == 2
     # with not_app_db as db:
         # Query
