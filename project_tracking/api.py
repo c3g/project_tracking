@@ -38,6 +38,6 @@ def ingest_run_processin(project_name: str):
             flash('Data does not seems to be json')
             return redirect(request.url)
 
-        return db_action.ingset(projet_name,ingest_data)
+        return db_action.ingset(project_name, ingest_data)
 
     return "Load new run, ingest as json with POST"
