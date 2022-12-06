@@ -34,19 +34,12 @@ def test_create_api(client, app, ingestion_json):
 
 def test_create(not_app_db, ingestion_json):
     project_name = ingestion_json[vb.PROJECT_NAME]
-    # project = model.Project(name=project_name)
-    # with not_app_db as db:
-    #     db.add(project)
-    #     db.commit()
-
     db_action.create_project(project_name, session=not_app_db)
 
     ret = db_action.ingest_run_processing(project_name, ingestion_json, not_app_db)
 
     assert isinstance(ret, model.Operation)
     assert not_app_db.scalars(select(model.Project)).first().name == project_name
-
-    # ingest_data = json.loads(ingestion_json)
 
     for patient_json in ingestion_json[vb.PATIENT]:
         assert not_app_db.scalars(select(model.Patient).where(model.Patient.name == patient_json[vb.PATIENT_NAME])).first().name == patient_json[vb.PATIENT_NAME]
@@ -56,7 +49,3 @@ def test_create(not_app_db, ingestion_json):
                 assert not_app_db.scalars(select(model.Readset).where(model.Readset.name == readset_json[vb.READSET_NAME])).first().name == readset_json[vb.READSET_NAME]
 
     db_action.digest_readset(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/readset_file.tsv"), session=not_app_db)
-    assert 1 == 2
-    # with not_app_db as db:
-        # Query
-        # db.add(project)
