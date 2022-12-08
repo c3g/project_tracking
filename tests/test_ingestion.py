@@ -11,17 +11,17 @@ from project_tracking import vocabulary as vb
 
 print = pprint.pprint
 
-def test_create_api(client, app, ingestion_json):
-    with app.app_context():
-        assert client.post('project/big_project/ingest_run_processing', data=ingestion_json).status_code == 404
-        p = model.Project(name='big_project')
-        db = database.get_session()
-        db.add(p)
-        db.commit()
+# def test_create_api(client, app, ingestion_json):
+#     with app.app_context():
+#         assert client.post('project/big_project/ingest_run_processing', data=ingestion_json).status_code == 404
+#         p = model.Project(name='big_project')
+#         db = database.get_session()
+#         db.add(p)
+#         db.commit()
 
-        assert client.get('project/big_project/ingest_run_processing').status_code == 200
+#         assert client.get('project/big_project/ingest_run_processing').status_code == 200
 
-        assert client.post('project/big_project/ingest_run_processing', data=ingestion_json).status_code == 302
+#         assert client.post('project/big_project/ingest_run_processing', data=ingestion_json).status_code == 302
 
     # check here that project, readset et all is created properly
     # with app.app_context():
