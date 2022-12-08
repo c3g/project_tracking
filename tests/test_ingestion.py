@@ -18,12 +18,10 @@ def test_create_api(client, app, ingestion_json):
         db = database.get_session()
         db.add(p)
         db.commit()
-        # print('toto')
+
         assert client.get('project/big_project/ingest_run_processing').status_code == 200
 
-
-        assert client.post('project/big_project/ingest_run_processing', data=ingestion_json).status_code == 200
-
+        assert client.post('project/big_project/ingest_run_processing', data=ingestion_json).status_code == 302
 
     # check here that project, readset et all is created properly
     # with app.app_context():

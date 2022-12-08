@@ -213,6 +213,7 @@ def digest_readset(run_name, output_file, session=None):
         tsv_writer.writeheader()
         for readset in readsets:
             files = readset.file
+            bed = ""
             for file in files:
                 if file.type in ["fastq", "fq", "fq.gz", "fastq.gz"]:
                     bam = ""
@@ -224,6 +225,8 @@ def digest_readset(run_name, output_file, session=None):
                     bam = file.content
                     fastq1 = ""
                     fastq2 = ""
+                if file.type == "bed":
+                    bed = file.content
             readset_line = {
                 "Sample": readset.sample.name,
                 "Readset": readset.name,
