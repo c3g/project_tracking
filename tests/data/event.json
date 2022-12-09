@@ -1,0 +1,316 @@
+{
+    "file_config_content": "",
+    "file_config_type": "event",
+    "project_fms_id": "1",
+    "project_name": "MoH",
+    "experiment_sequencing_technology": "WGS",
+    "experiment_type": "PCR-free",
+    "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
+    "experiment_kit_expiration_date": "06/12/2022",
+    "run_fms_id": "1",
+    "run_name": "MOHRun02",
+    "run_instrument": "novaseq",
+    "run_date": "06/12/2022 11:04:19",
+    "bundle_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220325_A00266_0642_AHFM5HDSX3_MOHRun02-novaseq",
+    "patient": [
+        {
+            "patient_fms_id": "",
+            "patient_name": "MoHQ-CM-1-8",
+            "patient_cohort": "MoHQ-CM-1",
+            "patient_institution": "CM",
+            "sample": [
+                {
+                    "sample_fms_id": "",
+                    "sample_name": "MoHQ-CM-1-8-1525-2DT",
+                    "sample_tumour": true,
+                    "readset": [
+                        {
+                            "readset_name": "MoHQ-CM-1-8-1525-2DT_2-2183113_1",
+                            "readset_lane": "1",
+                            "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
+                            "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
+                            "readset_sequencing_type": "PAIRED_END",
+                            "readset_quality_offset": "33",
+                            "file": [
+                                {
+                                    "file_content": "MoHQ-CM-1-8-1525-2DT_2-2183113.sorted.bam"
+                                }
+                            ],
+                            "metric": [
+                                {
+                                    "metric_name": "raw_reads_count",
+                                    "metric_value": "854644131"
+                                },
+                                {
+                                    "metric_name": "raw_duplication_rate",
+                                    "metric_value": "11.0"
+                                },
+                                {
+                                    "metric_name": "raw_median_insert_size",
+                                    "metric_value": "270"
+                                },
+                                {
+                                    "metric_name": "raw_mean_insert_size",
+                                    "metric_value": "291.7"
+                                },
+                                {
+                                    "metric_name": "raw_mean_coverage",
+                                    "metric_value": "81.0"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "sample_fms_id": "",
+                    "sample_name": "MoHQ-CM-1-8-1525-2DN",
+                    "sample_tumour": false,
+                    "readset": [
+                        {
+                            "readset_name": "MoHQ-CM-1-8-1525-2DN_2-2183113_1",
+                            "readset_lane": "1",
+                            "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
+                            "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
+                            "readset_sequencing_type": "PAIRED_END",
+                            "readset_quality_offset": "33",
+                            "file": [
+                                {
+                                    "file_content": "MoHQ-CM-1-8-1525-2DN_2-2183113.sorted.bam"
+                                }
+                            ],
+                            "metric": [
+                                {
+                                    "metric_name": "raw_reads_count",
+                                    "metric_value": "918273645"
+                                },
+                                {
+                                    "metric_name": "raw_duplication_rate",
+                                    "metric_value": "11.3"
+                                },
+                                {
+                                    "metric_name": "raw_median_insert_size",
+                                    "metric_value": "250"
+                                },
+                                {
+                                    "metric_name": "raw_mean_insert_size",
+                                    "metric_value": "251.4"
+                                },
+                                {
+                                    "metric_name": "raw_mean_coverage",
+                                    "metric_value": "84.5"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "patient_fms_id": "",
+            "patient_name": "MoHQ-CM-1-9",
+            "patient_cohort": "MoHQ-CM-1",
+            "patient_institution": "CM",
+            "sample": [
+                {
+                    "sample_fms_id": "",
+                    "sample_name": "MoHQ-CM-1-9-8617-1DT",
+                    "sample_tumour": true,
+                    "readset": [
+                        {
+                            "readset_name": "MoHQ-CM-1-9-8617-1DT_2-2183114_1",
+                            "readset_lane": "1",
+                            "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
+                            "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
+                            "readset_sequencing_type": "PAIRED_END",
+                            "readset_quality_offset": "33",
+                            "file": [
+                                {
+                                    "file_content": "MoHQ-CM-1-9-8617-1DT_2-2183114_R1.fastq.gz",
+                                    "file_extra_metadata": "R1"
+                                },
+                                {
+                                    "file_content": "MoHQ-CM-1-9-8617-1DT_2-2183114_R2.fastq.gz",
+                                    "file_extra_metadata": "R2"
+                                }
+                            ],
+                            "metric": [
+                                {
+                                    "metric_name": "raw_reads_count",
+                                    "metric_value": "987654321"
+                                },
+                                {
+                                    "metric_name": "raw_duplication_rate",
+                                    "metric_value": "10.0"
+                                },
+                                {
+                                    "metric_name": "raw_median_insert_size",
+                                    "metric_value": "290"
+                                },
+                                {
+                                    "metric_name": "raw_mean_insert_size",
+                                    "metric_value": "275.9"
+                                },
+                                {
+                                    "metric_name": "raw_mean_coverage",
+                                    "metric_value": "78.0"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "sample_fms_id": "",
+                    "sample_name": "MoHQ-CM-1-9-8617-1DN",
+                    "sample_tumour": false,
+                    "readset": [
+                        {
+                            "readset_name": "MoHQ-CM-1-9-8617-1DN_2-2183114_1",
+                            "readset_lane": "1",
+                            "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
+                            "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
+                            "readset_sequencing_type": "PAIRED_END",
+                            "readset_quality_offset": "33",
+                            "file": [
+                                {
+                                    "file_content": "MoHQ-CM-1-9-8617-1DN_2-2183114_R1.fastq.gz",
+                                    "file_extra_metadata": "R1"
+                                },
+                                {
+                                    "file_content": "MoHQ-CM-1-9-8617-1DN_2-2183114_R2.fastq.gz",
+                                    "file_extra_metadata": "R2"
+                                }
+                            ],
+                            "metric": [
+                                {
+                                    "metric_name": "raw_reads_count",
+                                    "metric_value": "647382910"
+                                },
+                                {
+                                    "metric_name": "raw_duplication_rate",
+                                    "metric_value": "12.1"
+                                },
+                                {
+                                    "metric_name": "raw_median_insert_size",
+                                    "metric_value": "288"
+                                },
+                                {
+                                    "metric_name": "raw_mean_insert_size",
+                                    "metric_value": "285.9"
+                                },
+                                {
+                                    "metric_name": "raw_mean_coverage",
+                                    "metric_value": "74.0"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "patient_fms_id": "",
+            "patient_name": "MoHQ-CM-1-10",
+            "patient_cohort": "MoHQ-CM-1",
+            "patient_institution": "CM",
+            "sample": [
+                {
+                    "sample_fms_id": "",
+                    "sample_name": "MoHQ-CM-1-10-3393-1DT",
+                    "sample_tumour": true,
+                    "readset": [
+                        {
+                            "readset_name": "MoHQ-CM-1-10-3393-1DT_2-2183115_1",
+                            "readset_lane": "1",
+                            "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
+                            "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
+                            "readset_sequencing_type": "PAIRED_END",
+                            "readset_quality_offset": "33",
+                            "file": [
+                                {
+                                    "file_content": "MoHQ-CM-1-10-3393-1DT_2-2183115_R1.fastq.gz",
+                                    "file_extra_metadata": "R1"
+                                },
+                                {
+                                    "file_content": "MoHQ-CM-1-10-3393-1DT_2-2183115_R2.fastq.gz",
+                                    "file_extra_metadata": "R2"
+                                }
+                            ],
+                            "metric": [
+                                {
+                                    "metric_name": "raw_reads_count",
+                                    "metric_value": "123456789"
+                                },
+                                {
+                                    "metric_name": "raw_duplication_rate",
+                                    "metric_value": "9.2"
+                                },
+                                {
+                                    "metric_name": "raw_median_insert_size",
+                                    "metric_value": "170"
+                                },
+                                {
+                                    "metric_name": "raw_mean_insert_size",
+                                    "metric_value": "194.5"
+                                },
+                                {
+                                    "metric_name": "raw_mean_coverage",
+                                    "metric_value": "88.8"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "patient_fms_id": "",
+            "patient_name": "MoHQ-CM-1-11",
+            "patient_cohort": "MoHQ-CM-1",
+            "patient_institution": "CM",
+            "sample": [
+                {
+                    "sample_fms_id": "",
+                    "sample_name": "MoHQ-CM-1-11-4725-1DT",
+                    "sample_tumour": true,
+                    "readset": [
+                        {
+                            "readset_name": "MoHQ-CM-1-11-4725-1DT_2-2183116_2",
+                            "readset_lane": "1",
+                            "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
+                            "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
+                            "readset_sequencing_type": "PAIRED_END",
+                            "readset_quality_offset": "33",
+                            "file": [
+                                {
+                                    "file_content": "MoHQ-CM-1-11-4725-1DT_2-2183116.sorted.bam"
+                                }
+                            ],
+                            "metric": [
+                                {
+                                    "metric_name": "raw_reads_count",
+                                    "metric_value": "987123654"
+                                },
+                                {
+                                    "metric_name": "raw_duplication_rate",
+                                    "metric_value": "9.6"
+                                },
+                                {
+                                    "metric_name": "raw_median_insert_size",
+                                    "metric_value": "240"
+                                },
+                                {
+                                    "metric_name": "raw_mean_insert_size",
+                                    "metric_value": "257.6"
+                                },
+                                {
+                                    "metric_name": "raw_mean_coverage",
+                                    "metric_value": "78.9"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

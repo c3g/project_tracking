@@ -26,10 +26,10 @@ def list_all_sample(project_name: str):
 
 
 @bp.route('/<string:project_name>/ingest_run_processing', methods=['GET', 'POST'])
-def ingest_run_processin(project_name: str):
+def ingest_run_processing(project_name: str):
 
     if project_name not in [p.name for p in db_action.projects()]:
-        return abort(404, "Project {} not found".format(project_name))
+        return abort(404, f"Project {project_name} not found")
 
     if request.method == 'POST':
         try:
@@ -38,6 +38,6 @@ def ingest_run_processin(project_name: str):
             flash('Data does not seems to be json')
             return redirect(request.url)
 
-        return db_action.ingset(project_name, ingest_data)
+        return db_action.ingest_run_processing(project_name, ingest_data)
 
     return "Load new run, ingest as json with POST"

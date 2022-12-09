@@ -23,6 +23,7 @@ def test_add_model(not_app_db):
     sa_name = 'gros_bobo'
     sa = model.Sample(name=sa_name, patient=pa)
     ru_name = "cure the Conglomerat old director's partner 01"
+    # breakpoint()
     instrument = 'Grosse machine du 6e'
     ru = model.Run(instrument=instrument, name=ru_name)
     re1_name = 'goble_goble'
@@ -56,4 +57,3 @@ def test_add_model(not_app_db):
     assert m1.name == metric_name
     assert r1.name == re1_name
     assert r1.metric[0].value == me1_value
-
