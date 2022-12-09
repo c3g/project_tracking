@@ -207,8 +207,7 @@ def digest_readset(run_name, output_file, session=None):
 
     readsets = session.scalars(select(Readset).where(Run.name == run_name).join(Run)).all()
 
-    print(os.path.dirname(__file__))
-    with open(output_file, "w") as out_readset_file:
+    with open(output_file, "w", encoding="utf-8") as out_readset_file:
         tsv_writer = csv.DictWriter(out_readset_file, delimiter='\t', fieldnames=readset_header)
         tsv_writer.writeheader()
         for readset in readsets:
@@ -237,10 +236,30 @@ def digest_readset(run_name, output_file, session=None):
                 "Adapter1": readset.adapter1,
                 "Adapter2": readset.adapter2,
                 "QualityOffset": readset.quality_offset,
-                "BED": "",
+                "BED": bed,
                 "FASTQ1": fastq1,
                 "FASTQ2": fastq2,
                 "BAM": bam
                 }
-            print(readset_line)
             tsv_writer.writerow(readset_line)
+
+def digest_pair(run_name, output_file, session=None):
+    """Creating pair file for GenPipes Tumour Pair pipeline"""
+    if not session:
+        session = database.get_session()
+
+    patients = session.scalars(select(Patient).select_from(Run).where(Run.name == run_name)).all()
+
+    with open(output_file, "w", encoding="utf-8") as out_pair_file:
+        csv_writer = csv.writer(out_pair_file, delimiter=',')
+        for patient in patients:
+            if len(patient.sample) > 1:
+                tumour = []
+                normal = []
+                for sample in patient.sample:
+                    if sample.tumour:
+                        tumour.append(sample.name)
+                    else:
+                        normal.append(sample.name)
+                combinations = [(patient.name, x, y) for x in normal for y in tumour]
+                csv_writer.writerows(combinations)

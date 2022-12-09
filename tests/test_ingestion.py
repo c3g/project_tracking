@@ -47,3 +47,6 @@ def test_create(not_app_db, ingestion_json):
                 assert not_app_db.scalars(select(model.Readset).where(model.Readset.name == readset_json[vb.READSET_NAME])).first().name == readset_json[vb.READSET_NAME]
 
     db_action.digest_readset(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/readset_file.tsv"), session=not_app_db)
+    db_action.digest_pair(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/pair_file.csv"), session=not_app_db)
+
+    # assert 1 == 2
