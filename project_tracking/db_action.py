@@ -183,6 +183,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         session.add(readset)
         session.flush()
         operation_id = operation.id
+
     try:
         session.commit()
     except exc.SQLAlchemyError as error:

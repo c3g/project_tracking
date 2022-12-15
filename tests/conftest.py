@@ -91,9 +91,9 @@ def not_app_db():
         logger.debug("DB is here %s", db_path)
     else:
         db_fd, db_path = tempfile.mkstemp()
-
-    db = get_session(no_app=True, db_uri=f'sqlite:///{db_path}')
-    init_db()
+    db_uri = f'sqlite:///{db_path}'
+    db = get_session(no_app=True, db_uri=db_uri)
+    init_db(db_uri)
 
     try:
         yield db

@@ -10,12 +10,17 @@ from project_tracking import vocabulary as vb
 from project_tracking import create_app
 
 
-def test_create_api(client, ingestion_json):
+def test_create_api(client, ingestion_json, app):
     response = client.get('project/create/MoH')
     assert response.status_code == 200
     assert json.loads(response.data)['name'] == 'MoH'
+    assert json.loads(response.data)['id'] == 1
     response = client.post('project/MoH/ingest_run_processing', data=json.dumps(ingestion_json))
     assert response.status_code == 200
+    assert json.loads(response.data)['name'] == "ingestion"
+    assert json.loads(response.data)['id'] == 1
+    with app.app_context():
+        s = database.get_session()
 
 
 def test_create(not_app_db, ingestion_json):

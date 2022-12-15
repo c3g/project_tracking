@@ -23,14 +23,14 @@ def get_engine(db_uri):
     logging.info('Connecting to {}'.format(db_uri))
 
     # in tests the engines can be multiple...
-    if Engine.ENGINE is None or Engine.URI != db_uri :
+    if Engine.ENGINE is None or Engine.URI != db_uri:
         Engine.ENGINE = create_engine(db_uri, echo=False)
         Engine.URI = db_uri
 
     return Engine.ENGINE
 
 
-def get_session(no_app=False,db_uri=None):
+def get_session(no_app=False, db_uri=None):
     """
     The no app option is a convenience to get a DB session outside of a flask app
     """
@@ -56,13 +56,18 @@ def get_session(no_app=False,db_uri=None):
 
 
 def init_db(db_uri=None):
+    """
+    db_uri is required if db is initialised outside of the flask app
+    """
     from . import model
-    if Engine.ENGINE is None:
-        if db_uri is None:
+    if db_uri is None:
+        try:
             db_uri = flask.current_app.config["SQLALCHEMY_DATABASE_URI"]
-        engine = get_engine(db_uri)
-    else:
-        engine = Engine.ENGINE
+        except RuntimeError as e:
+            logging.error(f"It seems that you are initialising the db outside of an app, please provide "
+                          f"the db_uri")
+            raise e
+    engine = get_engine(db_uri)
 
     model.Base.metadata.create_all(engine)
 
