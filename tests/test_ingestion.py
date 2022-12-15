@@ -43,3 +43,6 @@ def test_create(not_app_db, ingestion_json):
     db_action.digest_pair(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/pair_file.csv"), session=not_app_db)
 
     # assert 1 == 2
+
+
+
