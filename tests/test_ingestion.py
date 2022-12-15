@@ -1,6 +1,5 @@
 import json
 import re
-import pprint
 import os
 
 from sqlalchemy import select
@@ -8,26 +7,15 @@ from sqlalchemy import select
 from flask import g
 from project_tracking import model, database, db_action
 from project_tracking import vocabulary as vb
+from project_tracking import create_app
 
-print = pprint.pprint
 
-# def test_create_api(client, app, ingestion_json):
-#     with app.app_context():
-#         assert client.post('project/big_project/ingest_run_processing', data=ingestion_json).status_code == 404
-#         p = model.Project(name='big_project')
-#         db = database.get_session()
-#         db.add(p)
-#         db.commit()
-
-#         assert client.get('project/big_project/ingest_run_processing').status_code == 200
-
-#         assert client.post('project/big_project/ingest_run_processing', data=ingestion_json).status_code == 302
-
-    # check here that project, readset et all is created properly
-    # with app.app_context():
-    #     db = get_db()
-    #     count = db.execute('SELECT COUNT(id) FROM post').fetchone()[0]
-    #     assert count == 2
+def test_create_api(client, ingestion_json):
+    response = client.get('project/create/MoH')
+    assert response.status_code == 200
+    assert json.loads(response.data)['name'] == 'MoH'
+    response = client.post('project/MoH/ingest_run_processing', data=json.dumps(ingestion_json))
+    assert response.status_code == 200
 
 
 def test_create(not_app_db, ingestion_json):
@@ -50,3 +38,6 @@ def test_create(not_app_db, ingestion_json):
     db_action.digest_pair(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/pair_file.csv"), session=not_app_db)
 
     # assert 1 == 2
+
+
+

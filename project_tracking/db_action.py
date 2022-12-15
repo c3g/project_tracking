@@ -34,25 +34,33 @@ from .model import (
 
 logger = logging.getLogger(__name__)
 
-def projects():
-    """Fetchin all projects in database for testing"""
+def projects(project = None):
+    """Fetchin all projects in database
+    """
     session = database.get_session()
-    return [i[0] for i in session.execute((select(Project))).fetchall()]
+    if project is None:
+        return session.scalars((select(Project))).all()
+    else:
+        return [i[0] for i in session.scalars((select(Project).where(Project.name.in_(project))))]
 
 def create_project(project_name, fms_id=None, session=None):
-    """Creating new project"""
+    """
+        Creating new project
+        Returns project even if it already exist
+    """
     if not session:
         session = database.get_session()
 
     project = Project(name=project_name, fms_id=fms_id)
 
     session.add(project)
-
     try:
         session.commit()
     except exc.SQLAlchemyError as error:
-        logger.error("Error: %s", error)
+        logger.warning(f"Could no commit {project_name}: {error}")
         session.rollback()
+
+    return session.scalars(select(Project).where(Project.name == project_name)).one()
 
 def ingest_run_processing(project_name, ingest_data, session=None):
     """Ingesting run for MoH"""
@@ -173,16 +181,15 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                         )
 
         session.add(readset)
-        # session.add(file)
         session.flush()
-
+        operation_id = operation.id
     try:
         session.commit()
     except exc.SQLAlchemyError as error:
         logger.error("Error: %s", error)
         session.rollback()
 
-    return operation
+    return session.scalars(select(Operation).where(Operation.id == operation_id)).one()
 
 def digest_readset(run_name, output_file, session=None):
     """Creating readset file for GenPipes"""
