@@ -166,7 +166,7 @@ class BaseTable(Base):
         return dico.__repr__()
 
     @property
-    def dico(self):
+    def dict(self):
         """
         Dictionary of table columns *and* of the relation columns
         """
@@ -185,14 +185,13 @@ class BaseTable(Base):
         return dico
 
     @property
-    def dumps(self):
+    def flat_dict(self):
         """
-        flat serializer
+        Flat casting of object, to be used in flask responses
         Returning only ids of the referenced objects
-
         """
         dumps = {}
-        for key, val in self.dico.items():
+        for key, val in self.dict.items():
             if isinstance(val, datetime):
                 val = val.isoformat()
             elif isinstance(val, Decimal):
@@ -206,8 +205,14 @@ class BaseTable(Base):
             elif isinstance(val, enum.Enum):
                 val = val.value
             dumps[key] = val
-        return json.dumps(dumps)
+        return dumps
 
+    @property
+    def dumps(self):
+        """
+        Dumping the flat    _dict
+        """
+        return json.dumps(self.flat_dict)
 
 
 class Project(BaseTable):

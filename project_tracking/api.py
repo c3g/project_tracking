@@ -3,6 +3,7 @@ import logging
 from flask import Blueprint, jsonify, request, flash, redirect, json, abort
 
 from . import db_action
+from . import vocabulary as vc
 
 log = logging.getLogger(__name__)
 
@@ -11,9 +12,14 @@ bp = Blueprint('base_api', __name__, url_prefix='/project')
 
 @bp.route('/')
 def projects():
-    return jsonify(db_action.projects())
+    return [i.as_dict for i in db_action.projects()]
 
 
+
+@bp.route('/create/<string:project_name>')
+def create(project_name: str):
+
+    return db_action.create_project(project_name=project_name).flat_dict
 
 
 @bp.route('/<string:project_name>/list_all_sample')
@@ -38,6 +44,8 @@ def ingest_run_processing(project_name: str):
             flash('Data does not seems to be json')
             return redirect(request.url)
 
-        return db_action.ingest_run_processing(project_name, ingest_data)
+        if project_name != ingest_data[vc.PROJECT_NAME]:
+            return abort(400, "project name in POST {} not Valid, {} requires".format(ingest_data[vc.PROJECT_NAME],
+                                                                                      project_name))
+        return db_action.ingest_run_processing(project_name, ingest_data).flat_dict
 
-    return "Load new run, ingest as json with POST"
