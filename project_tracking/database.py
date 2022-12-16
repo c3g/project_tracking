@@ -36,8 +36,8 @@ def get_session(no_app=False, db_uri=None):
     """
 
     if no_app:
-        if Engine.SESSION is None:
-            if db_uri is None:
+        if not Engine.SESSION:
+            if not db_uri:
                 db_uri = os.getenv("SQLALCHEMY_DATABASE_URI", default="sqlite+pysqlite:///:memory:")
             Engine.SESSION = sessionmaker(bind=get_engine(db_uri),
                                           autoflush=False,

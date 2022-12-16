@@ -63,7 +63,7 @@ def pre_filled_model():
 @pytest.fixture
 def app():
     if os.getenv('DEBUG'):
-        db_path = Path(os.path.join("instance", "test_db.sql"))
+        db_path = Path(os.path.join("instance", "test_db_app.sql"))
         db_path.unlink(missing_ok=True)
         logger.debug("DB is here %s", db_path)
     else:
@@ -91,6 +91,7 @@ def not_app_db():
         logger.debug("DB is here %s", db_path)
     else:
         db_fd, db_path = tempfile.mkstemp()
+
     db_uri = f'sqlite:///{db_path}'
     db = get_session(no_app=True, db_uri=db_uri)
     init_db(db_uri)
