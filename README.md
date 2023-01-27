@@ -1,4 +1,4 @@
-# Tracking the C3G project 
+# Tracking the C3G projects
 
 This is an API to access and modify the C3G data processing tracking database.
 
