@@ -210,7 +210,7 @@ class BaseTable(Base):
     @property
     def dumps(self):
         """
-        Dumping the flat    _dict
+        Dumping the flat_dict
         """
         return json.dumps(self.flat_dict)
 

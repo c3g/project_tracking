@@ -12,7 +12,7 @@ bp = Blueprint('base_api', __name__, url_prefix='/project')
 
 @bp.route('/')
 def projects():
-    return [i.as_dict for i in db_action.projects()]
+    return [i.flat_dict for i in db_action.projects()]
 
 
 
