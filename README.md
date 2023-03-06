@@ -8,6 +8,7 @@ sqlite needs to be installed on your machine.
 Here, you will deploy a development instance of the app and be able to modify the code in the repo with auto-reload 
 ```bash
 git clone  git@github.com:c3g/project_tracking.git
+git checkout dev
 cd project_tracking
 python -m venv venv
 source ./venv/bin/activate
@@ -20,7 +21,17 @@ flask  --app project_tracking init-db
 # run the app 
 flask --app project_tracking --debug run
 ```
-Once you have modify the code, you can run the test to make sure you have not break anything. In the git repo:
+
+Once the server is running, you can still initialise the database, you can even flush it clear of any entry with 
+
+```bash
+# WARNING this will erase all entry to you Database!
+flask  --app project_tracking init-db --flush
+
+```
+
+### Run tests
+Once you have modified the code, you can run the test to make sure you have not broken anything. In the git repo:
 ```bash
 pip install -e  .[tests]
 pytest -v
@@ -38,7 +49,7 @@ The app runs on port 8000 inside the container, the `-e C3G_INIT_DB=1` option wi
 
 
 
-###  Prod env with Postgress:
+##  Prod env with Postgress:
 
 Use the latest commit from the tip of dev:
 ```bash
@@ -46,14 +57,14 @@ git clone  git@github.com:c3g/project_tracking.git
 cd project_tracking
 python -m venv venv
 source ./venv/bin/activate
-pip install .
+pip install .[postgres]
 C3G_SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://postgres:toto@localhost/c3g_track?client_encoding=utf8" 
 gunicorn -w 4 'project_tracking:create_app()'
-
+````
 
 From pypi:
 ```
-
+No release yet
 ```
 
 

@@ -9,7 +9,7 @@ RUN dnf install -y python3-pip.noarch
 ENV C3G_SQLALCHEMY_DATABASE_URI="sqlite:////sqlite/tracking_db.sql"
 
 ADD .  $APP
-RUN cd $APP && pip install . && chmod 755 entrypoint.sh && mv entrypoint.sh .. 
+RUN cd $APP && pip install .[postgres] && chmod 755 entrypoint.sh && mv entrypoint.sh ..
 
 EXPOSE 8000
 
