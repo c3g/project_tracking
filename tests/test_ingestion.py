@@ -11,7 +11,7 @@ from project_tracking import create_app
 
 
 def test_create_api(client, ingestion_json, app):
-    response = client.get('project/create/MoH')
+    response = client.get('admin/create_project/MoH')
     assert response.status_code == 200
     assert json.loads(response.data)['name'] == 'MoH'
     assert json.loads(response.data)['id'] == 1

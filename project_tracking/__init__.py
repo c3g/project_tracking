@@ -70,7 +70,11 @@ def create_app(test_config=None):
     def welcome():
         return 'Welcome to the TechDev tracking API!'
 
-    app.register_blueprint(api.bp)
+    # Loadding the api, look at the api/__init__.py file to see
+    # what is being registered
+    for bp in api.blueprints:
+        app.register_blueprint(bp)
+
     database.init_app(app)
 
     return app

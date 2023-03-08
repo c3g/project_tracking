@@ -8,7 +8,7 @@ sqlite needs to be installed on your machine.
 Here, you will deploy a development instance of the app and be able to modify the code in the repo with auto-reload 
 ```bash
 git clone  git@github.com:c3g/project_tracking.git
-git checkout dev
+git checkout dev # If you are developing from the dev branch!
 cd project_tracking
 python -m venv venv
 source ./venv/bin/activate
@@ -26,7 +26,7 @@ Once the server is running, you can still initialise the database, you can even 
 
 ```bash
 # WARNING this will erase all entry to you Database!
-flask  --app project_tracking init-db --flush
+flask  --app project_tracking init-db --flush --db_uri "sqlite:////tmp/my_test_db.sql" 
 
 ```
 

@@ -34,6 +34,13 @@ from .model import (
 
 logger = logging.getLogger(__name__)
 
+
+def fix_db_from_file_system(project_name, ingest_data):
+    """ Use Ingest Data scaped for the FS to fix/set the database
+
+    """
+    pass
+
 def projects(project = None):
     """Fetchin all projects in database
     """

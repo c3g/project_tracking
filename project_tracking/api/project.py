@@ -2,24 +2,17 @@ import logging
 
 from flask import Blueprint, jsonify, request, flash, redirect, json, abort
 
-from . import db_action
-from . import vocabulary as vc
+from .. import db_action
+from .. import vocabulary as vc
 
 log = logging.getLogger(__name__)
 
-bp = Blueprint('base_api', __name__, url_prefix='/project')
+bp = Blueprint('project', __name__, url_prefix='/project')
 
 
 @bp.route('/')
-def projects():
-    return [i.flat_dict for i in db_action.projects()]
-
-
-
-@bp.route('/create/<string:project_name>')
-def create(project_name: str):
-
-    return db_action.create_project(project_name=project_name).flat_dict
+def project_root():
+    return [i.flat_dict  for i in db_action.projects()]
 
 
 @bp.route('/<string:project_name>/list_all_sample')
