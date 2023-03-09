@@ -52,8 +52,8 @@ def projects(project = None):
 
 def create_project(project_name, fms_id=None, session=None):
     """
-        Creating new project
-        Returns project even if it already exist
+    Creating new project
+    Returns project even if it already exist
     """
     if not session:
         session = database.get_session()
