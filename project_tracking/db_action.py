@@ -112,7 +112,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         .where(Run.fms_id == ingest_data[vb.RUN_FMS_ID])
         .where(Run.name == ingest_data[vb.RUN_NAME])
         .where(Run.instrument == ingest_data[vb.RUN_INSTRUMENT])
-        .where(Run.date == ingest_data[vb.RUN_DATE])
+        .where(Run.date == str(datetime.strptime(ingest_data[vb.RUN_DATE], "%d/%m/%Y %H:%M:%S")))
         ).first()
     if not run:
         run = Run(
@@ -137,7 +137,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                     .where(Experiment.sequencing_technology == readset_json[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY])
                     .where(Experiment.type == readset_json[vb.EXPERIMENT_TYPE])
                     .where(Experiment.library_kit == readset_json[vb.EXPERIMENT_LIBRARY_KIT])
-                    .where(Experiment.kit_expiration_date == readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE])
+                    .where(Experiment.kit_expiration_date == str(datetime.strptime(readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE], "%d/%m/%Y")))
                     ).first()
                 if not experiment:
                     experiment = Experiment(
