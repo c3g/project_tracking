@@ -49,7 +49,48 @@ def projects(project = None):
     if project is None:
         return session.scalars((select(Project))).all()
     else:
-        return [i[0] for i in session.scalars((select(Project).where(Project.name.in_(project))))]
+        if isinstance(project, str):
+            project = [project]
+        return session.scalars((select(Project).where(Project.name.in_(project)))).all()
+
+def readsets(project_name = None, sample_id = None):
+    """Fetchin all redset that are part of the project or
+     sample
+      still need to check if sample are part of project when
+     both are provided
+    """
+    session = database.get_session()
+    if project_name is None and sample_id is None:
+        return session.scalars(select(Readset)).all()
+    elif sample_id is None:
+        if isinstance(project_name, str):
+            project_name = [project_name]
+        stmt = (select(Readset)
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name)))
+    else:
+        if isinstance(sample_id, int):
+            sample_id = [sample_id]
+        stmt = (select(Readset)
+                .join(Readset.sample)
+                .where(Sample.id.in_(sample_id)))
+
+    return session.scalars(stmt).all()
+
+def samples(project = None):
+    """Fetchin all projects in database
+    """
+    session = database.get_session()
+    if project is None:
+        return session.scalars((select(Sample))).all()
+    else:
+        if isinstance(project, str):
+            project = [project]
+        stmt = (select(Sample).join(Sample.patient).join(Patient.project).where(Project.name.in_(project)))
+        return session.scalars(stmt).all()
+
 
 def create_project(project_name, fms_id=None, session=None):
     """

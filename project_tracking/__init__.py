@@ -12,7 +12,7 @@ from . import database
 def create_app(test_config=None):
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
-
+    app.url_map.strict_slashes = False
 
     if app.config['DEBUG']:
         level = logging.DEBUG

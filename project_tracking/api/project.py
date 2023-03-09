@@ -7,20 +7,33 @@ from .. import vocabulary as vc
 
 log = logging.getLogger(__name__)
 
-bp = Blueprint('project', __name__, url_prefix='/project/')
+bp = Blueprint('project', __name__, url_prefix='/project')
+
+
+# @bp.route('/')
+# def all_projects():
+#     return [i.flat_dict for i in db_action.projects()]
+
+def project_decor(func):
+    def wrapper_func(*args, **kwargs):
+
+        func(*args, **kwargs)
+        # Do something after the function.
+    return wrapper_func
 
 
 @bp.route('/')
-def project_root():
-    return [i.flat_dict  for i in db_action.projects()]
+@bp.route('/<string:project_name>')
+def project(project_name: str = None):
+    return [i.flat_dict for i in db_action.projects(project_name)]
 
 
 @bp.route('/<string:project_name>/sample')
 def list_all_sample(project_name: str):
-    if project_name not in db_action.projects():
+    if project_name not in [p.name for p in db_action.projects(project_name)]:
         return abort(404, "Project {} not found".format(project_name))
 
-    pass
+    return [i.flat_dict for i in db_action.samples(project_name)]
 
 @bp.route('/<string:project_name>/sample/<string:sample_list>')
 def sample(sample_list: str):
@@ -28,6 +41,22 @@ def sample(sample_list: str):
         return abort(404, "Project {} not found".format(project_name))
 
     pass
+
+@bp.route('/<string:project_name>/readset')
+def list_all_readset(project_name: str):
+    if project_name not in [p.name for p in db_action.projects(project_name)]:
+        return abort(404, "Project {} not found".format(project_name))
+
+    return [i.flat_dict for i in db_action.readsets(project_name)]
+
+@bp.route('/<string:project_name>/sample/<string:sample_id>/readset')
+def readset_from_sample(project_name: str, sample_id: str):
+    if project_name not in [p.name for p in db_action.projects(project_name)]:
+        return abort(404, "Project {} not found".format(project_name))
+
+    sample_id = [int(i) for i in sample_id.split(',')]
+
+    return [i.flat_dict for i in db_action.readsets(project_name, sample_id)]
 
 
 
