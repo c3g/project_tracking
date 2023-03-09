@@ -79,7 +79,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
 
     project = session.scalars(select(Project).where(Project.name == project_name)).first()
 
-    bundle_config = Bundle(uri=ingest_data[vb.BUNDLE_URI])
+    bundle_config = Bundle(uri=ingest_data[vb.BUNDLE_CONFIG_URI])
     file_config = File(
         content=ingest_data[vb.FILE_CONFIG_CONTENT],
         type=ingest_data[vb.FILE_CONFIG_TYPE],
@@ -135,8 +135,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
             instrument=ingest_data[vb.RUN_INSTRUMENT],
             date=datetime.strptime(ingest_data[vb.RUN_DATE], "%d/%m/%Y %H:%M:%S")
             )
-    # Defining Bundle
-    bundle = Bundle(uri=ingest_data[vb.BUNDLE_URI], job=job)
+
     for patient_json in ingest_data[vb.PATIENT]:
         patient = Patient(name=patient_json[vb.PATIENT_NAME], cohort=patient_json[vb.PATIENT_COHORT], institution=patient_json[vb.PATIENT_INSTITUTION], project=project)
         for sample_json in patient_json[vb.SAMPLE]:
@@ -146,6 +145,16 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                 patient=patient
                 )
             for readset_json in sample_json[vb.READSET]:
+                # Defining Bundle
+                bundle = session.scalars(
+                    select(Bundle)
+                    .where(Bundle.uri == readset_json[vb.BUNDLE_URI])
+                    ).first()
+                if not bundle:
+                    bundle = Bundle(
+                        uri=readset_json[vb.BUNDLE_URI],
+                        job=job
+                        )
                 readset = Readset(
                     name=readset_json[vb.READSET_NAME],
                     lane=LaneEnum(readset_json[vb.READSET_LANE]),
@@ -187,9 +196,10 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                         readset=[readset]
                         )
 
-        session.add(readset)
-        session.flush()
-        operation_id = operation.id
+            session.add(readset)
+            session.flush()
+
+    operation_id = operation.id
 
     try:
         session.commit()

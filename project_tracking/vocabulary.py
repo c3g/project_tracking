@@ -51,6 +51,7 @@ OPERATION_CONFIG_VERSION = "operation_config_version"
 
 # bundle table
 # Not sure if coming from JSON?
+BUNDLE_CONFIG_URI = "bundle_config_uri"
 BUNDLE_URI = "bundle_uri"
 BUNDLE_DELIVERABLE = "bundle_deliverable"
 
