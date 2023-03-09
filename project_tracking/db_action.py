@@ -194,6 +194,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                     Metric(
                         name=metric_json[vb.METRIC_NAME],
                         value=metric_json[vb.METRIC_VALUE],
+                        flag=FlagEnum(metric_json[vb.METRIC_FLAG]),
                         job=job,
                         readset=[readset]
                         )

@@ -40,23 +40,28 @@
                             "metric": [
                                 {
                                     "metric_name": "raw_reads_count",
-                                    "metric_value": "854644131"
+                                    "metric_value": "854644131",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_duplication_rate",
-                                    "metric_value": "11.0"
+                                    "metric_value": "11.0",
+                                    "metric_flag": "WARNING"
                                 },
                                 {
                                     "metric_name": "raw_median_insert_size",
-                                    "metric_value": "270"
+                                    "metric_value": "270",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_insert_size",
-                                    "metric_value": "291.7"
+                                    "metric_value": "291.7",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_coverage",
-                                    "metric_value": "81.0"
+                                    "metric_value": "81.0",
+                                    "metric_flag": "PASS"
                                 }
                             ]
                         }
@@ -87,23 +92,28 @@
                             "metric": [
                                 {
                                     "metric_name": "raw_reads_count",
-                                    "metric_value": "918273645"
+                                    "metric_value": "918273645",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_duplication_rate",
-                                    "metric_value": "11.3"
+                                    "metric_value": "11.3",
+                                    "metric_flag": "FAILED"
                                 },
                                 {
                                     "metric_name": "raw_median_insert_size",
-                                    "metric_value": "250"
+                                    "metric_value": "250",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_insert_size",
-                                    "metric_value": "251.4"
+                                    "metric_value": "251.4",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_coverage",
-                                    "metric_value": "84.5"
+                                    "metric_value": "84.5",
+                                    "metric_flag": "WARNING"
                                 }
                             ]
                         }
@@ -147,23 +157,28 @@
                             "metric": [
                                 {
                                     "metric_name": "raw_reads_count",
-                                    "metric_value": "987654321"
+                                    "metric_value": "987654321",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_duplication_rate",
-                                    "metric_value": "10.0"
+                                    "metric_value": "10.0",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_median_insert_size",
-                                    "metric_value": "290"
+                                    "metric_value": "290",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_insert_size",
-                                    "metric_value": "275.9"
+                                    "metric_value": "275.9",
+                                    "metric_flag": "WARNING"
                                 },
                                 {
                                     "metric_name": "raw_mean_coverage",
-                                    "metric_value": "78.0"
+                                    "metric_value": "78.0",
+                                    "metric_flag": "PASS"
                                 }
                             ]
                         }
@@ -199,23 +214,28 @@
                             "metric": [
                                 {
                                     "metric_name": "raw_reads_count",
-                                    "metric_value": "647382910"
+                                    "metric_value": "647382910",
+                                    "metric_flag": "FAILED"
                                 },
                                 {
                                     "metric_name": "raw_duplication_rate",
-                                    "metric_value": "12.1"
+                                    "metric_value": "12.1",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_median_insert_size",
-                                    "metric_value": "288"
+                                    "metric_value": "288",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_insert_size",
-                                    "metric_value": "285.9"
+                                    "metric_value": "285.9",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_coverage",
-                                    "metric_value": "74.0"
+                                    "metric_value": "74.0",
+                                    "metric_flag": "PASS"
                                 }
                             ]
                         }
@@ -259,23 +279,28 @@
                             "metric": [
                                 {
                                     "metric_name": "raw_reads_count",
-                                    "metric_value": "123456789"
+                                    "metric_value": "123456789",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_duplication_rate",
-                                    "metric_value": "9.2"
+                                    "metric_value": "9.2",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_median_insert_size",
-                                    "metric_value": "170"
+                                    "metric_value": "170",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_insert_size",
-                                    "metric_value": "194.5"
+                                    "metric_value": "194.5",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_coverage",
-                                    "metric_value": "88.8"
+                                    "metric_value": "88.8",
+                                    "metric_flag": "FAILED"
                                 }
                             ]
                         }
@@ -314,23 +339,28 @@
                             "metric": [
                                 {
                                     "metric_name": "raw_reads_count",
-                                    "metric_value": "987123654"
+                                    "metric_value": "987123654",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_duplication_rate",
-                                    "metric_value": "9.6"
+                                    "metric_value": "9.6",
+                                    "metric_flag": "FAILED"
                                 },
                                 {
                                     "metric_name": "raw_median_insert_size",
-                                    "metric_value": "240"
+                                    "metric_value": "240",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_insert_size",
-                                    "metric_value": "257.6"
+                                    "metric_value": "257.6",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_coverage",
-                                    "metric_value": "78.9"
+                                    "metric_value": "78.9",
+                                    "metric_flag": "PASS"
                                 }
                             ]
                         }
