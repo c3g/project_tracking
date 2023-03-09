@@ -7,7 +7,7 @@ from .. import vocabulary as vc
 
 log = logging.getLogger(__name__)
 
-bp = Blueprint('admin_api', __name__, url_prefix='/admin')
+bp = Blueprint('admin_api', __name__, url_prefix='/admin/')
 
 
 @bp.route('/')
