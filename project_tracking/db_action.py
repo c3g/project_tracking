@@ -4,6 +4,7 @@ import json
 import os
 import logging
 import csv
+import sqlite3
 
 from datetime import datetime
 from sqlalchemy import select, exc
@@ -61,6 +62,7 @@ def create_project(project_name, fms_id=None, session=None):
     project = Project(name=project_name, fms_id=fms_id)
 
     session.add(project)
+
     try:
         session.commit()
     except exc.SQLAlchemyError as error:
@@ -105,28 +107,13 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         operation=operation
         )
     session.add(file_config)
-    # Defining Experiment
-    experiment = session.scalars(
-        select(Experiment)
-        .where(Experiment.sequencing_technology == ingest_data[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY])
-        .where(Experiment.type == ingest_data[vb.EXPERIMENT_TYPE])
-        .where(Experiment.library_kit == ingest_data[vb.EXPERIMENT_LIBRARY_KIT])
-        .where(Experiment.kit_expiration_date == ingest_data[vb.EXPERIMENT_KIT_EXPIRATION_DATE])
-        ).first()
-    if not experiment:
-        experiment = Experiment(
-            sequencing_technology=ingest_data[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY],
-            type=ingest_data[vb.EXPERIMENT_TYPE],
-            library_kit=ingest_data[vb.EXPERIMENT_LIBRARY_KIT],
-            kit_expiration_date=datetime.strptime(ingest_data[vb.EXPERIMENT_KIT_EXPIRATION_DATE], "%d/%m/%Y")
-            )
     # Defining Run
     run = session.scalars(
         select(Run)
         .where(Run.fms_id == ingest_data[vb.RUN_FMS_ID])
         .where(Run.name == ingest_data[vb.RUN_NAME])
         .where(Run.instrument == ingest_data[vb.RUN_INSTRUMENT])
-        .where(Run.date == ingest_data[vb.RUN_DATE])
+        .where(Run.date == str(datetime.strptime(ingest_data[vb.RUN_DATE], "%d/%m/%Y %H:%M:%S")))
         ).first()
     if not run:
         run = Run(
@@ -145,6 +132,21 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                 patient=patient
                 )
             for readset_json in sample_json[vb.READSET]:
+                # Defining Experiment
+                experiment = session.scalars(
+                    select(Experiment)
+                    .where(Experiment.sequencing_technology == readset_json[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY])
+                    .where(Experiment.type == readset_json[vb.EXPERIMENT_TYPE])
+                    .where(Experiment.library_kit == readset_json[vb.EXPERIMENT_LIBRARY_KIT])
+                    .where(Experiment.kit_expiration_date == str(datetime.strptime(readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE], "%d/%m/%Y")))
+                    ).first()
+                if not experiment:
+                    experiment = Experiment(
+                        sequencing_technology=readset_json[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY],
+                        type=readset_json[vb.EXPERIMENT_TYPE],
+                        library_kit=readset_json[vb.EXPERIMENT_LIBRARY_KIT],
+                        kit_expiration_date=datetime.strptime(readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE], "%d/%m/%Y")
+                        )
                 # Defining Bundle
                 bundle = session.scalars(
                     select(Bundle)
@@ -288,3 +290,196 @@ def digest_pair(run_name, output_file, session=None):
                         normal.append(sample.name)
                 combinations = [(patient.name, x, y) for x in normal for y in tumour]
                 csv_writer.writerows(combinations)
+
+def ingest_old_database(old_database, run_dict, session=None):
+    """Ingesting MoH old database"""
+    if not session:
+        session = database.get_session()
+
+    project = Project(name="MoH-Q")
+
+    samples_dict = {}
+    patients_list = []
+    connection = sqlite3.connect(old_database)
+    cur = connection.cursor()
+    cur.execute("""SELECT * FROM Samples""")
+    samples_table = cur.fetchall()
+    for line in samples_table:
+        if line[0] not in ("NA", ""):
+            if line[0] == line[1]:
+                patient = Patient(
+                    name=line[0],
+                    institution=line[2],
+                    cohort=line[3],
+                    project=project,
+                    )
+            else:
+                patient = Patient(
+                    name=line[0],
+                    alias=line[1],
+                    institution=line[2],
+                    cohort=line[3],
+                    project=project,
+                    )
+            if line[4] not in ("NA", ""):
+                cur.execute(f"""SELECT Run_Proc_BAM_DNA_N FROM Timestamps WHERE Sample = \"{line[0]}\"""")
+                try:
+                    dna_n_creation = datetime.strptime(cur.fetchone()[0], "%Y/%m/%d")
+                except (ValueError, TypeError):
+                    dna_n_creation = datetime.now()
+                if line[4] == line[5]:
+                    dna_n = Sample(name=line[4], creation=dna_n_creation)
+                else:
+                    dna_n = Sample(name=line[4], alias=line[5], creation=dna_n_creation)
+                patient.sample.append(dna_n)
+                samples_dict[line[4]] = dna_n
+            if line[6] not in ("NA", ""):
+                cur.execute(f"""SELECT Run_Proc_BAM_DNA_T FROM Timestamps WHERE Sample = \"{line[0]}\"""")
+                try:
+                    dna_t_creation = datetime.strptime(cur.fetchone()[0], "%Y/%m/%d")
+                except ValueError:
+                    dna_t_creation = datetime.now()
+                if line[6] == line[7]:
+                    dna_t = Sample(name=line[6], tumour=True, creation=dna_n_creation)
+                else:
+                    dna_t = Sample(name=line[6], tumour=True, alias=line[7], creation=dna_n_creation)
+                patient.sample.append(dna_t)
+                samples_dict[line[6]] = dna_t
+            if line[8] not in ("NA", ""):
+                cur.execute(f"""SELECT Run_Proc_fastq_1_RNA FROM Timestamps WHERE Sample = \"{line[0]}\"""")
+                try:
+                    rna_creation = datetime.strptime(cur.fetchone()[0], "%Y/%m/%d")
+                except ValueError:
+                    rna_creation = datetime.now()
+                if line[8] == line[9]:
+                    rna = Sample(name=line[8], tumour=True, creation=rna_creation)
+                else:
+                    rna = Sample(name=line[8], tumour=True, alias=line[9], creation=rna_creation)
+                patient.sample.append(rna)
+                samples_dict[line[8]] = rna
+            patient.creation = min(dna_n_creation, dna_t_creation, rna_creation)
+            patients_list.append(patient)
+    for run_name in run_dict:
+        year = run_name.split("_")[0][0:2]
+        bundle_config = Bundle(
+            uri=f"abacus:///lb/robot/research/processing/novaseq/20{year}/{run_name}",
+            creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
+            )
+        file_config = File(
+            content="",
+            type="event",
+            bundle=bundle_config,
+            creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
+            )
+        operation_config = OperationConfig(
+            name="ingestion",
+            version="0.1",
+            bundle=bundle_config,
+            creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
+            )
+        operation = Operation(
+            platform="abacus",
+            name="ingestion",
+            status=StatusEnum("DONE"),
+            operation_config=operation_config,
+            project=project,
+            creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
+            )
+        job = Job(
+            name="run_processing_parsing",
+            status=StatusEnum("DONE"),
+            start=datetime.strptime(run_name.split("_")[0], "%y%m%d"),
+            stop=datetime.strptime(run_name.split("_")[0], "%y%m%d"),
+            operation=operation,
+            creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
+            )
+        session.add(file_config)
+        # Defining Run
+        run = session.scalars(
+            select(Run)
+            .where(Run.name == run_name)
+            .where(Run.instrument == run_name.split("-")[-1])
+            .where(Run.date == datetime.strptime(run_name.split("_")[0], "%y%m%d"))
+            ).first()
+        if not run:
+            run = Run(
+                name=run_name,
+                instrument=run_name.split("-")[-1],
+                date=datetime.strptime(run_name.split("_")[0], "%y%m%d")
+                )
+        session.add(run)
+        for readset_line in run_dict[run_name]:
+            experiment = session.scalars(
+                select(Experiment)
+                .where(Experiment.type == readset_line[8])
+                ).first()
+            if not experiment:
+                experiment = Experiment(
+                    type=readset_line[8],
+                    creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
+                    )
+            try:
+                readset = Readset(
+                        name=f"{readset_line[6]}_{readset_line[2]}",
+                        lane=LaneEnum(readset_line[2]),
+                        adapter1=readset_line[27],
+                        adapter2=readset_line[28],
+                        sequencing_type=SequencingTypeEnum(readset_line[3]),
+                        quality_offset="33",
+                        sample=samples_dict[readset_line[6]],
+                        experiment=experiment,
+                        run=run,
+                        operation=[operation],
+                        job=[job]
+                        )
+                session.add(readset)
+            except KeyError as error:
+                # Logging samples in MAIN/raw_reads but not in any run file
+                logger.debug(error)
+
+            session.flush()
+
+    # To know if there are samples not associated to any readset
+    # sample_l = session.scalars(select(Sample)).all()
+    # for sampl in sample_l:
+    #     if sampl.readset == []:
+    #         logger.debug(sampl.name)
+
+    patients = session.scalars(select(Patient).select_from(Run).where(Run.name == run_name)).all()
+
+    for patient in patients:
+        if len(patient.sample) > 1:
+            tumour = []
+            normal = []
+            for sample in patient.sample:
+                if sample.tumour:
+                    tumour.append(sample.name)
+                else:
+                    normal.append(sample.name)
+            combinations = [(patient.name, x, y) for x in normal for y in tumour]
+
+    readset_list = session.scalars(select(Readset)).all()
+    for readset in readset_list:
+        # TODO: define "transfer" and "genpipes" operations
+        if readset.sample.name.endwith("RT"):
+            operation_config = OperationConfig(
+                name="ingestion",
+                version="0.1",
+                bundle=bundle_config,
+                creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
+                )
+            operation = Operation(
+                platform="beluga",
+                name="ingestion",
+                status=StatusEnum("DONE"),
+                operation_config=operation_config,
+                project=project,
+                creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
+                )
+
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
