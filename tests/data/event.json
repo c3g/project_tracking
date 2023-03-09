@@ -4,10 +4,6 @@
     "file_config_type": "event",
     "project_fms_id": "1",
     "project_name": "MoH",
-    "experiment_sequencing_technology": "WGS",
-    "experiment_type": "PCR-free",
-    "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
-    "experiment_kit_expiration_date": "06/12/2022",
     "run_fms_id": "1",
     "run_name": "MOHRun02",
     "run_instrument": "novaseq",
@@ -25,6 +21,10 @@
                     "sample_tumour": true,
                     "readset": [
                         {
+                            "experiment_sequencing_technology": "WGS",
+                            "experiment_type": "PCR-free",
+                            "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
+                            "experiment_kit_expiration_date": "06/12/2022",
                             "readset_name": "MoHQ-CM-1-8-1525-2DT_2-2183113_1",
                             "readset_lane": "1",
                             "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
@@ -68,6 +68,10 @@
                     "sample_tumour": false,
                     "readset": [
                         {
+                            "experiment_sequencing_technology": "WGS",
+                            "experiment_type": "PCR-free",
+                            "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
+                            "experiment_kit_expiration_date": "06/12/2022",
                             "readset_name": "MoHQ-CM-1-8-1525-2DN_2-2183113_1",
                             "readset_lane": "1",
                             "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
@@ -119,6 +123,10 @@
                     "sample_tumour": true,
                     "readset": [
                         {
+                            "experiment_sequencing_technology": "WGS",
+                            "experiment_type": "PCR-free",
+                            "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
+                            "experiment_kit_expiration_date": "06/12/2022",
                             "readset_name": "MoHQ-CM-1-9-8617-1DT_2-2183114_1",
                             "readset_lane": "1",
                             "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
@@ -167,6 +175,10 @@
                     "sample_tumour": false,
                     "readset": [
                         {
+                            "experiment_sequencing_technology": "WGS",
+                            "experiment_type": "PCR-free",
+                            "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
+                            "experiment_kit_expiration_date": "06/12/2022",
                             "readset_name": "MoHQ-CM-1-9-8617-1DN_2-2183114_1",
                             "readset_lane": "1",
                             "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
@@ -223,6 +235,10 @@
                     "sample_tumour": true,
                     "readset": [
                         {
+                            "experiment_sequencing_technology": "WGS",
+                            "experiment_type": "PCR-free",
+                            "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
+                            "experiment_kit_expiration_date": "06/12/2022",
                             "readset_name": "MoHQ-CM-1-10-3393-1DT_2-2183115_1",
                             "readset_lane": "1",
                             "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
@@ -279,6 +295,10 @@
                     "sample_tumour": true,
                     "readset": [
                         {
+                            "experiment_sequencing_technology": "WGS",
+                            "experiment_type": "PCR-free",
+                            "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
+                            "experiment_kit_expiration_date": "06/12/2022",
                             "readset_name": "MoHQ-CM-1-11-4725-1DT_2-2183116_2",
                             "readset_lane": "1",
                             "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
