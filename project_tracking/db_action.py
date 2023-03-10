@@ -275,7 +275,8 @@ def digest_pair(run_name, output_file, session=None):
     if not session:
         session = database.get_session()
 
-    patients = session.scalars(select(Patient).select_from(Run).where(Run.name == run_name)).all()
+    stmt = select(Patient).join(Patient.sample).join(Sample.readset).join(Readset.run).where(Run.name == run_name)
+    patients = session.scalars(stmt).unique().all()
 
     with open(output_file, "w", encoding="utf-8") as out_pair_file:
         csv_writer = csv.writer(out_pair_file, delimiter=',')
