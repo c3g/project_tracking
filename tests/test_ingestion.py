@@ -11,11 +11,11 @@ from project_tracking import create_app
 
 
 def test_create_api(client, ingestion_json, app):
-    response = client.get('admin/create_project/MoH')
+    response = client.get('admin/create_project/MOH-Q')
     assert response.status_code == 200
-    assert json.loads(response.data)['name'] == 'MoH'
+    assert json.loads(response.data)['name'] == 'MOH-Q'
     assert json.loads(response.data)['id'] == 1
-    response = client.post('project/MoH/ingest_run_processing', data=json.dumps(ingestion_json))
+    response = client.post('project/MOH-Q/ingest_run_processing', data=json.dumps(ingestion_json))
     assert response.status_code == 200
     assert json.loads(response.data)['name'] == "ingestion"
     assert json.loads(response.data)['id'] == 1
