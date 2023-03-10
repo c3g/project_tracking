@@ -132,3 +132,9 @@ def ingestion_json():
     with open(os.path.join(os.path.dirname(__file__), 'data/event.json'), 'r') as file:
         data = json.load(file)
     return data
+
+@pytest.fixture()
+def transfer_json():
+    with open(os.path.join(os.path.dirname(__file__), 'data/transfer.json'), 'r') as file:
+        data = json.load(file)
+    return data

@@ -23,13 +23,13 @@ def test_create_api(client, ingestion_json, app):
         s = database.get_session()
 
 
-def test_create(not_app_db, ingestion_json):
+def test_create(not_app_db, ingestion_json, transfer_json):
     project_name = ingestion_json[vb.PROJECT_NAME]
     db_action.create_project(project_name, session=not_app_db)
 
-    ret = db_action.ingest_run_processing(project_name, ingestion_json, not_app_db)
+    run_processing_operation = db_action.ingest_run_processing(project_name, ingestion_json, not_app_db)
 
-    assert isinstance(ret, model.Operation)
+    assert isinstance(run_processing_operation, model.Operation)
     assert not_app_db.scalars(select(model.Project)).first().name == project_name
 
     for patient_json in ingestion_json[vb.PATIENT]:
@@ -38,6 +38,10 @@ def test_create(not_app_db, ingestion_json):
             assert not_app_db.scalars(select(model.Sample).where(model.Sample.name == sample_json[vb.SAMPLE_NAME])).first().name == sample_json[vb.SAMPLE_NAME]
             for readset_json in sample_json[vb.READSET]:
                 assert not_app_db.scalars(select(model.Readset).where(model.Readset.name == readset_json[vb.READSET_NAME])).first().name == readset_json[vb.READSET_NAME]
+
+    transfer_operation = db_action.ingest_transfer(transfer_json, not_app_db)
+
+    assert isinstance(transfer_operation, model.Operation)
 
     db_action.digest_readset(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/readset_file.tsv"), session=not_app_db)
     db_action.digest_pair(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/pair_file.csv"), session=not_app_db)

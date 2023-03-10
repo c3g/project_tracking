@@ -396,8 +396,8 @@ class Operation(BaseTable):
     """
     __tablename__ = "operation"
 
-    operation_config_id: Mapped[int] = mapped_column(ForeignKey("operation_config.id"), default=None)
-    project_id: Mapped[int] = mapped_column(ForeignKey("project.id"))
+    operation_config_id: Mapped[int] = mapped_column(ForeignKey("operation_config.id"), default=None, nullable=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None, nullable=True)
     platform: Mapped[str] = mapped_column(default=None, nullable=True)
     cmd_line: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)

@@ -88,19 +88,19 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         bundle=bundle_config
         )
     operation_config = OperationConfig(
-        name="ingestion",
+        name="run_processing",
         version="0.1",
         bundle=bundle_config
         )
     operation = Operation(
         platform="abacus",
-        name="ingestion",
+        name="run_processing",
         status=StatusEnum("DONE"),
         operation_config=operation_config,
         project=project
         )
     job = Job(
-        name="run_processing_parsing",
+        name="run_processing",
         status=StatusEnum("DONE"),
         start=datetime.now(),
         stop=datetime.now(),
@@ -205,6 +205,81 @@ def ingest_run_processing(project_name, ingest_data, session=None):
 
             session.add(readset)
             session.flush()
+
+    operation_id = operation.id
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    return session.scalars(select(Operation).where(Operation.id == operation_id)).one()
+
+def ingest_transfer(ingest_data, session=None):
+    """Ingesting transfer"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    # project = session.scalars(select(Project).where(Project.name == project_name)).first()
+
+    operation = Operation(
+        platform=ingest_data[vb.OPERATION_PLATFORM],
+        name="transfer",
+        status=StatusEnum("DONE")
+        )
+    job = Job(
+        name="transfer",
+        status=StatusEnum("DONE"),
+        start=datetime.now(),
+        stop=datetime.now(),
+        operation=operation
+        )
+    # session.add(file_config)
+    for readset_json in ingest_data[vb.READSET]:
+        readset = session.scalars(
+            select(Readset)
+            .where(Readset.name == readset_json[vb.READSET_NAME])
+            ).first()
+        readset.job.append(job)
+        # Defining Bundle
+        bundle = session.scalars(
+            select(Bundle)
+            .where(Bundle.uri == readset_json[vb.BUNDLE_URI])
+            ).first()
+        if not bundle:
+            bundle = Bundle(
+                uri=readset_json[vb.BUNDLE_URI],
+                job=job
+                )
+        for file_json in readset_json[vb.FILE]:
+            # logger.debug(bundle)
+            suffixes = Path(file_json[vb.FILE_CONTENT]).suffixes
+            file_type = os.path.splitext(file_json[vb.FILE_CONTENT])[-1][1:]
+            if ".gz" in suffixes:
+                file_type = "".join(suffixes)[1:]
+            try:
+                File(
+                    content=file_json[vb.FILE_CONTENT],
+                    type=file_type,
+                    extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
+                    bundle=bundle,
+                    readset=[readset]
+                    )
+            except KeyError:
+                File(
+                    content=file_json[vb.FILE_CONTENT],
+                    type=file_type,
+                    bundle=bundle,
+                    readset=[readset]
+                    )
+        # exit()
+        session.add(readset)
+        session.add(bundle)
+        session.flush()
 
     operation_id = operation.id
 

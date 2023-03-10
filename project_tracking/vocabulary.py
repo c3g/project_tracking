@@ -38,8 +38,8 @@ READSET_SEQUENCING_TYPE = "readset_sequencing_type"
 READSET_QUALITY_OFFSET = "readset_quality_offset"
 
 # operation table
+OPERATION_PLATFORM = "operation_platform"
 # Following is not coming from JSON
-# OPERATION_PLATFORM = "operation_platform"
 # OPERATION_CMD_LINE = "operation_cmd_line"
 # OPERATION_NAME = "operation_name"
 # OPERATION_STATUS = "operation_status"
