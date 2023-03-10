@@ -9,10 +9,20 @@ log = logging.getLogger(__name__)
 
 bp = Blueprint('project', __name__, url_prefix='/project')
 
+def unroll(string):
 
-# @bp.route('/')
-# def all_projects():
-#     return [i.flat_dict for i in db_action.projects()]
+    elem = string.split(',')
+    unroll_list = []
+    for e in elem:
+        if '-' in e:
+            first= e.split('-')[0]
+            last = e.split('-')[-1]
+            for i in range(int(first), int(last) + 1):
+                unroll_list.append(int(i))
+        else:
+            unroll_list.append(int(e))
+
+    return unroll_list
 
 def project_decor(func):
     def wrapper_func(*args, **kwargs):
@@ -29,32 +39,33 @@ def project(project_name: str = None):
 
 
 @bp.route('/<string:project_name>/sample')
-def list_all_sample(project_name: str):
+@bp.route('/<string:project_name>/sample/<string:sample_id>')
+def sample(project_name: str, sample_id: str = None):
     if project_name not in [p.name for p in db_action.projects(project_name)]:
         return abort(404, "Project {} not found".format(project_name))
 
-    return [i.flat_dict for i in db_action.samples(project_name)]
+    if sample_id is not None:
+        sample_id = unroll(sample_id)
 
-@bp.route('/<string:project_name>/sample/<string:sample_list>')
-def sample(sample_list: str):
-    if project_name not in db_action.projects():
-        return abort(404, "Project {} not found".format(project_name))
-
-    pass
+    return [i.flat_dict for i in db_action.samples(project_name, sample_id=sample_id)]
 
 @bp.route('/<string:project_name>/readset')
-def list_all_readset(project_name: str):
+@bp.route('/<string:project_name>/readset/<string:readset_id>')
+def readsets(project_name: str, readset_id: str=None):
     if project_name not in [p.name for p in db_action.projects(project_name)]:
         return abort(404, "Project {} not found".format(project_name))
 
-    return [i.flat_dict for i in db_action.readsets(project_name)]
+    if readset_id is not None:
+        readset_id = unroll(readset_id)
+
+    return [i.flat_dict for i in db_action.readsets(project_name, readset_id=readset_id)]
 
 @bp.route('/<string:project_name>/sample/<string:sample_id>/readset')
 def readset_from_sample(project_name: str, sample_id: str):
     if project_name not in [p.name for p in db_action.projects(project_name)]:
         return abort(404, "Project {} not found".format(project_name))
 
-    sample_id = [int(i) for i in sample_id.split(',')]
+    sample_id = unroll(sample_id)
 
     return [i.flat_dict for i in db_action.readsets(project_name, sample_id)]
 
@@ -80,4 +91,21 @@ def ingest_run_processing(project_name: str):
             return abort(400, "project name in POST {} not Valid, {} requires".format(ingest_data[vc.PROJECT_NAME],
                                                                                       project_name))
         return db_action.ingest_run_processing(project_name, ingest_data).flat_dict
+
+@bp.route('/<string:project_name>/metric/<string:metric_id>')
+@bp.route('/<string:project_name>/readset/<string:readset_id>/metric')
+@bp.route('/<string:project_name>/sample/<string:sample_id>/metric')
+def metrics(project_name: str, readset_id: str=None, metric_id: str=None, sample_id: str=None):
+    if project_name not in [p.name for p in db_action.projects(project_name)]:
+        return abort(404, "Project {} not found".format(project_name))
+
+    if readset_id is not None:
+        readset_id = unroll(readset_id)
+    if metric_id is not None:
+        metric_id = unroll(metric_id)
+    if sample_id is not None:
+        sample_id = unroll(sample_id)
+
+    return [i.flat_dict for i in db_action.metrics(
+                                                   readset_id=readset_id, metric_id=metric_id, sample_id=sample_id)]
 
