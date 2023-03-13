@@ -38,8 +38,8 @@ READSET_SEQUENCING_TYPE = "readset_sequencing_type"
 READSET_QUALITY_OFFSET = "readset_quality_offset"
 
 # operation table
+OPERATION_PLATFORM = "operation_platform"
 # Following is not coming from JSON
-# OPERATION_PLATFORM = "operation_platform"
 # OPERATION_CMD_LINE = "operation_cmd_line"
 # OPERATION_NAME = "operation_name"
 # OPERATION_STATUS = "operation_status"
@@ -79,8 +79,8 @@ FILE_EXTRA_METADATA = "file_extra_metadata"
 METRIC = "metric"
 METRIC_NAME = "metric_name"
 METRIC_VALUE = "metric_value"
+METRIC_FLAG = "metric_flag"
 # Following is not coming from JSON
-# METRIC_FLAG = "metric_flag"
 # Defining all metrics in the table?
 # METRIC_RAW_READS_COUNT = "metric_raw_reads_count"
 # METRIC_RAW_DUPLICATION_RATE = "metric_raw_duplication_rate"

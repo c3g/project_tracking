@@ -169,19 +169,19 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         bundle=bundle_config
         )
     operation_config = OperationConfig(
-        name="ingestion",
+        name="run_processing",
         version="0.1",
         bundle=bundle_config
         )
     operation = Operation(
         platform="abacus",
-        name="ingestion",
+        name="run_processing",
         status=StatusEnum("DONE"),
         operation_config=operation_config,
         project=project
         )
     job = Job(
-        name="run_processing_parsing",
+        name="run_processing",
         status=StatusEnum("DONE"),
         start=datetime.now(),
         stop=datetime.now(),
@@ -194,14 +194,14 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         .where(Run.fms_id == ingest_data[vb.RUN_FMS_ID])
         .where(Run.name == ingest_data[vb.RUN_NAME])
         .where(Run.instrument == ingest_data[vb.RUN_INSTRUMENT])
-        .where(Run.date == str(datetime.strptime(ingest_data[vb.RUN_DATE], "%d/%m/%Y %H:%M:%S")))
+        .where(Run.date == str(datetime.strptime(ingest_data[vb.RUN_DATE], "%Y-%m-%d %H:%M:%S")))
         ).first()
     if not run:
         run = Run(
             fms_id=ingest_data[vb.RUN_FMS_ID],
             name=ingest_data[vb.RUN_NAME],
             instrument=ingest_data[vb.RUN_INSTRUMENT],
-            date=datetime.strptime(ingest_data[vb.RUN_DATE], "%d/%m/%Y %H:%M:%S")
+            date=datetime.strptime(ingest_data[vb.RUN_DATE], "%Y-%m-%d %H:%M:%S")
             )
 
     for patient_json in ingest_data[vb.PATIENT]:
@@ -213,20 +213,24 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                 patient=patient
                 )
             for readset_json in sample_json[vb.READSET]:
+                if readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE]:
+                    kit_expiration_date = datetime.strptime(readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE], "%d/%m/%Y")
+                else:
+                    kit_expiration_date = ""
                 # Defining Experiment
                 experiment = session.scalars(
                     select(Experiment)
                     .where(Experiment.sequencing_technology == readset_json[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY])
                     .where(Experiment.type == readset_json[vb.EXPERIMENT_TYPE])
                     .where(Experiment.library_kit == readset_json[vb.EXPERIMENT_LIBRARY_KIT])
-                    .where(Experiment.kit_expiration_date == str(datetime.strptime(readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE], "%d/%m/%Y")))
+                    .where(Experiment.kit_expiration_date == str(kit_expiration_date))
                     ).first()
                 if not experiment:
                     experiment = Experiment(
                         sequencing_technology=readset_json[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY],
                         type=readset_json[vb.EXPERIMENT_TYPE],
                         library_kit=readset_json[vb.EXPERIMENT_LIBRARY_KIT],
-                        kit_expiration_date=datetime.strptime(readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE], "%d/%m/%Y")
+                        kit_expiration_date=kit_expiration_date
                         )
                 # Defining Bundle
                 bundle = session.scalars(
@@ -275,12 +279,88 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                     Metric(
                         name=metric_json[vb.METRIC_NAME],
                         value=metric_json[vb.METRIC_VALUE],
+                        flag=FlagEnum(metric_json[vb.METRIC_FLAG]),
                         job=job,
                         readset=[readset]
                         )
 
             session.add(readset)
             session.flush()
+
+    operation_id = operation.id
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    return session.scalars(select(Operation).where(Operation.id == operation_id)).one()
+
+def ingest_transfer(ingest_data, session=None):
+    """Ingesting transfer"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    # project = session.scalars(select(Project).where(Project.name == project_name)).first()
+
+    operation = Operation(
+        platform=ingest_data[vb.OPERATION_PLATFORM],
+        name="transfer",
+        status=StatusEnum("DONE")
+        )
+    job = Job(
+        name="transfer",
+        status=StatusEnum("DONE"),
+        start=datetime.now(),
+        stop=datetime.now(),
+        operation=operation
+        )
+    # session.add(file_config)
+    for readset_json in ingest_data[vb.READSET]:
+        readset = session.scalars(
+            select(Readset)
+            .where(Readset.name == readset_json[vb.READSET_NAME])
+            ).first()
+        readset.job.append(job)
+        # Defining Bundle
+        bundle = session.scalars(
+            select(Bundle)
+            .where(Bundle.uri == readset_json[vb.BUNDLE_URI])
+            ).first()
+        if not bundle:
+            bundle = Bundle(
+                uri=readset_json[vb.BUNDLE_URI],
+                job=job
+                )
+        for file_json in readset_json[vb.FILE]:
+            # logger.debug(bundle)
+            suffixes = Path(file_json[vb.FILE_CONTENT]).suffixes
+            file_type = os.path.splitext(file_json[vb.FILE_CONTENT])[-1][1:]
+            if ".gz" in suffixes:
+                file_type = "".join(suffixes)[1:]
+            try:
+                File(
+                    content=file_json[vb.FILE_CONTENT],
+                    type=file_type,
+                    extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
+                    bundle=bundle,
+                    readset=[readset]
+                    )
+            except KeyError:
+                File(
+                    content=file_json[vb.FILE_CONTENT],
+                    type=file_type,
+                    bundle=bundle,
+                    readset=[readset]
+                    )
+        # exit()
+        session.add(readset)
+        session.add(bundle)
+        session.flush()
 
     operation_id = operation.id
 

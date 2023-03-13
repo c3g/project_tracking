@@ -1,62 +1,67 @@
 {
-    "bundle_config_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220325_A00266_0642_AHFM5HDSX3_MOHRun02-novaseq",
+    "bundle_config_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq",
     "file_config_content": "",
     "file_config_type": "event",
-    "project_fms_id": "1",
-    "project_name": "MoH",
-    "run_fms_id": "1",
-    "run_name": "MOHRun02",
+    "project_fms_id": "",
+    "project_name": "MOH-Q",
+    "run_fms_id": "",
+    "run_name": "220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq",
     "run_instrument": "novaseq",
-    "run_date": "06/12/2022 11:04:19",
+    "run_date": "2022-04-20 00:00:00",
     "patient": [
         {
             "patient_fms_id": "",
-            "patient_name": "MoHQ-CM-1-8",
-            "patient_cohort": "MoHQ-CM-1",
-            "patient_institution": "CM",
+            "patient_name": "MoHQ-JG-9-23",
+            "patient_cohort": "MoHQ-JG-9",
+            "patient_institution": "JG",
             "sample": [
                 {
                     "sample_fms_id": "",
-                    "sample_name": "MoHQ-CM-1-8-1525-2DT",
+                    "sample_name": "MoHQ-JG-9-23-15000863775-19933DT",
                     "sample_tumour": true,
                     "readset": [
                         {
-                            "experiment_sequencing_technology": "WGS",
+                            "experiment_sequencing_technology": "",
                             "experiment_type": "PCR-free",
-                            "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
-                            "experiment_kit_expiration_date": "06/12/2022",
-                            "readset_name": "MoHQ-CM-1-8-1525-2DT_2-2183113_1",
+                            "experiment_library_kit": "",
+                            "experiment_kit_expiration_date": "",
+                            "readset_name": "MoHQ-JG-9-23-15000863775-19933DT.A01433_0157_1",
                             "readset_lane": "1",
                             "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
                             "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
                             "readset_sequencing_type": "PAIRED_END",
                             "readset_quality_offset": "33",
-                            "bundle_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220325_A00266_0642_AHFM5HDSX3_MOHRun02-novaseq/Aligned.1",
+                            "bundle_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Aligned.1/alignment/MoHQ-JG-9-23-15000863775-19933DT/runA01433_0157_1",
                             "file": [
                                 {
-                                    "file_content": "MoHQ-CM-1-8-1525-2DT_2-2183113.sorted.bam"
+                                    "file_content": "MoHQ-JG-9-23-15000863775-19933DT_2-2224210.sorted.bam"
                                 }
                             ],
                             "metric": [
                                 {
                                     "metric_name": "raw_reads_count",
-                                    "metric_value": "854644131"
+                                    "metric_value": "822429243",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_duplication_rate",
-                                    "metric_value": "11.0"
+                                    "metric_value": "9.0",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_median_insert_size",
-                                    "metric_value": "270"
+                                    "metric_value": "332",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_insert_size",
-                                    "metric_value": "291.7"
+                                    "metric_value": "349.2",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_coverage",
-                                    "metric_value": "81.0"
+                                    "metric_value": "79.2",
+                                    "metric_flag": "FAILED"
                                 }
                             ]
                         }
@@ -64,46 +69,51 @@
                 },
                 {
                     "sample_fms_id": "",
-                    "sample_name": "MoHQ-CM-1-8-1525-2DN",
+                    "sample_name": "MoHQ-JG-9-23-15000936286-19866DN",
                     "sample_tumour": false,
                     "readset": [
                         {
-                            "experiment_sequencing_technology": "WGS",
+                            "experiment_sequencing_technology": "",
                             "experiment_type": "PCR-free",
-                            "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
-                            "experiment_kit_expiration_date": "06/12/2022",
-                            "readset_name": "MoHQ-CM-1-8-1525-2DN_2-2183113_1",
-                            "readset_lane": "1",
+                            "experiment_library_kit": "",
+                            "experiment_kit_expiration_date": "",
+                            "readset_name": "MoHQ-JG-9-23-15000936286-19866DN.A01433_0157_2",
+                            "readset_lane": "2",
                             "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
                             "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
                             "readset_sequencing_type": "PAIRED_END",
                             "readset_quality_offset": "33",
-                            "bundle_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220325_A00266_0642_AHFM5HDSX3_MOHRun02-novaseq/Aligned.1",
+                            "bundle_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Aligned.2/alignment/MoHQ-JG-9-23-15000936286-19866DN/runA01433_0157_2",
                             "file": [
                                 {
-                                    "file_content": "MoHQ-CM-1-8-1525-2DN_2-2183113.sorted.bam"
+                                    "file_content": "MoHQ-JG-9-23-15000936286-19866DN_2-2224220.sorted.bam"
                                 }
                             ],
                             "metric": [
                                 {
                                     "metric_name": "raw_reads_count",
-                                    "metric_value": "918273645"
+                                    "metric_value": "940464718",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_duplication_rate",
-                                    "metric_value": "11.3"
+                                    "metric_value": "9.8",
+                                    "metric_flag": "WARNING"
                                 },
                                 {
                                     "metric_name": "raw_median_insert_size",
-                                    "metric_value": "250"
+                                    "metric_value": "327",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_insert_size",
-                                    "metric_value": "251.4"
+                                    "metric_value": "347.8",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_coverage",
-                                    "metric_value": "84.5"
+                                    "metric_value": "92.0",
+                                    "metric_flag": "PASS"
                                 }
                             ]
                         }
@@ -113,57 +123,62 @@
         },
         {
             "patient_fms_id": "",
-            "patient_name": "MoHQ-CM-1-9",
+            "patient_name": "MoHQ-CM-1-3",
             "patient_cohort": "MoHQ-CM-1",
             "patient_institution": "CM",
             "sample": [
                 {
                     "sample_fms_id": "",
-                    "sample_name": "MoHQ-CM-1-9-8617-1DT",
+                    "sample_name": "MoHQ-CM-1-3-6929-1RT",
                     "sample_tumour": true,
                     "readset": [
                         {
-                            "experiment_sequencing_technology": "WGS",
-                            "experiment_type": "PCR-free",
-                            "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
-                            "experiment_kit_expiration_date": "06/12/2022",
-                            "readset_name": "MoHQ-CM-1-9-8617-1DT_2-2183114_1",
-                            "readset_lane": "1",
-                            "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
-                            "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
+                            "experiment_sequencing_technology": "",
+                            "experiment_type": "RNASeq",
+                            "experiment_library_kit": "",
+                            "experiment_kit_expiration_date": "",
+                            "readset_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_3",
+                            "readset_lane": "3",
+                            "readset_adapter1": "CTGTCTCTTATACACATCTCCGAGCCCACGAGAC",
+                            "readset_adapter2": "CTGTCTCTTATACACATCTGACGCTGCCGACGA",
                             "readset_sequencing_type": "PAIRED_END",
                             "readset_quality_offset": "33",
-                            "bundle_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220325_A00266_0642_AHFM5HDSX3_MOHRun02-novaseq/Aligned.1",
+                            "bundle_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Unaligned.3/Project_MES1431/Sample_MoHQ-CM-1-3-6929-1RT_2-2053929",
                             "file": [
                                 {
-                                    "file_content": "MoHQ-CM-1-9-8617-1DT_2-2183114_R1.fastq.gz",
+                                    "file_content": "MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L003_R1_001.fastq.gz",
                                     "file_extra_metadata": "R1"
                                 },
                                 {
-                                    "file_content": "MoHQ-CM-1-9-8617-1DT_2-2183114_R2.fastq.gz",
+                                    "file_content": "MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L003_R2_001.fastq.gz",
                                     "file_extra_metadata": "R2"
                                 }
                             ],
                             "metric": [
                                 {
                                     "metric_name": "raw_reads_count",
-                                    "metric_value": "987654321"
+                                    "metric_value": "480604439",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_duplication_rate",
-                                    "metric_value": "10.0"
+                                    "metric_value": "25.0",
+                                    "metric_flag": "WARNING"
                                 },
                                 {
                                     "metric_name": "raw_median_insert_size",
-                                    "metric_value": "290"
+                                    "metric_value": "193",
+                                    "metric_flag": "WARNING"
                                 },
                                 {
                                     "metric_name": "raw_mean_insert_size",
-                                    "metric_value": "275.9"
+                                    "metric_value": "209.4",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_coverage",
-                                    "metric_value": "78.0"
+                                    "metric_value": "35.0",
+                                    "metric_flag": "PASS"
                                 }
                             ]
                         }
@@ -171,166 +186,103 @@
                 },
                 {
                     "sample_fms_id": "",
-                    "sample_name": "MoHQ-CM-1-9-8617-1DN",
+                    "sample_name": "MoHQ-CM-1-3-15000863775-19933DT",
+                    "sample_tumour": true,
+                    "readset": [
+                        {
+                            "experiment_sequencing_technology": "",
+                            "experiment_type": "PCR-free",
+                            "experiment_library_kit": "",
+                            "experiment_kit_expiration_date": "",
+                            "readset_name": "MoHQ-CM-1-3-15000863775-19933DT.A01433_0157_1",
+                            "readset_lane": "1",
+                            "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
+                            "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
+                            "readset_sequencing_type": "PAIRED_END",
+                            "readset_quality_offset": "33",
+                            "bundle_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Aligned.1/alignment/MoHQ-CM-1-3-15000863775-19933DT/runA01433_0157_1",
+                            "file": [
+                                {
+                                    "file_content": "MoHQ-CM-1-3-15000863775-19933DT_2-2224210.sorted.bam"
+                                }
+                            ],
+                            "metric": [
+                                {
+                                    "metric_name": "raw_reads_count",
+                                    "metric_value": "822429243",
+                                    "metric_flag": "PASS"
+                                },
+                                {
+                                    "metric_name": "raw_duplication_rate",
+                                    "metric_value": "9.0",
+                                    "metric_flag": "PASS"
+                                },
+                                {
+                                    "metric_name": "raw_median_insert_size",
+                                    "metric_value": "332",
+                                    "metric_flag": "PASS"
+                                },
+                                {
+                                    "metric_name": "raw_mean_insert_size",
+                                    "metric_value": "349.2",
+                                    "metric_flag": "PASS"
+                                },
+                                {
+                                    "metric_name": "raw_mean_coverage",
+                                    "metric_value": "79.2",
+                                    "metric_flag": "FAILED"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "sample_fms_id": "",
+                    "sample_name": "MoHQ-CM-1-3-15000936286-19866DN",
                     "sample_tumour": false,
                     "readset": [
                         {
-                            "experiment_sequencing_technology": "WGS",
+                            "experiment_sequencing_technology": "",
                             "experiment_type": "PCR-free",
-                            "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
-                            "experiment_kit_expiration_date": "06/12/2022",
-                            "readset_name": "MoHQ-CM-1-9-8617-1DN_2-2183114_1",
-                            "readset_lane": "1",
+                            "experiment_library_kit": "",
+                            "experiment_kit_expiration_date": "",
+                            "readset_name": "MoHQ-CM-1-3-15000936286-19866DN.A01433_0157_2",
+                            "readset_lane": "2",
                             "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
                             "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
                             "readset_sequencing_type": "PAIRED_END",
                             "readset_quality_offset": "33",
-                            "bundle_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220325_A00266_0642_AHFM5HDSX3_MOHRun02-novaseq/Aligned.1",
+                            "bundle_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Aligned.2/alignment/MoHQ-CM-1-3-15000936286-19866DN/runA01433_0157_2",
                             "file": [
                                 {
-                                    "file_content": "MoHQ-CM-1-9-8617-1DN_2-2183114_R1.fastq.gz",
-                                    "file_extra_metadata": "R1"
-                                },
-                                {
-                                    "file_content": "MoHQ-CM-1-9-8617-1DN_2-2183114_R2.fastq.gz",
-                                    "file_extra_metadata": "R2"
+                                    "file_content": "MoHQ-CM-1-3-15000936286-19866DN_2-2224220.sorted.bam"
                                 }
                             ],
                             "metric": [
                                 {
                                     "metric_name": "raw_reads_count",
-                                    "metric_value": "647382910"
+                                    "metric_value": "940464718",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_duplication_rate",
-                                    "metric_value": "12.1"
+                                    "metric_value": "9.8",
+                                    "metric_flag": "WARNING"
                                 },
                                 {
                                     "metric_name": "raw_median_insert_size",
-                                    "metric_value": "288"
+                                    "metric_value": "327",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_insert_size",
-                                    "metric_value": "285.9"
+                                    "metric_value": "347.8",
+                                    "metric_flag": "PASS"
                                 },
                                 {
                                     "metric_name": "raw_mean_coverage",
-                                    "metric_value": "74.0"
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "patient_fms_id": "",
-            "patient_name": "MoHQ-CM-1-10",
-            "patient_cohort": "MoHQ-CM-1",
-            "patient_institution": "CM",
-            "sample": [
-                {
-                    "sample_fms_id": "",
-                    "sample_name": "MoHQ-CM-1-10-3393-1DT",
-                    "sample_tumour": true,
-                    "readset": [
-                        {
-                            "experiment_sequencing_technology": "WGS",
-                            "experiment_type": "PCR-free",
-                            "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
-                            "experiment_kit_expiration_date": "06/12/2022",
-                            "readset_name": "MoHQ-CM-1-10-3393-1DT_2-2183115_1",
-                            "readset_lane": "1",
-                            "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
-                            "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
-                            "readset_sequencing_type": "PAIRED_END",
-                            "readset_quality_offset": "33",
-                            "bundle_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220325_A00266_0642_AHFM5HDSX3_MOHRun02-novaseq/Aligned.1",
-                            "file": [
-                                {
-                                    "file_content": "MoHQ-CM-1-10-3393-1DT_2-2183115_R1.fastq.gz",
-                                    "file_extra_metadata": "R1"
-                                },
-                                {
-                                    "file_content": "MoHQ-CM-1-10-3393-1DT_2-2183115_R2.fastq.gz",
-                                    "file_extra_metadata": "R2"
-                                }
-                            ],
-                            "metric": [
-                                {
-                                    "metric_name": "raw_reads_count",
-                                    "metric_value": "123456789"
-                                },
-                                {
-                                    "metric_name": "raw_duplication_rate",
-                                    "metric_value": "9.2"
-                                },
-                                {
-                                    "metric_name": "raw_median_insert_size",
-                                    "metric_value": "170"
-                                },
-                                {
-                                    "metric_name": "raw_mean_insert_size",
-                                    "metric_value": "194.5"
-                                },
-                                {
-                                    "metric_name": "raw_mean_coverage",
-                                    "metric_value": "88.8"
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "patient_fms_id": "",
-            "patient_name": "MoHQ-CM-1-11",
-            "patient_cohort": "MoHQ-CM-1",
-            "patient_institution": "CM",
-            "sample": [
-                {
-                    "sample_fms_id": "",
-                    "sample_name": "MoHQ-CM-1-11-4725-1DT",
-                    "sample_tumour": true,
-                    "readset": [
-                        {
-                            "experiment_sequencing_technology": "WGS",
-                            "experiment_type": "PCR-free",
-                            "experiment_library_kit": "NxSeq_AmpFREE_Low_DNA_Library_Kit",
-                            "experiment_kit_expiration_date": "06/12/2022",
-                            "readset_name": "MoHQ-CM-1-11-4725-1DT_2-2183116_2",
-                            "readset_lane": "1",
-                            "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
-                            "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
-                            "readset_sequencing_type": "PAIRED_END",
-                            "readset_quality_offset": "33",
-                            "bundle_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220325_A00266_0642_AHFM5HDSX3_MOHRun02-novaseq/Aligned.1",
-                            "file": [
-                                {
-                                    "file_content": "MoHQ-CM-1-11-4725-1DT_2-2183116.sorted.bam"
-                                }
-                            ],
-                            "metric": [
-                                {
-                                    "metric_name": "raw_reads_count",
-                                    "metric_value": "987123654"
-                                },
-                                {
-                                    "metric_name": "raw_duplication_rate",
-                                    "metric_value": "9.6"
-                                },
-                                {
-                                    "metric_name": "raw_median_insert_size",
-                                    "metric_value": "240"
-                                },
-                                {
-                                    "metric_name": "raw_mean_insert_size",
-                                    "metric_value": "257.6"
-                                },
-                                {
-                                    "metric_name": "raw_mean_coverage",
-                                    "metric_value": "78.9"
+                                    "metric_value": "92.0",
+                                    "metric_flag": "PASS"
                                 }
                             ]
                         }
