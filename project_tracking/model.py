@@ -14,8 +14,10 @@ from sqlalchemy import (
     Integer,
     JSON,
     Enum,
+    select,
     Table
     )
+
 from sqlalchemy.orm import (
     relationship,
     DeclarativeBase,
@@ -25,6 +27,7 @@ from sqlalchemy.orm import (
     attributes
     )
 
+from . import database
 
 class LaneEnum(enum.Enum):
     """
@@ -265,6 +268,28 @@ class Patient(BaseTable):
     project: Mapped["Project"] = relationship(back_populates="patient")
     sample: Mapped[list["Sample"]] = relationship(back_populates="patient")
 
+    @classmethod
+    def from_name(cls ,name, project, cohort=None, institution=None, session=None):
+        """
+        get patient if it exist, set it if it does not exist
+        """
+        if session is None:
+            session = database.get_session()
+
+        # Name is unique
+        patient = session.scalars(select(cls).where(cls.name == name)).first()
+
+        if not patient:
+            patient = cls(name=name,
+                          cohort=cohort,
+                          institution=institution,
+                          project=project)
+        else:
+            if patient.project != project:
+                logger.error("patient {} already in project {}"
+                             .format(patient.name, patient.project))
+
+        return patient
 
 class Sample(BaseTable):
     """
@@ -292,6 +317,28 @@ class Sample(BaseTable):
     patient: Mapped["Patient"] = relationship(back_populates="sample")
     readset: Mapped[list["Readset"]] = relationship(back_populates="sample")
 
+    @classmethod
+    def from_name(cls, name, patient, tumour=None, session=None):
+        """
+        get sample if it exist, set it if it does not exist
+        """
+        if not session:
+            session = database.get_session()
+
+        # Name is unique
+        sample = session.scalars(select(cls).where(cls.name == name)).first()
+
+        if not sample:
+            sample = cls(name=name,
+                         patient=patient,
+                         tumour=tumour)
+        else:
+            if sample.patient != patient:
+                logger.error("sample {} already attatched to project {}".format(sample.patient.name, patient.name))
+
+        return sample
+
+
 class Experiment(BaseTable):
     """
     Experiment:
@@ -311,9 +358,35 @@ class Experiment(BaseTable):
     sequencing_technology: Mapped[str] = mapped_column(default=None, nullable=True)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
     library_kit: Mapped[str] = mapped_column(default=None, nullable=True)
-    kit_expiration_date: Mapped[str] = mapped_column(default=None, nullable=True)
+    kit_expiration_date: Mapped[datetime] = mapped_column(default=None, nullable=True)
 
     readset: Mapped[list["Readset"]] = relationship(back_populates="experiment")
+
+    @classmethod
+    def from_sequencing_technology(cls, sequencing_technology, exp_type=None,
+                                   library_kit=None, kit_expiration_date=None, session=None):
+
+        if not session:
+            session = database.get_session()
+
+
+        experiment = session.scalars(
+            select(cls)
+                .where(cls.sequencing_technology == sequencing_technology)
+                .where(cls.type == exp_type )
+                .where(cls.library_kit == library_kit)
+                .where(cls.kit_expiration_date == kit_expiration_date)
+        ).first()
+        if not experiment:
+            experiment = cls(
+                sequencing_technology=sequencing_technology,
+                type=exp_type,
+                library_kit=library_kit,
+                kit_expiration_date=kit_expiration_date
+            )
+        return experiment
+
+
 
 class Run(BaseTable):
     """
@@ -521,6 +594,23 @@ class Bundle(BaseTable):
                                                      primaryjoin="Bundle.id ==bundle_bundle.c.bundle_id",
                                                      secondaryjoin="Bundle.id ==bundle_bundle.c.reference_id")
 
+
+    @classmethod
+    def from_uri(cls, uri, job=None, session=None):
+
+        if not session:
+            session = database.get_session()
+
+        bundle = session.scalars(
+            select(cls)
+                .where(cls.uri == uri)).first()
+        if not bundle:
+            bundle = cls(uri=uri, job=job)
+        else:
+            if job is not None and bundle not in job.bundle:
+                logger.error(f"job {job} and bundle.job {bundle.job} are not the same")
+
+        return bundle
 
 class File(BaseTable):
     """

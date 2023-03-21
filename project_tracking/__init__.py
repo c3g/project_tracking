@@ -55,7 +55,7 @@ def create_app(test_config=None):
         logger.info(
         "%s [%s] %s %s %s %s %s %s %s",
             request.remote_addr,
-            datetime.datetime.utcnow().strftime("%d/%b/%Y:%H:%M:%S.%f")[:-3],
+            datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")[:-3],
             request.method,
             request.path,
             request.scheme,

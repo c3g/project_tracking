@@ -36,12 +36,6 @@ from .model import (
 logger = logging.getLogger(__name__)
 
 
-def fix_db_from_file_system(project_name, ingest_data):
-    """ Use Ingest Data scaped for the FS to fix/set the database
-
-    """
-    pass
-
 def projects(project = None):
     """Fetchin all projects in database
     """
@@ -112,22 +106,84 @@ def readsets(project_name = None, sample_id = None, readset_id = None):
 
     return session.scalars(stmt).unique().all()
 
+
+
+def patient_pair(project: str, pair: bool, patient_id=None, tumor: bool=True):
+    """
+    Pair = True: Returns only patients that have a tumorus and a normal sample
+    Pair = False, Tumor = True: Returns patients that only have a tumorus samples
+    Pair = False, Tumor = False: Returns  patients that only have a Normal samples
+    """
+
+    session = database.get_session()
+    if isinstance(project, str):
+        project = [project]
+
+    if patient_id is None:
+        stmt1 = (select(Patient).join(Patient.sample).where(Sample.tumour == True)
+                 .where(Project.name.in_(project)))
+        stmt2 = (select(Patient).join(Patient.sample).where(Sample.tumour == False)
+                 .where(Project.name.in_(project)))
+    else:
+        if isinstance(patient_id, int):
+            patient_id = [patient_id]
+        stmt1 = (select(Patient).join(Patient.sample).where(Sample.tumour == True)
+                 .where(Project.name.in_(project))
+                 .where(Patient.id.in_(patient_id)))
+        stmt2 = (select(Patient).join(Patient.sample).where(Sample.tumour == False)
+                 .where(Project.name.in_(project))
+                .where(Patient.id.in_(patient_id)))
+
+
+    s1 = set(session.scalars(stmt1).all())
+    s2 = set(session.scalars(stmt2).all())
+    if pair:
+        return s2.intersection(s1)
+    elif tumor:
+        return s1.difference(s2)
+    else:
+        return s2.difference(s1)
+
+
+def patients(project = None, patient_id = None):
+    """Fetchin all patients form projets or selected patient from id
+    """
+    session = database.get_session()
+    if isinstance(project, str):
+        project = [project]
+
+    if project is None and patient_id is None:
+        stmt = (select(Patient))
+    elif patient_id is None and project:
+        stmt = (select(Patient).join(Patient.project).where(Project.name.in_(project)))
+    else:
+        if isinstance(patient_id, int):
+            patient_id = [patient_id]
+        stmt = (select(Patient).where(Patient.id.in_(patient_id))
+                .where(Project.name.in_(project)))
+
+    return session.scalars(stmt).unique().all()
+
+
+
+
 def samples(project = None, sample_id = None):
     """Fetchin all projects in database
     still need to check if sample are part of project when
      both are provided
     """
     session = database.get_session()
+    if isinstance(project, str):
+        project = [project]
     if project is None:
         stmt = (select(Sample))
     elif sample_id is None:
-        if isinstance(project, str):
-            project = [project]
         stmt = (select(Sample).join(Sample.patient).join(Patient.project).where(Project.name.in_(project)))
     else:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
-        stmt = (select(Sample).where(Sample.id.in_(sample_id)))
+        stmt = (select(Sample).where(Sample.id.in_(sample_id))
+                .where(Project.name.in_(project)))
 
     return session.scalars(stmt).unique().all()
 
@@ -140,6 +196,7 @@ def create_project(project_name, fms_id=None, session=None):
     if not session:
         session = database.get_session()
 
+    project_name = project_name
     project = Project(name=project_name, fms_id=fms_id)
 
     session.add(project)
@@ -160,7 +217,9 @@ def ingest_run_processing(project_name, ingest_data, session=None):
     if not session:
         session = database.get_session()
 
-    project = session.scalars(select(Project).where(Project.name == project_name)).first()
+    # crash if project does not exist
+    project_name = project_name
+    project = session.scalars(select(Project).where(Project.name == project_name)).one()
 
     bundle_config = Bundle(uri=ingest_data[vb.BUNDLE_CONFIG_URI])
     file_config = File(
@@ -194,54 +253,49 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         .where(Run.fms_id == ingest_data[vb.RUN_FMS_ID])
         .where(Run.name == ingest_data[vb.RUN_NAME])
         .where(Run.instrument == ingest_data[vb.RUN_INSTRUMENT])
-        .where(Run.date == str(datetime.strptime(ingest_data[vb.RUN_DATE], "%Y-%m-%d %H:%M:%S")))
+        .where(Run.date == str(datetime.strptime(ingest_data[vb.RUN_DATE], vb.DATE_LONG_FMT)))
         ).first()
     if not run:
         run = Run(
             fms_id=ingest_data[vb.RUN_FMS_ID],
             name=ingest_data[vb.RUN_NAME],
             instrument=ingest_data[vb.RUN_INSTRUMENT],
-            date=datetime.strptime(ingest_data[vb.RUN_DATE], "%Y-%m-%d %H:%M:%S")
+            date=datetime.strptime(ingest_data[vb.RUN_DATE], vb.DATE_LONG_FMT)
             )
 
+
+
     for patient_json in ingest_data[vb.PATIENT]:
-        patient = Patient(name=patient_json[vb.PATIENT_NAME], cohort=patient_json[vb.PATIENT_COHORT], institution=patient_json[vb.PATIENT_INSTITUTION], project=project)
+
+
+        patient = Patient.from_name(name=patient_json[vb.PATIENT_NAME],
+                          cohort=patient_json[vb.PATIENT_COHORT],
+                          institution=patient_json[vb.PATIENT_INSTITUTION],
+                          project=project)
+
         for sample_json in patient_json[vb.SAMPLE]:
-            sample = Sample(
+            sample = Sample.from_name(
                 name=sample_json[vb.SAMPLE_NAME],
                 tumour=sample_json[vb.SAMPLE_TUMOUR],
                 patient=patient
                 )
             for readset_json in sample_json[vb.READSET]:
                 if readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE]:
-                    kit_expiration_date = datetime.strptime(readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE], "%d/%m/%Y")
+                    kit_expiration_date = datetime.strptime(readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE], vb.DATE_FMT)
                 else:
-                    kit_expiration_date = ""
+                    kit_expiration_date = None
                 # Defining Experiment
-                experiment = session.scalars(
-                    select(Experiment)
-                    .where(Experiment.sequencing_technology == readset_json[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY])
-                    .where(Experiment.type == readset_json[vb.EXPERIMENT_TYPE])
-                    .where(Experiment.library_kit == readset_json[vb.EXPERIMENT_LIBRARY_KIT])
-                    .where(Experiment.kit_expiration_date == str(kit_expiration_date))
-                    ).first()
-                if not experiment:
-                    experiment = Experiment(
+                experiment = Experiment.from_sequencing_technology(
                         sequencing_technology=readset_json[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY],
-                        type=readset_json[vb.EXPERIMENT_TYPE],
+                        exp_type=readset_json[vb.EXPERIMENT_TYPE],
                         library_kit=readset_json[vb.EXPERIMENT_LIBRARY_KIT],
                         kit_expiration_date=kit_expiration_date
                         )
-                # Defining Bundle
-                bundle = session.scalars(
-                    select(Bundle)
-                    .where(Bundle.uri == readset_json[vb.BUNDLE_URI])
-                    ).first()
-                if not bundle:
-                    bundle = Bundle(
+                bundle = Bundle.from_uri(
                         uri=readset_json[vb.BUNDLE_URI],
                         job=job
                         )
+                # Let this fails if readset already exists.
                 readset = Readset(
                     name=readset_json[vb.READSET_NAME],
                     lane=LaneEnum(readset_json[vb.READSET_LANE]),
@@ -296,6 +350,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         session.rollback()
 
     return session.scalars(select(Operation).where(Operation.id == operation_id)).one()
+
 
 def ingest_transfer(ingest_data, session=None):
     """Ingesting transfer"""
@@ -486,7 +541,7 @@ def ingest_old_database(old_database, run_dict, session=None):
             if line[4] not in ("NA", ""):
                 cur.execute(f"""SELECT Run_Proc_BAM_DNA_N FROM Timestamps WHERE Sample = \"{line[0]}\"""")
                 try:
-                    dna_n_creation = datetime.strptime(cur.fetchone()[0], "%Y/%m/%d")
+                    dna_n_creation = datetime.strptime(cur.fetchone()[0], vb.DATE_FMT)
                 except (ValueError, TypeError):
                     dna_n_creation = datetime.now()
                 if line[4] == line[5]:
@@ -498,7 +553,7 @@ def ingest_old_database(old_database, run_dict, session=None):
             if line[6] not in ("NA", ""):
                 cur.execute(f"""SELECT Run_Proc_BAM_DNA_T FROM Timestamps WHERE Sample = \"{line[0]}\"""")
                 try:
-                    dna_t_creation = datetime.strptime(cur.fetchone()[0], "%Y/%m/%d")
+                    dna_t_creation = datetime.strptime(cur.fetchone()[0], vb.DATE_FMT)
                 except ValueError:
                     dna_t_creation = datetime.now()
                 if line[6] == line[7]:
@@ -510,7 +565,7 @@ def ingest_old_database(old_database, run_dict, session=None):
             if line[8] not in ("NA", ""):
                 cur.execute(f"""SELECT Run_Proc_fastq_1_RNA FROM Timestamps WHERE Sample = \"{line[0]}\"""")
                 try:
-                    rna_creation = datetime.strptime(cur.fetchone()[0], "%Y/%m/%d")
+                    rna_creation = datetime.strptime(cur.fetchone()[0], vb.DATE_FMT)
                 except ValueError:
                     rna_creation = datetime.now()
                 if line[8] == line[9]:
