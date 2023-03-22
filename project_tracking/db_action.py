@@ -49,27 +49,29 @@ def projects(project = None):
 
     return session.scalars(stmt).unique().all()
 
-def metrics(readset_id=None, metric_id = None, sample_id = None):
+def metrics(project_name=None, readset_id=None, metric_id = None, sample_id = None):
     """Fetchin all redset that are part of the project or
      sample
-      still need to check if sample are part of project when
-     both are provided ... or not.
     """
     session = database.get_session()
-    if metric_id:
+    if metric_id and project_name:
         if isinstance(metric_id, int):
             metric_id = [metric_id]
-        stmt = select(Metric).where(Metric.id.in_(metric_id))
-    elif readset_id:
+        stmt = (select(Metric).where(Metric.id.in_(metric_id))
+                             .where(Project.name.in_(project)))
+    elif readset_id and project_name:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
         stmt = (select(Metric).join(Metric.readset)
-                .where(Readset.id.in_(readset_id)))
-    elif sample_id:
+                .where(Readset.id.in_(readset_id))
+                .where(Project.name.in_(project)))
+    elif sample_id and project_name:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
         stmt = (select(Metric).join(Metric.readset)
-                .join(Readset.sample).where(Sample.id.in_(sample_id)))
+                .join(Readset.sample)
+                .where(Sample.id.in_(sample_id)
+                .where(Project.name.in_(project))))
 
     return session.scalars(stmt).unique().all()
 
@@ -78,8 +80,6 @@ def metrics(readset_id=None, metric_id = None, sample_id = None):
 def readsets(project_name = None, sample_id = None, readset_id = None):
     """Fetchin all redset that are part of the project or
      sample
-      still need to check if sample are part of project when
-     both are provided ... or not.
     """
     session = database.get_session()
     if project_name is None and sample_id is None and readset_id is None:
@@ -92,17 +92,18 @@ def readsets(project_name = None, sample_id = None, readset_id = None):
                 .join(Sample.patient).
                 join(Patient.project).
                 where(Project.name.in_(project_name)))
-    elif sample_id:
+    elif sample_id and project_name:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
         stmt = (select(Readset)
                 .join(Readset.sample)
-                .where(Sample.id.in_(sample_id)))
-    elif readset_id:
+                .where(Sample.id.in_(sample_id)).where(Project.name.in_(project)))
+    elif readset_id and project_name:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
         stmt = (select(Readset)
-                .where(Readset.id.in_(readset_id)))
+                .where(Readset.id.in_(readset_id))
+                .where(Project.name.in_(project)))
 
     return session.scalars(stmt).unique().all()
 

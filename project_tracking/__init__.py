@@ -2,16 +2,15 @@ import logging
 import os
 import datetime
 
-from flask import Flask, request
+from flask import Flask, request, Response,make_response
 
 from . import api
 from . import database
 
 
-
 def create_app(test_config=None):
     # create and configure the app
-    app = Flask(__name__, instance_relative_config=True)
+    app = Flask(__name__, instance_relative_config=True,static_folder=None)
     app.url_map.strict_slashes = False
 
     if app.config['DEBUG']:
@@ -68,12 +67,40 @@ def create_app(test_config=None):
 
     @app.route('/')
     def welcome():
+        """
+        Root of all the project tracking API
+        """
         return 'Welcome to the TechDev tracking API!'
 
     # Loadding the api, look at the api/__init__.py file to see
     # what is being registered
     for bp in api.blueprints:
         app.register_blueprint(bp)
+
+    @app.route('/help')
+    def help():
+        """
+        Documentation function
+        """
+        from collections import defaultdict
+        endpoint = defaultdict(lambda: defaultdict(list))
+
+        links = []
+        for rule in app.url_map.iter_rules():
+            endpoint[rule.endpoint]['rule'].append(rule.rule)
+            endpoint[rule.endpoint]['doc'] = app.view_functions[rule.endpoint].__doc__
+
+        for key,value in endpoint.items():
+            links.append(
+f"""URL: {value['rule']}
+DOC: {value['doc']}
+"""
+                         )
+
+        response = make_response('\n'.join(links), 200)
+        response.headers["content-type"] = "text/plain"
+        return response
+
 
     database.init_app(app)
 

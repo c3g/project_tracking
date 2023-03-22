@@ -11,6 +11,10 @@ log = logging.getLogger(__name__)
 bp = Blueprint('project', __name__, url_prefix='/project')
 
 def unroll(string):
+    """
+    string : includes number in the "1,3-7,9" form
+    return:  a list if int of the form [1,3,4,5,6,7,9]
+    """
 
     elem = string.split(',')
     unroll_list = []
@@ -26,23 +30,26 @@ def unroll(string):
     return unroll_list
 
 def capitalize(func):
+    """
+    Capitalize project_name
+    """
     @functools.wraps(func)
     def wrap(*args,project_name = None, **kwargs):
         if isinstance(project_name, str):
             project_name = project_name.upper()
-
             if project_name not in [p.name for p in db_action.projects(project_name)]:
                 return abort(404, "Project {} not found".format(project_name))
-
         return func(*args, project_name=project_name, **kwargs)
     return wrap
-
 
 
 @bp.route('/')
 @bp.route('/<string:project_name>')
 @capitalize
 def projects(project_name: str = None):
+    """
+        return list of all projects the details of the poject with name "project_name"
+    """
     if project_name is None:
         return {"Projetc list": [i.name for i in db_action.projects(project_name)]}
     return [i.flat_dict for i in db_action.projects(project_name)]
@@ -53,6 +60,23 @@ def projects(project_name: str = None):
 @bp.route('/<string:project_name>/patients/<string:patient_id>')
 @capitalize
 def patients(project_name: str, patient_id: str = None):
+    """
+    patient_id : uses the form "1,3-8,9"
+    return: list all patient or selected patient that are also par of <project>
+
+    Query:
+    (pair, tumor):  Default (None, True)
+    The tumor query only have an effect if pair is false
+        (None, True/False):
+            Return: all or selected patients (Default)
+        (true, True/False):
+            Return: a subset of patient who have Tumor=False & Tumor=True samples
+        (false, True):
+            return: a subset of patient who only have Tumor=True samples
+        (false, True):
+            return: a subset of patient who only have Tumor=false samples
+
+    """
 
     query = request.args
     # valid query
@@ -81,9 +105,12 @@ def patients(project_name: str, patient_id: str = None):
 @bp.route('/<string:project_name>/samples/<string:sample_id>')
 @capitalize
 def samples(project_name: str, sample_id: str = None):
+    """
+    sample_id : uses the form "1,3-8,9", if not provides, all sample are returned
+    return: all or selected sample that are in sample_id and part of project
+    """
     if sample_id is not None:
         sample_id = unroll(sample_id)
-
 
     return [i.flat_dict for i in db_action.samples(project_name, sample_id=sample_id)]
 
@@ -91,6 +118,10 @@ def samples(project_name: str, sample_id: str = None):
 @bp.route('/<string:project_name>/readsets/<string:readset_id>')
 @capitalize
 def readsets(project_name: str, readset_id: str=None):
+    """
+    readset_id : uses the form "1,3-8,9", if not provided, all readsets are returned
+    return: selected readsets that are in sample_id and part of project
+    """
 
     if readset_id is not None:
         readset_id = unroll(readset_id)
@@ -100,6 +131,10 @@ def readsets(project_name: str, readset_id: str=None):
 @bp.route('/<string:project_name>/samples/<string:sample_id>/readsets')
 @capitalize
 def readsets_from_samples(project_name: str, sample_id: str):
+    """
+    sample_id : uses the form "1,3-8,9"
+    return: readsets for slected sample_id
+    """
 
     sample_id = unroll(sample_id)
 
@@ -110,12 +145,13 @@ def readsets_from_samples(project_name: str, sample_id: str):
 @bp.route('/<string:project_name>/ingest_run_processing', methods=['GET', 'POST'])
 @capitalize
 def ingest_run_processing(project_name: str):
+    """
+    Ingest POSTed json describing run processing
+    return: The Operation object
+    """
 
     if request.method == 'GET':
         return abort(405, "Use post methode to ingest runs")
-
-    if project_name not in [p.name for p in db_action.projects()]:
-        return abort(404, f"Project {project_name} not found")
 
     if request.method == 'POST':
         try:
@@ -135,6 +171,14 @@ def ingest_run_processing(project_name: str):
 @bp.route('/<string:project_name>/samples/<string:sample_id>/metrics')
 @capitalize
 def metrics(project_name: str, readset_id: str=None, metric_id: str=None, sample_id: str=None):
+    """
+    metric_id : uses the form "1,3-8,9". Select metric by ids
+    redeaset_id : uses the form "1,3-8,9". Select metric by readset ids
+    sample_id : uses the form "1,3-8,9". Select metric by sample ids
+
+    return: selected metrics
+    """
+
 
     if readset_id is not None:
         readset_id = unroll(readset_id)
@@ -143,6 +187,6 @@ def metrics(project_name: str, readset_id: str=None, metric_id: str=None, sample
     if sample_id is not None:
         sample_id = unroll(sample_id)
 
-    return [i.flat_dict for i in db_action.metrics(
+    return [i.flat_dict for i in db_action.metrics( project_name=project_name
                                                    readset_id=readset_id, metric_id=metric_id, sample_id=sample_id)]
 
