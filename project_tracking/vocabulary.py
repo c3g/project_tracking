@@ -34,6 +34,7 @@ RUN_FMS_ID = "run_fms_id"
 RUN_NAME = "run_name"
 RUN_INSTRUMENT = "run_instrument"
 RUN_DATE = "run_date"
+RUN_PROCESSING = 'run_processing'
 
 # readset table
 READSET = "readset"

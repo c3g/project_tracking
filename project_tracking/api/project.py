@@ -16,13 +16,13 @@ def unroll(string):
     return:  a list if int of the form [1,3,4,5,6,7,9]
     """
 
-    elem = string.split(',')
+    elem = [e for e in string.split(',') if e]
     unroll_list = []
     for e in elem:
         if '-' in e:
-            first= e.split('-')[0]
-            last = e.split('-')[-1]
-            for i in range(int(first), int(last) + 1):
+            first= int(e.split('-')[0])
+            last = int(e.split('-')[-1])
+            for i in range(min(first,last), max(first,last) + 1):
                 unroll_list.append(int(i))
         else:
             unroll_list.append(int(e))
@@ -128,6 +128,22 @@ def readsets(project_name: str, readset_id: str=None):
 
     return [i.flat_dict for i in db_action.readsets(project_name, readset_id=readset_id)]
 
+
+@bp.route('/<string:project_name>/readsets/<string:readset_id>/injestion/files')
+@capitalize
+def files(project_name: str, readset_id: str=None):
+    """
+    readset_id : uses the form "1,3-8,9", if not provided, all readsets are returned
+    return: selected readsets that are in sample_id and part of project
+    """
+
+    if readset_id is not None:
+        readset_id = unroll(readset_id)
+
+    return [i.flat_dict for i in db_action.files(project_name, readset_id=readset_id)]
+
+
+
 @bp.route('/<string:project_name>/samples/<string:sample_id>/readsets')
 @capitalize
 def readsets_from_samples(project_name: str, sample_id: str):
@@ -187,6 +203,32 @@ def metrics(project_name: str, readset_id: str=None, metric_id: str=None, sample
     if sample_id is not None:
         sample_id = unroll(sample_id)
 
-    return [i.flat_dict for i in db_action.metrics( project_name=project_name
-                                                   readset_id=readset_id, metric_id=metric_id, sample_id=sample_id)]
+    return [i.flat_dict for i in db_action.metrics(project_name=project_name,
+                                                   readset_id=readset_id,
+                                                   metric_id=metric_id, sample_id=sample_id)]
+
+
+@bp.route('/<string:project_name>/move_files', methods=['GET', 'POST'])
+@capitalize
+def move_files(project_name: str):
+    """
+    Ingest POSTed json describing run processing
+    return: The Operation object
+    """
+
+    if request.method == 'GET':
+        return abort(405, "Use post methode to ingest runs")
+
+    if request.method == 'POST':
+        try:
+            ingest_data = request.get_json(force=True)
+        except:
+            flash('Data does not seems to be json')
+            return redirect(request.url)
+
+        if project_name != ingest_data[vc.PROJECT_NAME].upper():
+            return abort(400, "project name in POST {} not Valid, {} requires"
+                         .format(ingest_data[vc.PROJECT_NAME].upper(), project_name))
+
+        return db_action.ingest_run_processing(project_name, ingest_data).flat_dict
 

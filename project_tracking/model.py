@@ -191,7 +191,8 @@ class BaseTable(Base):
     def flat_dict(self):
         """
         Flat casting of object, to be used in flask responses
-        Returning only ids of the referenced objects
+        Returning only ids of the referenced objects except for
+        file where the bundle details are also returned
         """
         dumps = {}
         for key, val in self.dict.items():
@@ -208,6 +209,11 @@ class BaseTable(Base):
             elif isinstance(val, enum.Enum):
                 val = val.value
             dumps[key] = val
+            if self.__tablename__ == 'file' and key == 'bundle':
+                val = getattr(self,'bundle').flat_dict
+            dumps[key] = val
+
+        dumps['tablename'] = self.__tablename__
         return dumps
 
     @property

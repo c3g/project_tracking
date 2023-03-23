@@ -36,16 +36,16 @@ from .model import (
 logger = logging.getLogger(__name__)
 
 
-def projects(project = None):
+def projects(project_name = None):
     """Fetchin all projects in database
     """
     session = database.get_session()
-    if project is None:
+    if project_name is None:
         stmt = (select(Project))
     else:
-        if isinstance(project, str):
-            project = [project]
-        stmt = (select(Project).where(Project.name.in_(project)))
+        if isinstance(project_name, str):
+            project_name = [project_name]
+        stmt = (select(Project).where(Project.name.in_(project_name)))
 
     return session.scalars(stmt).unique().all()
 
@@ -54,27 +54,76 @@ def metrics(project_name=None, readset_id=None, metric_id = None, sample_id = No
      sample
     """
     session = database.get_session()
+    if isinstance(project_name, str):
+        project_name = [project_name]
+
     if metric_id and project_name:
         if isinstance(metric_id, int):
             metric_id = [metric_id]
-        stmt = (select(Metric).where(Metric.id.in_(metric_id))
-                             .where(Project.name.in_(project)))
+        stmt = (select(Metric)
+                .where(Metric.id.in_(metric_id))
+                .join(Metric.readset)
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name))
+                )
     elif readset_id and project_name:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
-        stmt = (select(Metric).join(Metric.readset)
+        stmt = (select(Metric)
+                .join(Metric.readset)
                 .where(Readset.id.in_(readset_id))
-                .where(Project.name.in_(project)))
+                .join(Metric.readset)
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name))
+                )
     elif sample_id and project_name:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
-        stmt = (select(Metric).join(Metric.readset)
+        stmt = (select(Metric)
+                .join(Metric.readset)
                 .join(Readset.sample)
-                .where(Sample.id.in_(sample_id)
-                .where(Project.name.in_(project))))
+                .where(Sample.id.in_(sample_id))
+                .join(Metric.readset)
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name))
+                )
 
     return session.scalars(stmt).unique().all()
 
+
+def files(project_name, readset_id, run_processing=True):
+    """Fetchin all files that are link to readset
+    """
+    session = database.get_session()
+
+    if isinstance(project_name, str):
+        project_name = [project_name]
+    if isinstance(readset_id, str):
+        readset_id = [readset_id]
+
+    if project_name is None and sample_id is None and readset_id is None:
+        stmt = select(File)
+    elif project_name and readset_id and run_processing:
+        stmt = (select(File)
+                .join(File.readset)
+                .where(Readset.id.in_(readset_id))
+                .join(File.bundle)
+                .join(Bundle.job)
+                .where(Job.name==vb.RUN_PROCESSING)
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name))
+
+                )
+
+    return session.scalars(stmt).unique().all()
 
 
 def readsets(project_name = None, sample_id = None, readset_id = None):
@@ -82,11 +131,13 @@ def readsets(project_name = None, sample_id = None, readset_id = None):
      sample
     """
     session = database.get_session()
+
+    if isinstance(project_name, str):
+        project_name = [project_name]
+
     if project_name is None and sample_id is None and readset_id is None:
         stmt = select(Readset)
     elif project_name and sample_id is None and readset_id is None:
-        if isinstance(project_name, str):
-            project_name = [project_name]
         stmt = (select(Readset)
                 .join(Readset.sample)
                 .join(Sample.patient).
@@ -97,19 +148,28 @@ def readsets(project_name = None, sample_id = None, readset_id = None):
             sample_id = [sample_id]
         stmt = (select(Readset)
                 .join(Readset.sample)
-                .where(Sample.id.in_(sample_id)).where(Project.name.in_(project)))
+                .where(Sample.id.in_(sample_id)).where(Project.name.in_(project_name))
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name))
+                )
     elif readset_id and project_name:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
         stmt = (select(Readset)
                 .where(Readset.id.in_(readset_id))
-                .where(Project.name.in_(project)))
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name))
+                )
 
     return session.scalars(stmt).unique().all()
 
 
 
-def patient_pair(project: str, pair: bool, patient_id=None, tumor: bool=True):
+def patient_pair(project_name: str, pair: bool, patient_id=None, tumor: bool=True):
     """
     Pair = True: Returns only patients that have a tumorus and a normal sample
     Pair = False, Tumor = True: Returns patients that only have a tumorus samples
@@ -117,22 +177,22 @@ def patient_pair(project: str, pair: bool, patient_id=None, tumor: bool=True):
     """
 
     session = database.get_session()
-    if isinstance(project, str):
-        project = [project]
+    if isinstance(project_name, str):
+        project_name = [project_name]
 
     if patient_id is None:
         stmt1 = (select(Patient).join(Patient.sample).where(Sample.tumour == True)
-                 .where(Project.name.in_(project)))
+                 .where(Project.name.in_(project_name)))
         stmt2 = (select(Patient).join(Patient.sample).where(Sample.tumour == False)
-                 .where(Project.name.in_(project)))
+                 .where(Project.name.in_(project_name)))
     else:
         if isinstance(patient_id, int):
             patient_id = [patient_id]
         stmt1 = (select(Patient).join(Patient.sample).where(Sample.tumour == True)
-                 .where(Project.name.in_(project))
+                 .where(Project.name.in_(project_name))
                  .where(Patient.id.in_(patient_id)))
         stmt2 = (select(Patient).join(Patient.sample).where(Sample.tumour == False)
-                 .where(Project.name.in_(project))
+                 .where(Project.name.in_(project_name))
                 .where(Patient.id.in_(patient_id)))
 
 
@@ -146,45 +206,50 @@ def patient_pair(project: str, pair: bool, patient_id=None, tumor: bool=True):
         return s2.difference(s1)
 
 
-def patients(project = None, patient_id = None):
+def patients(project_name = None, patient_id = None):
     """Fetchin all patients form projets or selected patient from id
     """
     session = database.get_session()
-    if isinstance(project, str):
-        project = [project]
+    if isinstance(project_name, str):
+        project_name = [project_name]
 
-    if project is None and patient_id is None:
+    if project_name is None and patient_id is None:
         stmt = (select(Patient))
-    elif patient_id is None and project:
-        stmt = (select(Patient).join(Patient.project).where(Project.name.in_(project)))
+    elif patient_id is None and project_name:
+        stmt = (select(Patient).join(Patient.project).where(Project.name.in_(project_name)))
     else:
         if isinstance(patient_id, int):
             patient_id = [patient_id]
         stmt = (select(Patient).where(Patient.id.in_(patient_id))
-                .where(Project.name.in_(project)))
+                .where(Project.name.in_(project_name)))
 
     return session.scalars(stmt).unique().all()
 
 
 
 
-def samples(project = None, sample_id = None):
+def samples(project_name= None, sample_id = None):
     """Fetchin all projects in database
     still need to check if sample are part of project when
      both are provided
     """
     session = database.get_session()
-    if isinstance(project, str):
-        project = [project]
-    if project is None:
+    if isinstance(project_name, str):
+        project_name = [project_name]
+    if project_name is None:
         stmt = (select(Sample))
     elif sample_id is None:
-        stmt = (select(Sample).join(Sample.patient).join(Patient.project).where(Project.name.in_(project)))
+        stmt = (select(Sample).join(Sample.patient).join(Patient.project)
+                .where(Project.name.in_(project_name)))
     else:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
-        stmt = (select(Sample).where(Sample.id.in_(sample_id))
-                .where(Project.name.in_(project)))
+        stmt = (select(Sample)
+                .where(Sample.id.in_(sample_id))
+                .join(Sample.patient)
+                .join(Patient.project)
+                .where(Project.name.in_(project_name))
+                )
 
     return session.scalars(stmt).unique().all()
 
@@ -229,19 +294,19 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         bundle=bundle_config
         )
     operation_config = OperationConfig(
-        name="run_processing",
+        name=vb.RUN_PROCESSING,
         version="0.1",
         bundle=bundle_config
         )
     operation = Operation(
         platform="abacus",
-        name="run_processing",
+        name=vb.RUN_PROCESSING,
         status=StatusEnum("DONE"),
         operation_config=operation_config,
         project=project
         )
     job = Job(
-        name="run_processing",
+        name=vb.RUN_PROCESSING,
         status=StatusEnum("DONE"),
         start=datetime.now(),
         stop=datetime.now(),

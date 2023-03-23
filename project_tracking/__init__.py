@@ -92,9 +92,11 @@ def create_app(test_config=None):
 
         for key,value in endpoint.items():
             links.append(
-f"""URL: {value['rule']}
-DOC: {value['doc']}
-"""
+"""----------
+URL: 
+        {}
+DOC: {}
+""".format('\n\t'.join(value['rule']), value['doc'])
                          )
 
         response = make_response('\n'.join(links), 200)
