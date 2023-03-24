@@ -15,7 +15,8 @@ from sqlalchemy import (
     JSON,
     Enum,
     select,
-    Table
+    Table,
+    LargeBinary
     )
 
 from sqlalchemy.orm import (
@@ -121,20 +122,11 @@ readset_operation = Table(
     Column("operation_id", ForeignKey("operation.id"), primary_key=True),
 )
 
-
-operation_bundle = Table(
-    "operation_bundle",
+file_location = Table(
+    "file_location",
     Base.metadata,
-    Column("operation_id", ForeignKey("operation.id"), primary_key=True),
-    Column("bundle_id", ForeignKey("bundle.id"), primary_key=True),
-)
-
-
-bundle_bundle = Table(
-    "bundle_bundle",
-    Base.metadata,
-    Column("bundle_id", Integer, ForeignKey("bundle.id"), primary_key=True),
-    Column("reference_id", Integer, ForeignKey("bundle.id"), primary_key=True),
+    Column("file_id", ForeignKey("file.id"), primary_key=True),
+    Column("location_id", ForeignKey("location.id"), primary_key=True),
 )
 
 
@@ -192,7 +184,7 @@ class BaseTable(Base):
         """
         Flat casting of object, to be used in flask responses
         Returning only ids of the referenced objects except for
-        file where the bundle details are also returned
+        file where the locations details are also returned
         """
         dumps = {}
         for key, val in self.dict.items():
@@ -209,8 +201,8 @@ class BaseTable(Base):
             elif isinstance(val, enum.Enum):
                 val = val.value
             dumps[key] = val
-            if self.__tablename__ == 'file' and key == 'bundle':
-                val = getattr(self,'bundle').flat_dict
+            if self.__tablename__ == 'file' and key == 'location':
+                val = getattr(self,'location').flat_dict
             dumps[key] = val
 
         dumps['tablename'] = self.__tablename__
@@ -485,7 +477,6 @@ class Operation(BaseTable):
     operation_config: Mapped["OperationConfig"] = relationship(back_populates="operation")
     project: Mapped["Project"] = relationship()
     job: Mapped[list["Job"]] = relationship(back_populates="operation")
-    bundle: Mapped[list["Bundle"]] = relationship(secondary=operation_bundle, back_populates="operation")
     readset: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operation")
 
 
@@ -493,7 +484,7 @@ class OperationConfig(BaseTable):
     """
     OperationConfig:
         id integer [PK]
-        config_bundle_id integer [ref: > bundle.id]
+        file_id integer [ref: > file.id]
         name text
         version test
         deprecated boolean
@@ -504,13 +495,11 @@ class OperationConfig(BaseTable):
     """
     __tablename__ = "operation_config"
 
-    config_bundle_id: Mapped[int] = mapped_column(ForeignKey("bundle.id"), default=None, nullable=True)
+    config: Mapped["LargeBinary"] = mapped_column(default=None, nullable=True)
+    hash: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     version: Mapped[str] = mapped_column(default=None, nullable=True)
-
     operation: Mapped[list["Operation"]] = relationship(back_populates="operation_config")
-    bundle: Mapped["Bundle"] = relationship(back_populates = "operation_config")
-
 
 class Job(BaseTable):
     """
@@ -540,7 +529,7 @@ class Job(BaseTable):
 
     operation: Mapped["Operation"] = relationship(back_populates="job")
     metric: Mapped[list["Metric"]] = relationship(back_populates="job")
-    bundle: Mapped[list["Bundle"]] = relationship(back_populates="job")
+    file: Mapped[list["File"]] = relationship(back_populates="job")
     readset: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="job")
 
 class Metric(BaseTable):
@@ -572,9 +561,9 @@ class Metric(BaseTable):
     readset: Mapped[list["Readset"]] = relationship(secondary=readset_metric, back_populates="metric")
 
 
-class Bundle(BaseTable):
+class Location(BaseTable):
     """
-    Bundle:
+    Location:
         id integer [PK]
         job_id integer [ref: > job.id]
         uri text
@@ -585,44 +574,33 @@ class Bundle(BaseTable):
         modification timestamp
         extra_metadata json
     """
-    __tablename__ = "bundle"
+    __tablename__ = "location"
 
-    job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None, nullable=True)
-    uri: Mapped[str] = mapped_column(default=None, nullable=True)
-    deliverable: Mapped[bool] = mapped_column(default=False)
-
-    job: Mapped["Job"] = relationship(back_populates="bundle")
-    file: Mapped[list["File"]] = relationship(back_populates="bundle")
-    operation_config: Mapped[list["OperationConfig"]] = relationship(back_populates="bundle")
-    operation: Mapped[list["Operation"]] = relationship(secondary=operation_bundle, back_populates="bundle")
-
-    reference: Mapped[list["Bundle"]] = relationship("Bundle", secondary=bundle_bundle,
-                                                     primaryjoin="Bundle.id ==bundle_bundle.c.bundle_id",
-                                                     secondaryjoin="Bundle.id ==bundle_bundle.c.reference_id")
+    uri: Mapped[str] = mapped_column(default=None, nullable=False)
+    endpoint: Mapped[str] = mapped_column(default=None, nullable=False)
+    file: Mapped[list["File"]] = relationship(secondary=file_location, back_populates="location")
 
 
     @classmethod
-    def from_uri(cls, uri, job=None, session=None):
+    def from_uri(cls, uri, endpoint=None, session=None):
 
         if not session:
             session = database.get_session()
 
-        bundle = session.scalars(
-            select(cls)
-                .where(cls.uri == uri)).first()
-        if not bundle:
-            bundle = cls(uri=uri, job=job)
-        else:
-            if job is not None and bundle not in job.bundle:
-                logger.error(f"job {job} and bundle.job {bundle.job} are not the same")
+        location = (session.scalars(
+            select(cls).where(cls.uri == uri)).first())
+        if not location:
+            if endpoint is None:
+                endpoint = uri.spit(':///')[0]
+            location = cls(uri=uri, endpoint=endpoint)
 
-        return bundle
+        return location
 
 class File(BaseTable):
     """
     File:
         id integer [PK]
-        bundle_id integer [ref: > bundle.id]
+        location_id integer [ref: > location.id]
         content text
         type text
         deliverable boolean
@@ -634,10 +612,11 @@ class File(BaseTable):
     """
     __tablename__ = "file"
 
+    job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None)
     content: Mapped[str] = mapped_column()
-    bundle_id: Mapped[int] = mapped_column(ForeignKey("bundle.id"), default=None, nullable=True)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
 
     readset: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="file")
-    bundle: Mapped["Bundle"] = relationship(back_populates="file")
+    location: Mapped[list["Location"]] = relationship(secondary=file_location, back_populates="file")
+    job: Mapped[list["Job"]] = relationship(back_populates="file")

@@ -29,7 +29,7 @@ from .model import (
     OperationConfig,
     Job,
     Metric,
-    Bundle,
+    Location,
     File
     )
 
@@ -113,8 +113,7 @@ def files(project_name, readset_id, run_processing=True):
         stmt = (select(File)
                 .join(File.readset)
                 .where(Readset.id.in_(readset_id))
-                .join(File.bundle)
-                .join(Bundle.job)
+                .join(File.job)
                 .where(Job.name==vb.RUN_PROCESSING)
                 .join(Readset.sample)
                 .join(Sample.patient).
@@ -286,20 +285,18 @@ def ingest_run_processing(project_name, ingest_data, session=None):
     # crash if project does not exist
     project_name = project_name
     project = session.scalars(select(Project).where(Project.name == project_name)).one()
+    uri=ingest_data[vb.BUNDLE_CONFIG_URI]
+    endpoint = uri.split(':///')[0]
 
-    bundle_config = Bundle(uri=ingest_data[vb.BUNDLE_CONFIG_URI])
-    file_config = File(
-        content=ingest_data[vb.FILE_CONFIG_CONTENT],
-        type=ingest_data[vb.FILE_CONFIG_TYPE],
-        bundle=bundle_config
-        )
     operation_config = OperationConfig(
         name=vb.RUN_PROCESSING,
         version="0.1",
-        bundle=bundle_config
+        metadata=
+        {'content':ingest_data[vb.FILE_CONFIG_CONTENT],
+        'type':ingest_data[vb.FILE_CONFIG_TYPE]}
         )
     operation = Operation(
-        platform="abacus",
+        platform=endpoint,
         name=vb.RUN_PROCESSING,
         status=StatusEnum("DONE"),
         operation_config=operation_config,
@@ -357,7 +354,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                         library_kit=readset_json[vb.EXPERIMENT_LIBRARY_KIT],
                         kit_expiration_date=kit_expiration_date
                         )
-                bundle = Bundle.from_uri(
+                location = Location.from_uri(
                         uri=readset_json[vb.BUNDLE_URI],
                         job=job
                         )
@@ -385,14 +382,14 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                             content=file_json[vb.FILE_CONTENT],
                             type=file_type,
                             extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
-                            bundle=bundle,
+                            location=location,
                             readset=[readset]
                             )
                     except KeyError:
                         File(
                             content=file_json[vb.FILE_CONTENT],
                             type=file_type,
-                            bundle=bundle,
+                            location=location,
                             readset=[readset]
                             )
                 for metric_json in readset_json[vb.METRIC]:
