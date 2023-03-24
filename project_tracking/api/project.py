@@ -129,7 +129,7 @@ def readsets(project_name: str, readset_id: str=None):
     return [i.flat_dict for i in db_action.readsets(project_name, readset_id=readset_id)]
 
 
-@bp.route('/<string:project_name>/readsets/<string:readset_id>/injestion/files')
+@bp.route('/<string:project_name>/readsets/<string:readset_id>/ingestion/files')
 @capitalize
 def files(project_name: str, readset_id: str=None):
     """
@@ -207,28 +207,4 @@ def metrics(project_name: str, readset_id: str=None, metric_id: str=None, sample
                                                    readset_id=readset_id,
                                                    metric_id=metric_id, sample_id=sample_id)]
 
-
-@bp.route('/<string:project_name>/move_files', methods=['GET', 'POST'])
-@capitalize
-def move_files(project_name: str):
-    """
-    Ingest POSTed json describing run processing
-    return: The Operation object
-    """
-
-    if request.method == 'GET':
-        return abort(405, "Use post methode to ingest runs")
-
-    if request.method == 'POST':
-        try:
-            ingest_data = request.get_json(force=True)
-        except:
-            flash('Data does not seems to be json')
-            return redirect(request.url)
-
-        if project_name != ingest_data[vc.PROJECT_NAME].upper():
-            return abort(400, "project name in POST {} not Valid, {} requires"
-                         .format(ingest_data[vc.PROJECT_NAME].upper(), project_name))
-
-        return db_action.ingest_run_processing(project_name, ingest_data).flat_dict
 

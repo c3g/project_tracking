@@ -24,12 +24,12 @@ from .model import (
     Sample,
     Experiment,
     Run,
+    Location,
     Readset,
     Operation,
     OperationConfig,
     Job,
     Metric,
-    Location,
     File
     )
 
@@ -107,7 +107,7 @@ def files(project_name, readset_id, run_processing=True):
     if isinstance(readset_id, str):
         readset_id = [readset_id]
 
-    if project_name is None and sample_id is None and readset_id is None:
+    if project_name is  None and readset_id is None:
         stmt = select(File)
     elif project_name and readset_id and run_processing:
         stmt = (select(File)
@@ -115,11 +115,10 @@ def files(project_name, readset_id, run_processing=True):
                 .where(Readset.id.in_(readset_id))
                 .join(File.job)
                 .where(Job.name==vb.RUN_PROCESSING)
-                .join(Readset.sample)
-                .join(Sample.patient).
-                join(Patient.project).
-                where(Project.name.in_(project_name))
-
+                .join(File.job)
+                .join(Job.operation)
+                .join(Operation.project)
+                .where(Project.name.in_(project_name))
                 )
 
     return session.scalars(stmt).unique().all()
@@ -284,22 +283,14 @@ def ingest_run_processing(project_name, ingest_data, session=None):
 
     # crash if project does not exist
     project_name = project_name
-    project = session.scalars(select(Project).where(Project.name == project_name)).one()
+    project = projects(project_name=project_name)[0]
     uri=ingest_data[vb.BUNDLE_CONFIG_URI]
     endpoint = uri.split(':///')[0]
 
-    operation_config = OperationConfig(
-        name=vb.RUN_PROCESSING,
-        version="0.1",
-        metadata=
-        {'content':ingest_data[vb.FILE_CONFIG_CONTENT],
-        'type':ingest_data[vb.FILE_CONFIG_TYPE]}
-        )
     operation = Operation(
         platform=endpoint,
         name=vb.RUN_PROCESSING,
         status=StatusEnum("DONE"),
-        operation_config=operation_config,
         project=project
         )
     job = Job(
@@ -309,7 +300,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         stop=datetime.now(),
         operation=operation
         )
-    session.add(file_config)
+    session.add(job)
     # Defining Run
     run = session.scalars(
         select(Run)
@@ -354,10 +345,6 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                         library_kit=readset_json[vb.EXPERIMENT_LIBRARY_KIT],
                         kit_expiration_date=kit_expiration_date
                         )
-                location = Location.from_uri(
-                        uri=readset_json[vb.BUNDLE_URI],
-                        job=job
-                        )
                 # Let this fails if readset already exists.
                 readset = Readset(
                     name=readset_json[vb.READSET_NAME],
@@ -377,21 +364,15 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                     file_type = os.path.splitext(file_json[vb.FILE_CONTENT])[-1][1:]
                     if ".gz" in suffixes:
                         file_type = "".join(suffixes)[1:]
-                    try:
-                        File(
-                            content=file_json[vb.FILE_CONTENT],
-                            type=file_type,
-                            extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
-                            location=location,
-                            readset=[readset]
-                            )
-                    except KeyError:
-                        File(
-                            content=file_json[vb.FILE_CONTENT],
-                            type=file_type,
-                            location=location,
-                            readset=[readset]
-                            )
+                    uri = '{}/{}'.format(readset_json[vb.BUNDLE_URI], file_json[vb.FILE_CONTENT])
+                    file = File(
+                        name=file_json[vb.FILE_CONTENT],
+                        type=file_type,
+                        extra_metadata=file_json.get(vb.FILE_EXTRA_METADATA, None),
+                        readset=[readset],
+                        job=[job]
+                        )
+                    location = Location.from_uri(uri=uri, file=file)
                 for metric_json in readset_json[vb.METRIC]:
                     Metric(
                         name=metric_json[vb.METRIC_NAME],
@@ -413,6 +394,61 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         session.rollback()
 
     return session.scalars(select(Operation).where(Operation.id == operation_id)).one()
+
+
+def add_file_location(project_name, ingest_data, session=None):
+    """Ingesting transfer"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    project = projects(project_name=project_name)[0]
+
+    operation = Operation(
+        platform=ingest_data[vb.OPERATION_PLATFORM],
+        name="transfer",
+        status=StatusEnum("DONE"),
+        project=project
+        )
+    job = Job(
+        name="transfer",
+        status=StatusEnum("DONE"),
+        start=datetime.now(),
+        stop=datetime.now(),
+        operation=operation
+        )
+    # session.add(file_config)
+    for readset_json in ingest_data[vb.READSET]:
+
+        for file_json in readset_json[vb.FILE]:
+            file_name = file_json[vb.FILE_CONTENT]
+            stmt = (select(File)
+                    .join(File.readset)
+                    .where(Readset.name == readset_json[vb.READSET_NAME])
+                    )
+            files = session.scalars(stmt).unique().all()
+            if len(files) == 1:
+                uri = '{}/{}'.format(readset_json[vb.BUNDLE_URI])
+                location = Location.from_uri(uri=,file = files[0])
+            else:
+                raise(Exception("DON't know what to do"))
+            job.file.extend(files)
+
+    session.add(operation)
+    session.flush()
+
+    operation_id = operation.id
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    return session.scalars(select(Operation).where(Operation.id == operation_id)).one()
+
 
 
 def ingest_transfer(ingest_data, session=None):

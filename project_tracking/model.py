@@ -122,13 +122,12 @@ readset_operation = Table(
     Column("operation_id", ForeignKey("operation.id"), primary_key=True),
 )
 
-file_location = Table(
-    "file_location",
+job_file = Table(
+    "job_file",
     Base.metadata,
     Column("file_id", ForeignKey("file.id"), primary_key=True),
-    Column("location_id", ForeignKey("location.id"), primary_key=True),
+    Column("job_id", ForeignKey("job.id"), primary_key=True),
 )
-
 
 class BaseTable(Base):
     """
@@ -202,8 +201,7 @@ class BaseTable(Base):
                 val = val.value
             dumps[key] = val
             if self.__tablename__ == 'file' and key == 'location':
-                val = getattr(self,'location').flat_dict
-            dumps[key] = val
+                dumps[key] = [v.flat_dict for v in getattr(self,'location')]
 
         dumps['tablename'] = self.__tablename__
         return dumps
@@ -467,8 +465,8 @@ class Operation(BaseTable):
     """
     __tablename__ = "operation"
 
+    project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
     operation_config_id: Mapped[int] = mapped_column(ForeignKey("operation_config.id"), default=None, nullable=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None, nullable=True)
     platform: Mapped[str] = mapped_column(default=None, nullable=True)
     cmd_line: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
@@ -495,11 +493,16 @@ class OperationConfig(BaseTable):
     """
     __tablename__ = "operation_config"
 
-    config: Mapped["LargeBinary"] = mapped_column(default=None, nullable=True)
-    hash: Mapped[str] = mapped_column(default=None, nullable=True)
+    configuration_data: Mapped[bytes] = mapped_column(LargeBinary, default=None, nullable=True)
+    hash: Mapped[str] = mapped_column(unique=True, default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     version: Mapped[str] = mapped_column(default=None, nullable=True)
     operation: Mapped[list["Operation"]] = relationship(back_populates="operation_config")
+
+    @classmethod
+    def config_data(cls, configuration_data):
+        pass
+
 
 class Job(BaseTable):
     """
@@ -529,7 +532,7 @@ class Job(BaseTable):
 
     operation: Mapped["Operation"] = relationship(back_populates="job")
     metric: Mapped[list["Metric"]] = relationship(back_populates="job")
-    file: Mapped[list["File"]] = relationship(back_populates="job")
+    file: Mapped[list["File"]] = relationship(secondary=job_file,back_populates="job")
     readset: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="job")
 
 class Metric(BaseTable):
@@ -550,8 +553,8 @@ class Metric(BaseTable):
     """
     __tablename__ = "metric"
 
+    name: Mapped[str] = mapped_column()
     job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None)
-    name: Mapped[str] = mapped_column(default=None, nullable=True)
     value: Mapped[str] = mapped_column()
     flag: Mapped[FlagEnum] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
@@ -563,11 +566,11 @@ class Metric(BaseTable):
 
 class Location(BaseTable):
     """
-    Location:
+    Uri:
         id integer [PK]
-        job_id integer [ref: > job.id]
         uri text
-        deliverable bool
+        file text
+        endpoint text
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -576,13 +579,16 @@ class Location(BaseTable):
     """
     __tablename__ = "location"
 
-    uri: Mapped[str] = mapped_column(default=None, nullable=False)
-    endpoint: Mapped[str] = mapped_column(default=None, nullable=False)
-    file: Mapped[list["File"]] = relationship(secondary=file_location, back_populates="location")
+    file_id: Mapped[int] = mapped_column(ForeignKey("file.id"), nullable=False)
+    uri: Mapped[str] = mapped_column(nullable=False,
+                                     unique=True)
+    endpoint: Mapped[str] = mapped_column(nullable=False)
+
+    file: Mapped["File"] = relationship(back_populates="location")
 
 
     @classmethod
-    def from_uri(cls, uri, endpoint=None, session=None):
+    def from_uri(cls, uri, file , endpoint=None, session=None):
 
         if not session:
             session = database.get_session()
@@ -591,8 +597,8 @@ class Location(BaseTable):
             select(cls).where(cls.uri == uri)).first())
         if not location:
             if endpoint is None:
-                endpoint = uri.spit(':///')[0]
-            location = cls(uri=uri, endpoint=endpoint)
+                endpoint = uri.split(':///')[0]
+            location = cls(uri=uri, file=file, endpoint=endpoint)
 
         return location
 
@@ -601,7 +607,7 @@ class File(BaseTable):
     File:
         id integer [PK]
         location_id integer [ref: > location.id]
-        content text
+        name text
         type text
         deliverable boolean
         deprecated boolean
@@ -612,11 +618,12 @@ class File(BaseTable):
     """
     __tablename__ = "file"
 
-    job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None)
-    content: Mapped[str] = mapped_column()
+    name: Mapped[str] = mapped_column(nullable=False)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
 
+    location: Mapped[list["Location"]] = relationship(back_populates="file")
     readset: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="file")
-    location: Mapped[list["Location"]] = relationship(secondary=file_location, back_populates="file")
-    job: Mapped[list["Job"]] = relationship(back_populates="file")
+    job: Mapped[list["Job"]] = relationship(secondary=job_file, back_populates="file")
+
+
