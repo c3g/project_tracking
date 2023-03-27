@@ -39,9 +39,9 @@ READSET_QUALITY_OFFSET = "readset_quality_offset"
 
 # operation table
 OPERATION_PLATFORM = "operation_platform"
+OPERATION_CMD_LINE = "operation_cmd_line"
+OPERATION_NAME = "operation_name"
 # Following is not coming from JSON
-# OPERATION_CMD_LINE = "operation_cmd_line"
-# OPERATION_NAME = "operation_name"
 # OPERATION_STATUS = "operation_status"
 
 # operation_config table
@@ -68,10 +68,11 @@ FILE_CONFIG_TYPE = "file_config_type"
 FILE_EXTRA_METADATA = "file_extra_metadata"
 
 # job table
+JOB = "job"
+JOB_NAME = "job_name"
+JOB_START = "job_start"
+JOB_STOP = "job_stop"
 # Following is not coming from JSON
-# JOB_NAME = "job_name"
-# JOB_START = "job_start"
-# JOB_STOP = "job_stop"
 # JOB_STATUS = "job_status"
 # JOB_TYPE = "job_type" # What do we want for this one?
 

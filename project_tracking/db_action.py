@@ -372,6 +372,109 @@ def ingest_transfer(ingest_data, session=None):
 
     return session.scalars(select(Operation).where(Operation.id == operation_id)).one()
 
+def ingest_genpipes(ingest_data, session=None):
+    """Ingesting GenPipes"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    # project = session.scalars(select(Project).where(Project.name == project_name)).first()
+
+    bundle_config = Bundle(uri=ingest_data[vb.BUNDLE_CONFIG_URI])
+    file_config = File(
+        content=ingest_data[vb.FILE_CONFIG_CONTENT],
+        type=ingest_data[vb.FILE_CONFIG_TYPE],
+        bundle=bundle_config
+        )
+    operation_config = OperationConfig(
+        name="genpipes",
+        version=ingest_data[vb.OPERATION_CONFIG_VERSION],
+        bundle=bundle_config
+        )
+    operation = Operation(
+        platform=ingest_data[vb.OPERATION_PLATFORM],
+        cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
+        name=ingest_data[vb.OPERATION_NAME],
+        status=StatusEnum("DONE"),
+        operation_config=operation_config,
+        )
+    session.add(file_config)
+    for sample_json in ingest_data[vb.PATIENT]:
+        sample = session.scalars(
+            select(Sample)
+            .where(Sample.name == sample_json[vb.SAMPLE_NAME])
+            ).first()
+        for readset_json in sample_json[vb.READSET]:
+            readset = session.scalars(
+                select(Readset)
+                .where(Readset.name == sample_json[vb.READSET_NAME])
+                ).first()
+            for job_json in readset_json[vb.JOB]:
+                job = Job(
+                    name=job_json[vb.JOB_NAME],
+                    status=StatusEnum("DONE"),
+                    start=datetime.strptime(job_json[vb.JOB_START], "%y%m%d"),
+                    stop=datetime.strptime(job_json[vb.JOB_STOP], "%y%m%d"),
+                    operation=operation
+                    )
+                # Defining Bundle
+                bundle = session.scalars(
+                    select(Bundle)
+                    .where(Bundle.uri == job_json[vb.BUNDLE_URI])
+                    ).first()
+                if not bundle:
+                    bundle = Bundle(
+                        uri=job_json[vb.BUNDLE_URI],
+                        job=job
+                        )
+                for file_json in job_json[vb.FILE]:
+                    suffixes = Path(file_json[vb.FILE_CONTENT]).suffixes
+                    file_type = os.path.splitext(file_json[vb.FILE_CONTENT])[-1][1:]
+                    if ".gz" in suffixes:
+                        file_type = "".join(suffixes)[1:]
+                    try:
+                        File(
+                            content=file_json[vb.FILE_CONTENT],
+                            type=file_type,
+                            extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
+                            bundle=bundle,
+                            readset=[readset]
+                            )
+                    except KeyError:
+                        File(
+                            content=file_json[vb.FILE_CONTENT],
+                            type=file_type,
+                            bundle=bundle,
+                            readset=[readset]
+                            )
+                try:
+                    for metric_json in readset_json[vb.METRIC]:
+                        Metric(
+                            name=metric_json[vb.METRIC_NAME],
+                            value=metric_json[vb.METRIC_VALUE],
+                            flag=FlagEnum(metric_json[vb.METRIC_FLAG]),
+                            job=job,
+                            readset=[readset]
+                            )
+                except KeyError:
+                    pass
+        # exit()
+        session.add(readset)
+        session.add(bundle)
+        session.flush()
+
+    operation_id = operation.id
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    return session.scalars(select(Operation).where(Operation.id == operation_id)).one()
+
 def digest_readset(run_name, output_file, session=None):
     """Creating readset file for GenPipes"""
     if not session:
