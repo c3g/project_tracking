@@ -433,15 +433,25 @@ def add_file_location(project_name, ingest_data, session=None):
                     )
             files = session.scalars(stmt).unique().all()
             if len(files) == 1:
+                f = files[0]
                 uri = '{}/{}'.format(readset_json[vb.BUNDLE_URI], file_name)
-                location = Location.from_uri(uri=uri, file=files[0], session=session)
-                files[0].jobs.append(job)
+                location = Location.from_uri(uri=uri, file=f, session=session)
+                f.jobs.append(job)
                 session.add(location)
             elif len(files) == 0:
                 pass
                 raise (Exception("DON't know what to do with {}".format(readset_json[vb.READSET_NAME])))
             else:
-                raise(Exception("DON't know what to do with {}".format(files)))
+                nope = True
+                for f in files:
+                    if ('_R1' in file_name and '_R1_' in f.name) or ('_R2' in file_name and '_R2_' in f.name):
+                        f.jobs.append(job)
+                        uri = '{}/{}'.format(readset_json[vb.BUNDLE_URI], file_name)
+                        location = Location.from_uri(uri=uri, file=f, session=session)
+                        f.jobs.append(job)
+                        session.add(location)
+                        nope = False
+                if nope : raise(Exception("DON't know what to do with {}".format(files)))
 
 
     session.add(job)
@@ -463,82 +473,6 @@ def add_file_location(project_name, ingest_data, session=None):
     logging.debug(job.files)
     return [job.operation, job]
 
-
-
-
-def ingest_transfer(ingest_data, session=None):
-    """Ingesting transfer"""
-    if not isinstance(ingest_data, dict):
-        ingest_data = json.loads(ingest_data)
-
-    if not session:
-        session = database.get_session()
-
-    # project = session.scalars(select(Project).where(Project.name == project_name)).first()
-
-    operation = Operation(
-        platform=ingest_data[vb.OPERATION_PLATFORM],
-        name="transfer",
-        status=StatusEnum("DONE")
-        )
-    job = Job(
-        name="transfer",
-        status=StatusEnum("DONE"),
-        start=datetime.now(),
-        stop=datetime.now(),
-        operation=operation
-        )
-    # session.add(file_config)
-    for readset_json in ingest_data[vb.READSET]:
-        readset = session.scalars(
-            select(Readset)
-            .where(Readset.name == readset_json[vb.READSET_NAME])
-            ).first()
-        readset.jobs.append(job)
-        # Defining Bundle
-        bundle = session.scalars(
-            select(Bundle)
-            .where(Bundle.uri == readset_json[vb.BUNDLE_URI])
-            ).first()
-        if not bundle:
-            bundle = Bundle(
-                uri=readset_json[vb.BUNDLE_URI],
-                job=job
-                )
-        for file_json in readset_json[vb.FILE]:
-            suffixes = Path(file_json[vb.FILE_CONTENT]).suffixes
-            file_type = os.path.splitext(file_json[vb.FILE_CONTENT])[-1][1:]
-            if ".gz" in suffixes:
-                file_type = "".join(suffixes)[1:]
-            try:
-                File(
-                    content=file_json[vb.FILE_CONTENT],
-                    type=file_type,
-                    extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
-                    bundle=bundle,
-                    readsets=[readset]
-                    )
-            except KeyError:
-                File(
-                    content=file_json[vb.FILE_CONTENT],
-                    type=file_type,
-                    bundle=bundle,
-                    readsets=[readset]
-                    )
-        # exit()
-        session.add(readset)
-        session.add(bundle)
-        session.flush()
-
-    operation_id = operation.id
-
-    try:
-        session.commit()
-    except exc.SQLAlchemyError as error:
-        logger.error("Error: %s", error)
-        session.rollback()
-
-    return session.scalars(select(Operation).where(Operation.id == operation_id)).one()
 
 def digest_readset(run_name, output_file, session=None):
     """Creating readset file for GenPipes"""
@@ -620,196 +554,3 @@ def digest_pair(run_name, output_file, session=None):
                         normal.append(sample.name)
                 combinations = [(patient.name, x, y) for x in normal for y in tumour]
                 csv_writer.writerows(combinations)
-
-def ingest_old_database(old_database, run_dict, session=None):
-    """Ingesting MoH old database"""
-    if not session:
-        session = database.get_session()
-
-    project = Project(name="MoH-Q")
-
-    samples_dict = {}
-    patients_list = []
-    connection = sqlite3.connect(old_database)
-    cur = connection.cursor()
-    cur.execute("""SELECT * FROM Samples""")
-    samples_table = cur.fetchall()
-    for line in samples_table:
-        if line[0] not in ("NA", ""):
-            if line[0] == line[1]:
-                patient = Patient(
-                    name=line[0],
-                    institution=line[2],
-                    cohort=line[3],
-                    project=project,
-                    )
-            else:
-                patient = Patient(
-                    name=line[0],
-                    alias=line[1],
-                    institution=line[2],
-                    cohort=line[3],
-                    project=project,
-                    )
-            if line[4] not in ("NA", ""):
-                cur.execute(f"""SELECT Run_Proc_BAM_DNA_N FROM Timestamps WHERE Sample = \"{line[0]}\"""")
-                try:
-                    dna_n_creation = datetime.strptime(cur.fetchone()[0], vb.DATE_FMT)
-                except (ValueError, TypeError):
-                    dna_n_creation = datetime.now()
-                if line[4] == line[5]:
-                    dna_n = Sample(name=line[4], creation=dna_n_creation)
-                else:
-                    dna_n = Sample(name=line[4], alias=line[5], creation=dna_n_creation)
-                patient.sample.append(dna_n)
-                samples_dict[line[4]] = dna_n
-            if line[6] not in ("NA", ""):
-                cur.execute(f"""SELECT Run_Proc_BAM_DNA_T FROM Timestamps WHERE Sample = \"{line[0]}\"""")
-                try:
-                    dna_t_creation = datetime.strptime(cur.fetchone()[0], vb.DATE_FMT)
-                except ValueError:
-                    dna_t_creation = datetime.now()
-                if line[6] == line[7]:
-                    dna_t = Sample(name=line[6], tumour=True, creation=dna_n_creation)
-                else:
-                    dna_t = Sample(name=line[6], tumour=True, alias=line[7], creation=dna_n_creation)
-                patient.sample.append(dna_t)
-                samples_dict[line[6]] = dna_t
-            if line[8] not in ("NA", ""):
-                cur.execute(f"""SELECT Run_Proc_fastq_1_RNA FROM Timestamps WHERE Sample = \"{line[0]}\"""")
-                try:
-                    rna_creation = datetime.strptime(cur.fetchone()[0], vb.DATE_FMT)
-                except ValueError:
-                    rna_creation = datetime.now()
-                if line[8] == line[9]:
-                    rna = Sample(name=line[8], tumour=True, creation=rna_creation)
-                else:
-                    rna = Sample(name=line[8], tumour=True, alias=line[9], creation=rna_creation)
-                patient.sample.append(rna)
-                samples_dict[line[8]] = rna
-            patient.creation = min(dna_n_creation, dna_t_creation, rna_creation)
-            patients_list.append(patient)
-    for run_name in run_dict:
-        year = run_name.split("_")[0][0:2]
-        bundle_config = Bundle(
-            uri=f"abacus:///lb/robot/research/processing/novaseq/20{year}/{run_name}",
-            creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
-            )
-        file_config = File(
-            content="",
-            type="event",
-            bundle=bundle_config,
-            creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
-            )
-        operation_config = OperationConfig(
-            name="ingestion",
-            version="0.1",
-            bundle=bundle_config,
-            creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
-            )
-        operation = Operation(
-            platform="abacus",
-            name="ingestion",
-            status=StatusEnum("DONE"),
-            operation_config=operation_config,
-            project=project,
-            creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
-            )
-        job = Job(
-            name="run_processing_parsing",
-            status=StatusEnum("DONE"),
-            start=datetime.strptime(run_name.split("_")[0], "%y%m%d"),
-            stop=datetime.strptime(run_name.split("_")[0], "%y%m%d"),
-            operation=operation,
-            creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
-            )
-        session.add(file_config)
-        # Defining Run
-        run = session.scalars(
-            select(Run)
-            .where(Run.name == run_name)
-            .where(Run.instrument == run_name.split("-")[-1])
-            .where(Run.date == datetime.strptime(run_name.split("_")[0], "%y%m%d"))
-            ).first()
-        if not run:
-            run = Run(
-                name=run_name,
-                instrument=run_name.split("-")[-1],
-                date=datetime.strptime(run_name.split("_")[0], "%y%m%d")
-                )
-        session.add(run)
-        for readset_line in run_dict[run_name]:
-            experiment = session.scalars(
-                select(Experiment)
-                .where(Experiment.type == readset_line[8])
-                ).first()
-            if not experiment:
-                experiment = Experiment(
-                    type=readset_line[8],
-                    creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
-                    )
-            try:
-                readset = Readset(
-                        name=f"{readset_line[6]}_{readset_line[2]}",
-                        lane=LaneEnum(readset_line[2]),
-                        adapter1=readset_line[27],
-                        adapter2=readset_line[28],
-                        sequencing_type=SequencingTypeEnum(readset_line[3]),
-                        quality_offset="33",
-                        sample=samples_dict[readset_line[6]],
-                        experiment=experiment,
-                        run=run,
-                        operations=[operation],
-                        jobs=[job]
-                        )
-                session.add(readset)
-            except KeyError as error:
-                # Logging samples in MAIN/raw_reads but not in any run file
-                logger.debug(error)
-
-            session.flush()
-
-    # To know if there are samples not associated to any readset
-    # sample_l = session.scalars(select(Sample)).all()
-    # for sampl in sample_l:
-    #     if sampl.readset == []:
-    #         logger.debug(sampl.name)
-
-    patients = session.scalars(select(Patient).select_from(Run).where(Run.name == run_name)).all()
-
-    for patient in patients:
-        if len(patient.sample) > 1:
-            tumour = []
-            normal = []
-            for sample in patient.sample:
-                if sample.tumour:
-                    tumour.append(sample.name)
-                else:
-                    normal.append(sample.name)
-            combinations = [(patient.name, x, y) for x in normal for y in tumour]
-
-    readset_list = session.scalars(select(Readset)).all()
-    for readset in readset_list:
-        # TODO: define "transfer" and "genpipes" operations
-        if readset.sample.name.endwith("RT"):
-            operation_config = OperationConfig(
-                name="ingestion",
-                version="0.1",
-                bundle=bundle_config,
-                creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
-                )
-            operation = Operation(
-                platform="beluga",
-                name="ingestion",
-                status=StatusEnum("DONE"),
-                operation_config=operation_config,
-                project=project,
-                creation=datetime.strptime(run_name.split("_")[0], "%y%m%d")
-                )
-
-
-    try:
-        session.commit()
-    except exc.SQLAlchemyError as error:
-        logger.error("Error: %s", error)
-        session.rollback()
