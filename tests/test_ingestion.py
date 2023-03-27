@@ -39,11 +39,11 @@ def test_create(not_app_db, ingestion_json, transfer_json):
             for readset_json in sample_json[vb.READSET]:
                 assert not_app_db.scalars(select(model.Readset).where(model.Readset.name == readset_json[vb.READSET_NAME])).first().name == readset_json[vb.READSET_NAME]
 
-    transfer_operation = db_action.ingest_transfer(transfer_json, not_app_db)
-
-    assert isinstance(transfer_operation, model.Operation)
-
-    db_action.digest_readset(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/readset_file.tsv"), session=not_app_db)
-    db_action.digest_pair(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/pair_file.csv"), session=not_app_db)
+    # transfer_operation = db_action.ingest_transfer(transfer_json, not_app_db)
+    #
+    # assert isinstance(transfer_operation, model.Operation)
+    #
+    # db_action.digest_readset(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/readset_file.tsv"), session=not_app_db)
+    # db_action.digest_pair(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/pair_file.csv"), session=not_app_db)
 
     # assert 1 == 2

@@ -40,19 +40,19 @@ def pre_filled_model():
     re2_name = 'goble_dable'
     re1 = model.Readset(name=re1_name, sample=sa, experiment=exp, run=ru)
     re2 = model.Readset(name=re2_name, sample=sa, experiment=exp, run=ru)
-    job1 = model.Job(operation=op, status=model.StatusEnum.DONE, readset=[re1])
-    job2 = model.Job(operation=op, status=model.StatusEnum.DONE, readset=[re2])
+    job1 = model.Job(operation=op, status=model.StatusEnum.DONE, readsets=[re1])
+    job2 = model.Job(operation=op, status=model.StatusEnum.DONE, readsets=[re2])
     me1_value = 'SHALLOW'
     me2_value = 'PRETTY DEEP'
     metric_name = 'trucmuche'
-    metric1 = model.Metric(value=me1_value,job=job1, name=metric_name, readset=[re1])
-    metric2 = model.Metric(value=me2_value,job=job2, name=metric_name, readset=[re2])
-    b1_uri = "beluga://project/rrg-bourqueg/MOH/RAW/data"
-    b2_uri = "beluga://project/rrg-bourqueg/MOH/PROCESS/data"
-    bundle1 = model.Bundle(uri=b1_uri)
-    bundle2 = model.Bundle(uri=b2_uri)
-    file1 = model.File(content='my.fastq', bundle=bundle1)
-    file2 = model.File(content='*', bundle=bundle2) # do we want that?
+    metric1 = model.Metric(value=me1_value, job=job1, name=metric_name, readsets=[re1])
+    metric2 = model.Metric(value=me2_value, job=job2, name=metric_name, readsets=[re2])
+    b1_uri = "beluga://project/rrg-bourqueg/MOH/RAW/data/my.fastq"
+    b2_uri = "beluga://project/rrg-bourqueg/MOH/PROCESS/data/your.fastq"
+    location1 = model.Location(uri=b1_uri)
+    location2 = model.Location(uri=b2_uri)
+    file1 = model.File(name='my.fastq', locations=[location1])
+    file2 = model.File(name='your.fastq', locations=[location2])
     entry_dict = {key: val for key, val in locals().items() if isinstance(val, str) and not key.startswith('_')}
     model_dict = {key: val for key, val in locals().items() if isinstance(val, sqlalchemy.orm.DeclarativeBase)}
     return entry_dict, model_dict

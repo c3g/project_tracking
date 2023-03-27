@@ -1,4 +1,10 @@
-# Vocabulary for JSON entry for ingesting run processing
+# Vocabulary and standard format entry
+
+# Generic
+DATE_LONG_FMT = "%Y-%m-%d %H:%M:%S"
+DATE_FMT = "%Y-%m-%d"
+
+
 # project table
 PROJECT_FMS_ID = "project_fms_id"
 PROJECT_NAME = "project_name"
@@ -21,12 +27,14 @@ EXPERIMENT_SEQUENCING_TECHNOLOGY = "experiment_sequencing_technology"
 EXPERIMENT_TYPE = "experiment_type"
 EXPERIMENT_LIBRARY_KIT = "experiment_library_kit"
 EXPERIMENT_KIT_EXPIRATION_DATE = "experiment_kit_expiration_date"
+EXPERIMENT_TYPE_LIST = ["PCR-FREE", "RNASEQ"]
 
 # run table
 RUN_FMS_ID = "run_fms_id"
 RUN_NAME = "run_name"
 RUN_INSTRUMENT = "run_instrument"
 RUN_DATE = "run_date"
+RUN_PROCESSING = 'run_processing'
 
 # readset table
 READSET = "readset"
