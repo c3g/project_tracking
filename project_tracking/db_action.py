@@ -111,11 +111,11 @@ def files(project_name, readset_id, run_processing=True):
         stmt = select(File)
     elif project_name and readset_id and run_processing:
         stmt = (select(File)
-                .join(File.readset)
+                .join(File.readsets)
                 .where(Readset.id.in_(readset_id))
-                .join(File.job)
+                .join(File.jobs)
                 .where(Job.name==vb.RUN_PROCESSING)
-                .join(File.job)
+                .join(File.jobs)
                 .join(Job.operation)
                 .join(Operation.project)
                 .where(Project.name.in_(project_name))
@@ -356,8 +356,8 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                     sample=sample,
                     experiment=experiment,
                     run=run,
-                    operation=[operation],
-                    job=[job]
+                    operations=[operation],
+                    jobs=[job]
                     )
                 for file_json in readset_json[vb.FILE]:
                     suffixes = Path(file_json[vb.FILE_CONTENT]).suffixes
@@ -369,8 +369,8 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                         name=file_json[vb.FILE_CONTENT],
                         type=file_type,
                         extra_metadata=file_json.get(vb.FILE_EXTRA_METADATA, None),
-                        readset=[readset],
-                        job=[job]
+                        readsets=[readset],
+                        jobs=[job]
                         )
                     location = Location.from_uri(uri=uri, file=file)
                 for metric_json in readset_json[vb.METRIC]:
@@ -379,7 +379,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                         value=metric_json[vb.METRIC_VALUE],
                         flag=FlagEnum(metric_json[vb.METRIC_FLAG]),
                         job=job,
-                        readset=[readset]
+                        readsets=[readset]
                         )
 
             session.add(readset)
@@ -409,6 +409,7 @@ def add_file_location(project_name, ingest_data, session=None):
     operation = Operation(
         platform=ingest_data[vb.OPERATION_PLATFORM],
         name="transfer",
+        cmd_line='abacus to beluga',
         status=StatusEnum("DONE"),
         project=project
         )
@@ -425,21 +426,27 @@ def add_file_location(project_name, ingest_data, session=None):
         for file_json in readset_json[vb.FILE]:
             file_name = file_json[vb.FILE_CONTENT]
             stmt = (select(File)
-                    .join(File.readset)
+                    .join(File.readsets)
                     .where(Readset.name == readset_json[vb.READSET_NAME])
                     )
             files = session.scalars(stmt).unique().all()
             if len(files) == 1:
-                uri = '{}/{}'.format(readset_json[vb.BUNDLE_URI])
-                location = Location.from_uri(uri=,file = files[0])
+                uri = '{}/{}'.format(readset_json[vb.BUNDLE_URI], file_name)
+                location = Location.from_uri(uri=uri, file=files[0])
+                files[0].jobs.append(job)
+                session.add(location)
+            elif len(files) == 0:
+                pass
+                raise (Exception("DON't know what to do with {}".format(readset_json[vb.READSET_NAME])))
             else:
-                raise(Exception("DON't know what to do"))
-            job.file.extend(files)
+                raise(Exception("DON't know what to do with {}".format(files)))
 
-    session.add(operation)
+
+    session.add(job)
     session.flush()
 
     operation_id = operation.id
+    job_id = job.id
 
     try:
         session.commit()
@@ -447,7 +454,12 @@ def add_file_location(project_name, ingest_data, session=None):
         logger.error("Error: %s", error)
         session.rollback()
 
-    return session.scalars(select(Operation).where(Operation.id == operation_id)).one()
+    # operation
+    stmt = select(Job).where(Job.id == job_id)
+    job = session.scalars(stmt).first()
+
+    return [job.operation, job] + job.files
+
 
 
 
@@ -502,14 +514,14 @@ def ingest_transfer(ingest_data, session=None):
                     type=file_type,
                     extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
                     bundle=bundle,
-                    readset=[readset]
+                    readsets=[readset]
                     )
             except KeyError:
                 File(
                     content=file_json[vb.FILE_CONTENT],
                     type=file_type,
                     bundle=bundle,
-                    readset=[readset]
+                    readsets=[readset]
                     )
         # exit()
         session.add(readset)
@@ -745,8 +757,8 @@ def ingest_old_database(old_database, run_dict, session=None):
                         sample=samples_dict[readset_line[6]],
                         experiment=experiment,
                         run=run,
-                        operation=[operation],
-                        job=[job]
+                        operations=[operation],
+                        jobs=[job]
                         )
                 session.add(readset)
             except KeyError as error:

@@ -200,8 +200,8 @@ class BaseTable(Base):
             elif isinstance(val, enum.Enum):
                 val = val.value
             dumps[key] = val
-            if self.__tablename__ == 'file' and key == 'location':
-                dumps[key] = [v.flat_dict for v in getattr(self,'location')]
+            if self.__tablename__ == 'file' and key == 'locations':
+                dumps[key] = [v.flat_dict for v in getattr(self,'locations')]
 
         dumps['tablename'] = self.__tablename__
         return dumps
@@ -262,7 +262,7 @@ class Patient(BaseTable):
     institution: Mapped[str] = mapped_column(default=None, nullable=True)
 
     project: Mapped["Project"] = relationship(back_populates="patient")
-    sample: Mapped[list["Sample"]] = relationship(back_populates="patient")
+    samples: Mapped[list["Sample"]] = relationship(back_populates="patient")
 
     @classmethod
     def from_name(cls ,name, project, cohort=None, institution=None, session=None):
@@ -310,8 +310,8 @@ class Sample(BaseTable):
     alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
     tumour: Mapped[bool] = mapped_column(default=False)
 
-    patient: Mapped["Patient"] = relationship(back_populates="sample")
-    readset: Mapped[list["Readset"]] = relationship(back_populates="sample")
+    patient: Mapped["Patient"] = relationship(back_populates="samples")
+    readsets: Mapped[list["Readset"]] = relationship(back_populates="sample")
 
     @classmethod
     def from_name(cls, name, patient, tumour=None, session=None):
@@ -356,7 +356,7 @@ class Experiment(BaseTable):
     library_kit: Mapped[str] = mapped_column(default=None, nullable=True)
     kit_expiration_date: Mapped[datetime] = mapped_column(default=None, nullable=True)
 
-    readset: Mapped[list["Readset"]] = relationship(back_populates="experiment")
+    readsets: Mapped[list["Readset"]] = relationship(back_populates="experiment")
 
     @classmethod
     def from_sequencing_technology(cls, sequencing_technology, exp_type=None,
@@ -405,7 +405,7 @@ class Run(BaseTable):
     instrument: Mapped[str] = mapped_column(default=None, nullable=True)
     date: Mapped[datetime] = mapped_column(default=None, nullable=True)
 
-    readset: Mapped[list["Readset"]] = relationship(back_populates="run")
+    readsets: Mapped[list["Readset"]] = relationship(back_populates="run")
 
 class Readset(BaseTable):
     """
@@ -440,13 +440,13 @@ class Readset(BaseTable):
     sequencing_type: Mapped[SequencingTypeEnum] = mapped_column(default=None, nullable=True)
     quality_offset: Mapped[str] = mapped_column(default=None, nullable=True)
 
-    sample: Mapped["Sample"] = relationship(back_populates="readset")
-    experiment: Mapped["Experiment"] = relationship(back_populates="readset")
-    run: Mapped["Run"] = relationship(back_populates="readset")
-    file: Mapped[list["File"]] = relationship(secondary=readset_file, back_populates="readset")
-    operation: Mapped[list["Operation"]] = relationship(secondary=readset_operation, back_populates="readset")
-    job: Mapped[list["Job"]] = relationship(secondary=readset_job, back_populates="readset")
-    metric: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readset")
+    sample: Mapped["Sample"] = relationship(back_populates="readsets")
+    experiment: Mapped["Experiment"] = relationship(back_populates="readsets")
+    run: Mapped["Run"] = relationship(back_populates="readsets")
+    files: Mapped[list["File"]] = relationship(secondary=readset_file, back_populates="readsets")
+    operations: Mapped[list["Operation"]] = relationship(secondary=readset_operation, back_populates="readsets")
+    jobs: Mapped[list["Job"]] = relationship(secondary=readset_job, back_populates="readsets")
+    metrics: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readsets")
 
 class Operation(BaseTable):
     """
@@ -472,10 +472,10 @@ class Operation(BaseTable):
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     status: Mapped[StatusEnum] = mapped_column(default=StatusEnum.PENDING)
 
-    operation_config: Mapped["OperationConfig"] = relationship(back_populates="operation")
+    operation_config: Mapped["OperationConfig"] = relationship(back_populates="operations")
     project: Mapped["Project"] = relationship()
-    job: Mapped[list["Job"]] = relationship(back_populates="operation")
-    readset: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operation")
+    jobs: Mapped[list["Job"]] = relationship(back_populates="operation")
+    readsets: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operations")
 
 
 class OperationConfig(BaseTable):
@@ -497,7 +497,7 @@ class OperationConfig(BaseTable):
     hash: Mapped[str] = mapped_column(unique=True, default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     version: Mapped[str] = mapped_column(default=None, nullable=True)
-    operation: Mapped[list["Operation"]] = relationship(back_populates="operation_config")
+    operations: Mapped[list["Operation"]] = relationship(back_populates="operation_config")
 
     @classmethod
     def config_data(cls, configuration_data):
@@ -530,10 +530,10 @@ class Job(BaseTable):
     status: Mapped[StatusEnum] = mapped_column(default=None, nullable=True)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
 
-    operation: Mapped["Operation"] = relationship(back_populates="job")
-    metric: Mapped[list["Metric"]] = relationship(back_populates="job")
-    file: Mapped[list["File"]] = relationship(secondary=job_file,back_populates="job")
-    readset: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="job")
+    operation: Mapped["Operation"] = relationship(back_populates="jobs")
+    metrics: Mapped[list["Metric"]] = relationship(back_populates="job")
+    files: Mapped[list["File"]] = relationship(secondary=job_file,back_populates="jobs")
+    readsets: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="jobs")
 
 class Metric(BaseTable):
     """
@@ -560,8 +560,8 @@ class Metric(BaseTable):
     deliverable: Mapped[bool] = mapped_column(default=False)
     aggregate: Mapped[AggregateEnum] = mapped_column(default=None, nullable=True)
 
-    job: Mapped["Job"] = relationship(back_populates="metric")
-    readset: Mapped[list["Readset"]] = relationship(secondary=readset_metric, back_populates="metric")
+    job: Mapped["Job"] = relationship(back_populates="metrics")
+    readsets: Mapped[list["Readset"]] = relationship(secondary=readset_metric, back_populates="metrics")
 
 
 class Location(BaseTable):
@@ -584,7 +584,7 @@ class Location(BaseTable):
                                      unique=True)
     endpoint: Mapped[str] = mapped_column(nullable=False)
 
-    file: Mapped["File"] = relationship(back_populates="location")
+    file: Mapped["File"] = relationship(back_populates="locations")
 
 
     @classmethod
@@ -609,6 +609,7 @@ class File(BaseTable):
         location_id integer [ref: > location.id]
         name text
         type text
+        md5sum txt
         deliverable boolean
         deprecated boolean
         deleted boolean
@@ -622,8 +623,8 @@ class File(BaseTable):
     type: Mapped[str] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
 
-    location: Mapped[list["Location"]] = relationship(back_populates="file")
-    readset: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="file")
-    job: Mapped[list["Job"]] = relationship(secondary=job_file, back_populates="file")
+    locations: Mapped[list["Location"]] = relationship(back_populates="file")
+    readsets: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="files")
+    jobs: Mapped[list["Job"]] = relationship(secondary=job_file, back_populates="files")
 
 
