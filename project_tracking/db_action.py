@@ -36,10 +36,12 @@ from .model import (
 logger = logging.getLogger(__name__)
 
 
-def projects(project_name = None):
+def projects(project_name = None, session=None):
     """Fetchin all projects in database
     """
-    session = database.get_session()
+    if session is None:
+        session = database.get_session()
+
     if project_name is None:
         stmt = (select(Project))
     else:
@@ -283,7 +285,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
 
     # crash if project does not exist
     project_name = project_name
-    project = projects(project_name=project_name)[0]
+    project = projects(project_name=project_name, session=session)[0]
     uri=ingest_data[vb.BUNDLE_CONFIG_URI]
     endpoint = uri.split(':///')[0]
 
@@ -325,14 +327,14 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         patient = Patient.from_name(name=patient_json[vb.PATIENT_NAME],
                           cohort=patient_json[vb.PATIENT_COHORT],
                           institution=patient_json[vb.PATIENT_INSTITUTION],
-                          project=project)
+                          project=project, session=session)
 
         for sample_json in patient_json[vb.SAMPLE]:
             sample = Sample.from_name(
                 name=sample_json[vb.SAMPLE_NAME],
                 tumour=sample_json[vb.SAMPLE_TUMOUR],
                 patient=patient
-                )
+                , session=session)
             for readset_json in sample_json[vb.READSET]:
                 if readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE]:
                     kit_expiration_date = datetime.strptime(readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE], vb.DATE_FMT)
@@ -344,7 +346,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                         exp_type=readset_json[vb.EXPERIMENT_TYPE],
                         library_kit=readset_json[vb.EXPERIMENT_LIBRARY_KIT],
                         kit_expiration_date=kit_expiration_date
-                        )
+                        , session=session)
                 # Let this fails if readset already exists.
                 readset = Readset(
                     name=readset_json[vb.READSET_NAME],
@@ -372,7 +374,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                         readsets=[readset],
                         jobs=[job]
                         )
-                    location = Location.from_uri(uri=uri, file=file)
+                    location = Location.from_uri(uri=uri, file=file, session=session)
                 for metric_json in readset_json[vb.METRIC]:
                     Metric(
                         name=metric_json[vb.METRIC_NAME],
@@ -432,7 +434,7 @@ def add_file_location(project_name, ingest_data, session=None):
             files = session.scalars(stmt).unique().all()
             if len(files) == 1:
                 uri = '{}/{}'.format(readset_json[vb.BUNDLE_URI], file_name)
-                location = Location.from_uri(uri=uri, file=files[0])
+                location = Location.from_uri(uri=uri, file=files[0], session=session)
                 files[0].jobs.append(job)
                 session.add(location)
             elif len(files) == 0:
@@ -458,7 +460,8 @@ def add_file_location(project_name, ingest_data, session=None):
     stmt = select(Job).where(Job.id == job_id)
     job = session.scalars(stmt).first()
 
-    return [job.operation, job] + job.files
+    logging.debug(job.files)
+    return [job.operation, job]
 
 
 
@@ -491,7 +494,7 @@ def ingest_transfer(ingest_data, session=None):
             select(Readset)
             .where(Readset.name == readset_json[vb.READSET_NAME])
             ).first()
-        readset.job.append(job)
+        readset.jobs.append(job)
         # Defining Bundle
         bundle = session.scalars(
             select(Bundle)
@@ -503,7 +506,6 @@ def ingest_transfer(ingest_data, session=None):
                 job=job
                 )
         for file_json in readset_json[vb.FILE]:
-            # logger.debug(bundle)
             suffixes = Path(file_json[vb.FILE_CONTENT]).suffixes
             file_type = os.path.splitext(file_json[vb.FILE_CONTENT])[-1][1:]
             if ".gz" in suffixes:
