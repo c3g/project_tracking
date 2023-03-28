@@ -262,7 +262,7 @@ class Patient(BaseTable):
     cohort: Mapped[str] = mapped_column(default=None, nullable=True)
     institution: Mapped[str] = mapped_column(default=None, nullable=True)
 
-    project: Mapped["Project"] = relationship(back_populates="patient")
+    project: Mapped["Project"] = relationship(back_populates="patients")
     samples: Mapped[list["Sample"]] = relationship(back_populates="patient")
 
     @classmethod
