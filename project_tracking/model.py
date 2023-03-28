@@ -129,6 +129,7 @@ job_file = Table(
     Column("job_id", ForeignKey("job.id"), primary_key=True),
 )
 
+
 class BaseTable(Base):
     """
     Define fields common of all tables in database
@@ -148,7 +149,6 @@ class BaseTable(Base):
     creation: Mapped[datetime] = mapped_column(default=datetime.now(), nullable=True)
     modification: Mapped[datetime] = mapped_column(default=None, nullable=True)
     extra_metadata: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
-
 
     def __repr__(self):
         """
@@ -233,7 +233,8 @@ class Project(BaseTable):
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
     alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
 
-    patient: Mapped[list["Patient"]] = relationship(back_populates="project")
+    patients: Mapped[list["Patient"]] = relationship(back_populates="project")
+    operations: Mapped[list["Operation"]] = relationship(back_populates="project")
 
 
 class Patient(BaseTable):
@@ -276,16 +277,13 @@ class Patient(BaseTable):
         patient = session.scalars(select(cls).where(cls.name == name)).first()
 
         if not patient:
-            patient = cls(name=name,
-                          cohort=cohort,
-                          institution=institution,
-                          project=project)
+            patient = cls(name=name, cohort=cohort, institution=institution, project=project)
         else:
             if patient.project != project:
-                logger.error("patient {} already in project {}"
-                             .format(patient.name, patient.project))
+                logger.error(f"patient {patient.name} already in project {patient.project}")
 
         return patient
+
 
 class Sample(BaseTable):
     """
@@ -325,12 +323,10 @@ class Sample(BaseTable):
         sample = session.scalars(select(cls).where(cls.name == name)).first()
 
         if not sample:
-            sample = cls(name=name,
-                         patient=patient,
-                         tumour=tumour)
+            sample = cls(name=name, patient=patient, tumour=tumour)
         else:
             if sample.patient != patient:
-                logger.error("sample {} already attatched to project {}".format(sample.patient.name, patient.name))
+                logger.error(f"sample {sample.patient} already attatched to project {patient.name}")
 
         return sample
 
@@ -359,13 +355,12 @@ class Experiment(BaseTable):
     readsets: Mapped[list["Readset"]] = relationship(back_populates="experiment")
 
     @classmethod
-    def from_sequencing_technology(cls, sequencing_technology, exp_type=None,
-                                   library_kit=None, kit_expiration_date=None, session=None):
-
+    def from_sequencing_technology(cls, sequencing_technology, exp_type=None, library_kit=None, kit_expiration_date=None, session=None):
+        """
+        DocString
+        """
         if not session:
             session = database.get_session()
-
-
         experiment = session.scalars(
             select(cls)
                 .where(cls.sequencing_technology == sequencing_technology)
@@ -381,7 +376,6 @@ class Experiment(BaseTable):
                 kit_expiration_date=kit_expiration_date
             )
         return experiment
-
 
 
 class Run(BaseTable):
@@ -406,6 +400,7 @@ class Run(BaseTable):
     date: Mapped[datetime] = mapped_column(default=None, nullable=True)
 
     readsets: Mapped[list["Readset"]] = relationship(back_populates="run")
+
 
 class Readset(BaseTable):
     """
@@ -448,6 +443,7 @@ class Readset(BaseTable):
     jobs: Mapped[list["Job"]] = relationship(secondary=readset_job, back_populates="readsets")
     metrics: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readsets")
 
+
 class Operation(BaseTable):
     """
     Operation:
@@ -473,7 +469,7 @@ class Operation(BaseTable):
     status: Mapped[StatusEnum] = mapped_column(default=StatusEnum.PENDING)
 
     operation_config: Mapped["OperationConfig"] = relationship(back_populates="operations")
-    project: Mapped["Project"] = relationship()
+    project: Mapped["Project"] = relationship(back_populates="operations")
     jobs: Mapped[list["Job"]] = relationship(back_populates="operation")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operations")
 
@@ -497,10 +493,14 @@ class OperationConfig(BaseTable):
     hash: Mapped[str] = mapped_column(unique=True, default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     version: Mapped[str] = mapped_column(default=None, nullable=True)
+
     operations: Mapped[list["Operation"]] = relationship(back_populates="operation_config")
 
     @classmethod
     def config_data(cls, configuration_data):
+        """
+        DocString
+        """
         pass
 
 
@@ -535,6 +535,7 @@ class Job(BaseTable):
     files: Mapped[list["File"]] = relationship(secondary=job_file,back_populates="jobs")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="jobs")
 
+
 class Metric(BaseTable):
     """
     Metric:
@@ -568,9 +569,10 @@ class Location(BaseTable):
     """
     Uri:
         id integer [PK]
+        file_id integer [ref: > file.id]
         uri text
-        file text
         endpoint text
+        deliverable boolean
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -580,21 +582,21 @@ class Location(BaseTable):
     __tablename__ = "location"
 
     file_id: Mapped[int] = mapped_column(ForeignKey("file.id"), nullable=False)
-    uri: Mapped[str] = mapped_column(nullable=False,
-                                     unique=True)
+    uri: Mapped[str] = mapped_column(nullable=False, unique=True)
     endpoint: Mapped[str] = mapped_column(nullable=False)
+    deliverable: Mapped[bool] = mapped_column(default=False)
 
     file: Mapped["File"] = relationship(back_populates="locations")
 
-
     @classmethod
     def from_uri(cls, uri, file , endpoint=None, session=None):
-
+        """
+        DocString
+        """
         if not session:
             session = database.get_session()
 
-        location = (session.scalars(
-            select(cls).where(cls.uri == uri)).first())
+        location = (session.scalars(select(cls).where(cls.uri == uri)).first())
         if not location:
             if endpoint is None:
                 endpoint = uri.split(':///')[0]
@@ -602,11 +604,11 @@ class Location(BaseTable):
 
         return location
 
+
 class File(BaseTable):
     """
     File:
         id integer [PK]
-        location_id integer [ref: > location.id]
         name text
         type text
         md5sum txt
@@ -621,10 +623,9 @@ class File(BaseTable):
 
     name: Mapped[str] = mapped_column(nullable=False)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
+    md5sum: Mapped[str] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
 
     locations: Mapped[list["Location"]] = relationship(back_populates="file")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="files")
     jobs: Mapped[list["Job"]] = relationship(secondary=job_file, back_populates="files")
-
-
