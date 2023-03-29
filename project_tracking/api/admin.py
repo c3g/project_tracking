@@ -40,5 +40,4 @@ def add_file_location(project_name: str):
         flash('Data does not seems to be json')
         return redirect(request.url)
 
-    return  [i.flat_dict for i in
-             db_action.add_file_location(project_name=project_name.upper(),ingest_data=ingest_data)]
+    return  [i.flat_dict for i in db_action.ingest_transfer(project_name=project_name.upper(), ingest_data=ingest_data)]

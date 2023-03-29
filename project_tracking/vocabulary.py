@@ -4,7 +4,6 @@
 DATE_LONG_FMT = "%Y-%m-%d %H:%M:%S"
 DATE_FMT = "%Y-%m-%d"
 
-
 # project table
 PROJECT_FMS_ID = "project_fms_id"
 PROJECT_NAME = "project_name"
@@ -34,7 +33,6 @@ RUN_FMS_ID = "run_fms_id"
 RUN_NAME = "run_name"
 RUN_INSTRUMENT = "run_instrument"
 RUN_DATE = "run_date"
-RUN_PROCESSING = 'run_processing'
 
 # readset table
 READSET = "readset"
@@ -57,23 +55,19 @@ OPERATION_NAME = "operation_name"
 OPERATION_CONFIG_NAME = "operation_config_name"
 OPERATION_CONFIG_VERSION = "operation_config_version"
 
-# bundle table
+# location table
 # Not sure if coming from JSON?
-BUNDLE_CONFIG_URI = "bundle_config_uri"
-BUNDLE_URI = "bundle_uri"
-BUNDLE_DELIVERABLE = "bundle_deliverable"
+LOCATION_URI = "location_uri"
+LOCATION_ENDPOINT = "location_endpoint"
+LOCATION_DELIVERABLE = "location_deliverable"
 
 # file table
 FILE = "file"
-FILE_CONTENT = "file_content"
-# FILE_TYPE = "file_type" # parsed from content while ingesting
-# Not sure if coming from JSON?
+FILE_NAME = "file_name"
 FILE_DELIVERABLE = "file_deliverable"
-
-# file table: event file
-FILE_CONFIG_CONTENT = "file_config_content"
-FILE_CONFIG_TYPE = "file_config_type"
 FILE_EXTRA_METADATA = "file_extra_metadata"
+# Not sure if coming from JSON?
+# FILE_TYPE = "file_type" # parsed from content while ingesting
 
 # job table
 JOB = "job"

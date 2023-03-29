@@ -28,6 +28,8 @@ from sqlalchemy.orm import (
     attributes
     )
 
+from sqlalchemy_json import mutable_json_type
+
 from . import database
 
 class LaneEnum(enum.Enum):
@@ -148,7 +150,7 @@ class BaseTable(Base):
     deleted: Mapped[bool] = mapped_column(default=False)
     creation: Mapped[datetime] = mapped_column(default=datetime.now(), nullable=True)
     modification: Mapped[datetime] = mapped_column(default=None, nullable=True)
-    extra_metadata: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
+    extra_metadata: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
 
     def __repr__(self):
         """
@@ -231,7 +233,7 @@ class Project(BaseTable):
 
     fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
+    alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
 
     patients: Mapped[list["Patient"]] = relationship(back_populates="project")
     operations: Mapped[list["Operation"]] = relationship(back_populates="project")
@@ -258,7 +260,7 @@ class Patient(BaseTable):
     project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
     fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
+    alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
     cohort: Mapped[str] = mapped_column(default=None, nullable=True)
     institution: Mapped[str] = mapped_column(default=None, nullable=True)
 
@@ -305,7 +307,7 @@ class Sample(BaseTable):
     patient_id: Mapped[int] = mapped_column(ForeignKey("patient.id"), default=None)
     fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
+    alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
     tumour: Mapped[bool] = mapped_column(default=False)
 
     patient: Mapped["Patient"] = relationship(back_populates="samples")
@@ -355,23 +357,23 @@ class Experiment(BaseTable):
     readsets: Mapped[list["Readset"]] = relationship(back_populates="experiment")
 
     @classmethod
-    def from_sequencing_technology(cls, sequencing_technology, exp_type=None, library_kit=None, kit_expiration_date=None, session=None):
+    def from_attributes(cls, sequencing_technology=None, type=None, library_kit=None, kit_expiration_date=None, session=None):
         """
-        DocString
+        get experiment if it exist, set it if it does not exist
         """
         if not session:
             session = database.get_session()
         experiment = session.scalars(
             select(cls)
                 .where(cls.sequencing_technology == sequencing_technology)
-                .where(cls.type == exp_type )
+                .where(cls.type == type)
                 .where(cls.library_kit == library_kit)
                 .where(cls.kit_expiration_date == kit_expiration_date)
         ).first()
         if not experiment:
             experiment = cls(
                 sequencing_technology=sequencing_technology,
-                type=exp_type,
+                type=type,
                 library_kit=library_kit,
                 kit_expiration_date=kit_expiration_date
             )
@@ -401,6 +403,29 @@ class Run(BaseTable):
 
     readsets: Mapped[list["Readset"]] = relationship(back_populates="run")
 
+    @classmethod
+    def from_attributes(cls, fms_id=None, name=None, instrument=None, date=None, session=None):
+        """
+        get run if it exist, set it if it does not exist
+        """
+        if not session:
+            session = database.get_session()
+        run = session.scalars(
+            select(cls)
+                .where(cls.fms_id == fms_id)
+                .where(cls.name == name)
+                .where(cls.instrument == instrument)
+                .where(cls.date == date)
+        ).first()
+        if not run:
+            run = cls(
+                fms_id=fms_id,
+                name=name,
+                instrument=instrument,
+                date=date
+            )
+        return run
+
 
 class Readset(BaseTable):
     """
@@ -428,7 +453,7 @@ class Readset(BaseTable):
     experiment_id: Mapped[int] = mapped_column(ForeignKey("experiment.id"), default=None)
     run_id: Mapped[int] = mapped_column(ForeignKey("run.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
+    alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
     lane: Mapped[LaneEnum]  =  mapped_column(default=None, nullable=True)
     adapter1: Mapped[str] = mapped_column(default=None, nullable=True)
     adapter2: Mapped[str] = mapped_column(default=None, nullable=True)
@@ -481,6 +506,8 @@ class OperationConfig(BaseTable):
         file_id integer [ref: > file.id]
         name text
         version test
+        md5sum text
+        data bytes
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -489,15 +516,15 @@ class OperationConfig(BaseTable):
     """
     __tablename__ = "operation_config"
 
-    configuration_data: Mapped[bytes] = mapped_column(LargeBinary, default=None, nullable=True)
-    hash: Mapped[str] = mapped_column(unique=True, default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     version: Mapped[str] = mapped_column(default=None, nullable=True)
+    md5sum: Mapped[str] = mapped_column(unique=True, default=None, nullable=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary, default=None, nullable=True)
 
     operations: Mapped[list["Operation"]] = relationship(back_populates="operation_config")
 
     @classmethod
-    def config_data(cls, configuration_data):
+    def config_data(cls, data):
         """
         DocString
         """
@@ -589,14 +616,14 @@ class Location(BaseTable):
     file: Mapped["File"] = relationship(back_populates="locations")
 
     @classmethod
-    def from_uri(cls, uri, file , endpoint=None, session=None):
+    def from_uri(cls, uri, file, endpoint=None, session=None):
         """
-        DocString
+        Sets endpoint from uri
         """
         if not session:
             session = database.get_session()
 
-        location = (session.scalars(select(cls).where(cls.uri == uri)).first())
+        location = session.scalars(select(cls).where(cls.uri == uri)).first()
         if not location:
             if endpoint is None:
                 endpoint = uri.split(':///')[0]
