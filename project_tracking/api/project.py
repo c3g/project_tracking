@@ -180,7 +180,7 @@ def ingest_run_processing(project_name: str):
             return abort(400, "project name in POST {} not Valid, {} requires"
                          .format(ingest_data[vc.PROJECT_NAME].upper(), project_name))
 
-        return db_action.ingest_run_processing(project_name, ingest_data).flat_dict
+        return [i.flat_dict for i in db_action.ingest_run_processing(project_name=project_name.upper(), ingest_data=ingest_data)]
 
 @bp.route('/<string:project_name>/metrics/<string:metric_id>')
 @bp.route('/<string:project_name>/readsets/<string:readset_id>/metrics')
@@ -206,5 +206,3 @@ def metrics(project_name: str, readset_id: str=None, metric_id: str=None, sample
     return [i.flat_dict for i in db_action.metrics(project_name=project_name,
                                                    readset_id=readset_id,
                                                    metric_id=metric_id, sample_id=sample_id)]
-
-

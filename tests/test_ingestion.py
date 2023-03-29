@@ -19,8 +19,8 @@ def test_create_api(client, ingestion_json, app):
     assert json.loads(response.data)['id'] == 1
     response = client.post('project/MOH-Q/ingest_run_processing', data=json.dumps(ingestion_json))
     assert response.status_code == 200
-    assert json.loads(response.data)['name'] == "run_processing"
-    assert json.loads(response.data)['id'] == 1
+    assert json.loads(response.data)[0]['name'] == "run_processing"
+    assert json.loads(response.data)[0]['id'] == 1
     with app.app_context():
         s = database.get_session()
 
