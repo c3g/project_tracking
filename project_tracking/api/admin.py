@@ -28,16 +28,3 @@ def create_project(project_name: str):
     return db_action.create_project(project_name=project_name.upper()).flat_dict
 
 
-@bp.route('/add_file_location/<string:project_name>', methods=['POST'])
-def add_file_location(project_name: str):
-    """
-    Add new location to file that has already been moved before
-    the db was created
-    """
-    try:
-        ingest_data = request.get_json(force=True)
-    except:
-        flash('Data does not seems to be json')
-        return redirect(request.url)
-
-    return  [i.flat_dict for i in db_action.ingest_transfer(project_name=project_name.upper(), ingest_data=ingest_data)]

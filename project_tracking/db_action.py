@@ -403,7 +403,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
     return [operation, job]
 
 
-def ingest_transfer(project_name, ingest_data, session=None):
+def ingest_transfer(project_name, ingest_data, session=None, check_readset_name=True):
     """Ingesting transfer"""
     if not isinstance(ingest_data, dict):
         ingest_data = json.loads(ingest_data)
@@ -427,33 +427,36 @@ def ingest_transfer(project_name, ingest_data, session=None):
         stop=datetime.now(),
         operation=operation
         )
-    # session.add(file_config)
+
     for readset_json in ingest_data[vb.READSET]:
+        readset_name = readset_json[vb.READSET_NAME]
         for file_json in readset_json[vb.FILE]:
-            file_name = file_json[vb.FILE_NAME]
-            if vb.FILE_EXTRA_METADATA in file_json.keys():
+            src_uri = file_json[vb.SRC_LOCATION_URI]
+            dest_uri = file_json[vb.DEST_LOCATION_URI]
+            if check_readset_name:
                 file = session.scalars(
                     select(File)
-                    .where(File.name == file_name)
-                    .where(File.extra_metadata == file_json[vb.FILE_EXTRA_METADATA])
                     .join(File.readsets)
-                    .where(Readset.name == readset_json[vb.READSET_NAME])
-                    ).unique().all()
+                    .where(Readset.name ==  readset_name )
+                    .join(File.locations    )
+                    .where(Location.uri == src_uri)
+                    ).unique().first()
+                if not file:
+                    raise Exception(f"No file with uri: {src_uri} and readset {readset_name}")
             else:
                 file = session.scalars(
                     select(File)
-                    .where(File.name == file_name)
-                    .join(File.readsets)
-                    .where(Readset.name == readset_json[vb.READSET_NAME])
-                    ).unique().all()
-            if not file:
-                raise Exception(f"File {file_name} not found for readset {readset_json[vb.READSET_NAME]}")
-            if len(file)>1:
-                raise Exception(f"More than 1 file found for readset {readset_json[vb.READSET_NAME]} where file_name is {file_name}")
-            file = file[0]
-            location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                        .join(File.readsets)
+                        .where(Readset.name == readset_name)
+                        .join(File.locations)
+                        .where(Location.uri == src_uri)
+                ).unique().first()
+                if not file:
+                    raise Exception(f"No file with uri: {src_uri}")
+
+            new_location = Location.from_uri(uri=dest_uri, file=file, session=session)
             file.jobs.append(job)
-            session.add(location)
+            session.add(new_location)
 
     session.add(job)
     session.flush()

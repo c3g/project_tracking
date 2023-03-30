@@ -58,6 +58,8 @@ OPERATION_CONFIG_VERSION = "operation_config_version"
 # location table
 # Not sure if coming from JSON?
 LOCATION_URI = "location_uri"
+SRC_LOCATION_URI = "src_location_uri"
+DEST_LOCATION_URI = "dest_location_uri"
 LOCATION_ENDPOINT = "location_endpoint"
 LOCATION_DELIVERABLE = "location_deliverable"
 
