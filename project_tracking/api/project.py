@@ -182,6 +182,23 @@ def ingest_run_processing(project_name: str):
 
         return [i.flat_dict for i in db_action.ingest_run_processing(project_name=project_name.upper(), ingest_data=ingest_data)]
 
+
+@bp.route('/<string:project_name>/transfer_file', methods=['POST'])
+@capitalize
+def add_file_location(project_name: str):
+    """
+    Add new location to file that has already been moved before
+    the db was created
+    """
+    try:
+        ingest_data = request.get_json(force=True)
+    except:
+        flash('Data does not seems to be json')
+        return redirect(request.url)
+
+    return  [i.flat_dict for i in db_action.ingest_transfer(project_name=project_name, ingest_data=ingest_data)]
+
+
 @bp.route('/<string:project_name>/metrics/<string:metric_id>')
 @bp.route('/<string:project_name>/readsets/<string:readset_id>/metrics')
 @bp.route('/<string:project_name>/samples/<string:sample_id>/metrics')
