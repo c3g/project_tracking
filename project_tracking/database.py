@@ -20,7 +20,7 @@ class Engine:
 
 def get_engine(db_uri):
 
-    logging.info('Connecting to {}'.format(db_uri))
+    logging.debug('Connecting to {}'.format(db_uri))
 
     # in tests the engines can be multiple...
     if Engine.ENGINE is None or Engine.URI != db_uri:

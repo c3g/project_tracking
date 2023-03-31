@@ -24,10 +24,9 @@ def create_app(test_config=None):
 
     app.config.from_mapping(
         INGEST_FOLDER=app.instance_path,
-        SECRET_KEY='dev',
         SQLALCHEMY_DATABASE_URI='sqlite:///{}'.format(os.path.join(app.instance_path, "tracking_db.sql")),
-         # SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://postgres:toto@localhost/c3g_track?client_encoding=utf8",
     )
+    # Will overwrite default SQLALCHEMY_DATABASE_URI if C3G_SQLALCHEMY_DATABASE_URI env var is set
     app.config.from_prefixed_env("C3G")
 
     logging.debug('SQLALCHEMY_DATABASE_URI: {}'.format(app.config['SQLALCHEMY_DATABASE_URI']))
