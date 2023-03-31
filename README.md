@@ -66,7 +66,7 @@ reachable with the `10.0.2.2` adress inside the container. That is why the C3G_S
 is set to that value.
 ```bash
 podman pull quay.io/c3genomics/project_tracking:dev
-export C3G_SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://postgres:<POSTGRESS_USER>:<POSTGRESS_PW>@10.0.2.2/<POSTGRESS_DB_NAME>?client_encoding=utf8" 
+export C3G_SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://<POSTGRESS_USER>:<POSTGRESS_PW>@10.0.2.2/<POSTGRESS_DB_NAME>?client_encoding=utf8" 
 podman secret create --env C3G_SQLALCHEMY_DATABASE_URI C3G_SQLALCHEMY_DATABASE_URI
 podman run --secret C3G_SQLALCHEMY_DATABASE_URI,type=env -p 8000:8000 -e C3G_INIT_DB=1 --network slirp4netns:allow_host_loopback=true quay.io/c3genomics/project_tracking:dev
 ```
