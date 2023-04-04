@@ -1,0 +1,540 @@
+{
+    "operation_config_name": "genpipes_ini",
+    "operation_config_version": "4.2.2",
+    "operation_config_md5sum": "7d1c19539caae10d34861fc6013dbdc5",
+    "operation_config_data": "\\\n[DEFAULT]\\\ncluster_server = beluga.genome.mcgill.ca\\\nsequencing_center = McGill Genome Centre\\\ncluster_submit_cmd_suffix = | grep \"[0-9]\" | cut -d\\  -f4\\\ncluster_other_arg = --mail-type=FAIL --mail-user=$JOB_MAIL -A $RAP_ID\\\ncluster_work_dir_arg = -D\\\ncluster_output_dir_arg = -o\\\ncluster_job_name_arg = -J\\\ncluster_cmd_produces_job_id = true\\\ncluster_dependency_arg = --depend=afterok:\\\ncluster_dependency_sep = :\\\ncluster_max_jobs = 3000\\\ntmp_dir = ${SLURM_TMPDIR}\\\nportal_output_dir = $PORTAL_OUTPUT_DIR\\\ncluster_walltime = 24:00:00\\\ncluster_cpu = 1\\\ncluster_node = 1\\\nALL_CPU = 40\\\nHALF_CPU = 20\\\nQUART_CPU = 10\\\nPINT_CPU = 5\\\nALL_MEM = 187G\\\nHALF_MEM = 90G\\\nQUART_MEM = 60G\\\nPINT_MEM = 30G\\\ncluster_mem = 4700M per cpu\\\ncluster_queue = \\\nLARGE_QUEUE = \\\nmodule_bvatools = mugqic/bvatools/1.6\\\nmodule_bwa = mugqic/bwa/0.7.17\\\nmodule_bwakit = mugqic/bwakit/0.7.15\\\nmodule_gatk = mugqic/GenomeAnalysisTK/4.1.8.1\\\nmodule_sambamba = mugqic/sambamba/0.8.0\\\nmodule_igvtools = mugqic/igvtools/2.3.14\\\nmodule_java = mugqic/java/openjdk-jdk1.8.0_72\\\nmodule_mugqic_R_packages = mugqic/mugqic_R_packages/1.0.4\\\nmodule_mugqic_tools = mugqic/mugqic_tools/2.10.5\\\nmodule_pandoc = mugqic/pandoc/2.16.1\\\nmodule_perl = mugqic/perl/5.34.0\\\nmodule_picard = mugqic/picard/2.9.0\\\nmodule_python = mugqic/python/3.9.1\\\nmodule_R = mugqic/R_Bioconductor/3.5.0_3.7\\\nmodule_samtools = mugqic/samtools/1.12\\\nmodule_bcftools = mugqic/bcftools/1.15\\\nmodule_snpeff = mugqic/snpEff/4.3\\\nmodule_trimmomatic = mugqic/trimmomatic/0.35\\\nmodule_vcftools = mugqic/vcftools/0.1.14\\\nmodule_skewer = mugqic/skewer/0.2.2\\\nmodule_qualimap = mugqic/qualimap/2.2.2dev\\\nmodule_fastqc = mugqic/fastqc/0.11.5\\\nmodule_htslib = mugqic/htslib/1.14\\\nmodule_verify_bam_id = mugqic/verifyBamID/1.1.3\\\nmodule_vt = mugqic/vt/0.57\\\nmodule_gemini = mugqic/gemini/0.20.1\\\nmodule_multiqc = mugqic/MultiQC/1.9\\\nmodule_checkmate = mugqic/NGSCheckMate/1.0.0_rjme\\\nmodule_variantBam = mugqic/variantbam/1.4.3\\\nmodule_cnvkit = mugqic/CNVkit/0.9.9\\\nmodule_delly = mugqic/Delly/0.8.1\\\nmodule_sv_annotations = mugqic/simple_sv_annotation/1.0.0\\\nmodule_manta = mugqic/Manta/1.5.0\\\nmodule_samblaster = mugqic/samblaster/0.1.24\\\nmodule_lumpy = mugqic/LUMPY-SV/0.2.13\\\nmodule_wham = mugqic/WHAM/1.8.0\\\nmodule_breakseq2 = mugqic/breakseq2/2.2\\\nmodule_vcflib = mugqic/vcflib/1.0.0\\\nmodule_spades = mugqic/SPAdes/3.10.0\\\nmodule_age = mugqic/AGE/master-20181210\\\nmodule_bedtools = mugqic/bedtools/2.26.0\\\nmodule_vawk = mugqic/vawk/0.0.2\\\nmodule_svaba = mugqic/SvABA/1.1.0\\\nscientific_name = Homo_sapiens\\\nassembly = GRCh38\\\nsource = Ensembl\\\nversion = 102\\\nassembly_alias = b37\\\ndbsnp_version = 142\\\nassembly_dir = $MUGQIC_INSTALL_HOME/genomes/species/%(scientific_name)s.%(assembly)s\\\ngenome_fasta = %(assembly_dir)s/genome/%(scientific_name)s.%(assembly)s.fa\\\ngenome_dictionary = %(assembly_dir)s/genome/%(scientific_name)s.%(assembly)s.dict\\\ngenome_bwa_index = %(assembly_dir)s/genome/bwa_index/%(scientific_name)s.%(assembly)s.fa\\\nknown_variants = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.dbSNP%(dbsnp_version)s.vcf.gz\\\nigv_genome = %(genome_fasta)s.fai\\\nsnpeff_genome = %(assembly)s.%(version)s\\\nhapmap = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.hapmap_3.3.vcf.gz\\\n1000G = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.1000G_phase1.snps.high_confidence.vcf.gz\\\ndbsnp = %(known_variants)s\\\nomni = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.1000G_omni2.5.vcf.gz\\\nmills = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.Mills_and_1000G_gold_standard.indels.vcf.gz\\\ngenome_mappability_bed_indexed = %(assembly_dir)s/annotations/mappabilityGC/GRCh38_100bpPAIREDEND.exclusion.bed\\\ndbnsfp = %(assembly_dir)s/annotations/dbNSFPv3.5a/dbNSFPv3.5a.txt.gz.txt.gz\\\ncommon_snp_positions = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.1000G_phase1.snps.high_confidence.allpop_q200.tsv\\\ngnomad_exome = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.gnomad.exomes.r2.0.2.sites.no-VEP.nohist.tidy.vcf.gz\\\naf_gnomad = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.af-only-gnomad.vcf.gz\\\nvcf_header = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.vcf_header.tsv\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304\\\ngatk4_java_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304 -Dsamjdk.use_async_io_read_samtools=true -Dsamjdk.use_async_io_write_samtools=true -Dsamjdk.use_async_io_write_tribble=false\\\nexperiment_type = wholeGenome\\\nexperiment_type_abrev = wgs\\\npopulation_AF = 1000Gp1_EUR_AF\\\nverifyBamID_variants_file = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.dbSNP%(dbsnp_version)s_1000Gp1_%(population_AF)s_AF.vcf\\\nspecies_vcf_format_descriptor = %(assembly_dir)s/annotations/HumanVCFformatDescriptor.tsv\\\nexcluded_chromosome = chrM,chr1_KI270706v1_random,chr1_KI270707v1_random,chr1_KI270708v1_random,chr1_KI270709v1_random,chr1_KI270710v1_random,chr1_KI270711v1_random,chr1_KI270712v1_random,chr1_KI270713v1_random,chr1_KI270714v1_random,chr2_KI270715v1_random,chr2_KI270716v1_random,chr3_GL000221v1_random,chr4_GL000008v2_random,chr5_GL000208v1_random,chr9_KI270717v1_random,chr9_KI270718v1_random,chr9_KI270719v1_random,chr9_KI270720v1_random,chr11_KI270721v1_random,chr14_GL000009v2_random,chr14_GL000225v1_random,chr14_KI270722v1_random,chr14_GL000194v1_random,chr14_KI270723v1_random,chr14_KI270724v1_random,chr14_KI270725v1_random,chr14_KI270726v1_random,chr15_KI270727v1_random,chr16_KI270728v1_random,chr17_GL000205v2_random,chr17_KI270729v1_random,chr17_KI270730v1_random,chr22_KI270731v1_random,chr22_KI270732v1_random,chr22_KI270733v1_random,chr22_KI270734v1_random,chr22_KI270735v1_random,chr22_KI270736v1_random,chr22_KI270737v1_random,chr22_KI270738v1_random,chr22_KI270739v1_random,chrY_KI270740v1_random,chrUn_KI270302v1,chrUn_KI270304v1,chrUn_KI270303v1,chrUn_KI270305v1,chrUn_KI270322v1,chrUn_KI270320v1,chrUn_KI270310v1,chrUn_KI270316v1,chrUn_KI270315v1,chrUn_KI270312v1,chrUn_KI270311v1,chrUn_KI270317v1,chrUn_KI270412v1,chrUn_KI270411v1,chrUn_KI270414v1,chrUn_KI270419v1,chrUn_KI270418v1,chrUn_KI270420v1,chrUn_KI270424v1,chrUn_KI270417v1,chrUn_KI270422v1,chrUn_KI270423v1,chrUn_KI270425v1,chrUn_KI270429v1,chrUn_KI270442v1,chrUn_KI270466v1,chrUn_KI270465v1,chrUn_KI270467v1,chrUn_KI270435v1,chrUn_KI270438v1,chrUn_KI270468v1,chrUn_KI270510v1,chrUn_KI270509v1,chrUn_KI270518v1,chrUn_KI270508v1,chrUn_KI270516v1,chrUn_KI270512v1,chrUn_KI270519v1,chrUn_KI270522v1,chrUn_KI270511v1,chrUn_KI270515v1,chrUn_KI270507v1,chrUn_KI270517v1,chrUn_KI270529v1,chrUn_KI270528v1,chrUn_KI270530v1,chrUn_KI270539v1,chrUn_KI270538v1,chrUn_KI270544v1,chrUn_KI270548v1,chrUn_KI270583v1,chrUn_KI270587v1,chrUn_KI270580v1,chrUn_KI270581v1,chrUn_KI270579v1,chrUn_KI270589v1,chrUn_KI270590v1,chrUn_KI270584v1,chrUn_KI270582v1,chrUn_KI270588v1,chrUn_KI270593v1,chrUn_KI270591v1,chrUn_KI270330v1,chrUn_KI270329v1,chrUn_KI270334v1,chrUn_KI270333v1,chrUn_KI270335v1,chrUn_KI270338v1,chrUn_KI270340v1,chrUn_KI270336v1,chrUn_KI270337v1,chrUn_KI270363v1,chrUn_KI270364v1,chrUn_KI270362v1,chrUn_KI270366v1,chrUn_KI270378v1,chrUn_KI270379v1,chrUn_KI270389v1,chrUn_KI270390v1,chrUn_KI270387v1,chrUn_KI270395v1,chrUn_KI270396v1,chrUn_KI270388v1,chrUn_KI270394v1,chrUn_KI270386v1,chrUn_KI270391v1,chrUn_KI270383v1,chrUn_KI270393v1,chrUn_KI270384v1,chrUn_KI270392v1,chrUn_KI270381v1,chrUn_KI270385v1,chrUn_KI270382v1,chrUn_KI270376v1,chrUn_KI270374v1,chrUn_KI270372v1,chrUn_KI270373v1,chrUn_KI270375v1,chrUn_KI270371v1,chrUn_KI270448v1,chrUn_KI270521v1,chrUn_GL000195v1,chrUn_GL000219v1,chrUn_GL000220v1,chrUn_GL000224v1,chrUn_KI270741v1,chrUn_GL000226v1,chrUn_GL000213v1,chrUn_KI270743v1,chrUn_KI270744v1,chrUn_KI270745v1,chrUn_KI270746v1,chrUn_KI270747v1,chrUn_KI270748v1,chrUn_KI270749v1,chrUn_KI270750v1,chrUn_KI270751v1,chrUn_KI270752v1,chrUn_KI270753v1,chrUn_KI270754v1,chrUn_KI270755v1,chrUn_KI270756v1,chrUn_KI270757v1,chrUn_GL000214v1,chrUn_KI270742v1,chrUn_GL000216v2,chrUn_GL000218v1,chrEBV\\\nALL_MEM_EPS = 180G\\\nGPU_QUEUE = \\\nmodule_vardict_java = mugqic/VarDictJava/1.4.8\\\nmodule_strelka2 = mugqic/Strelka2/2.9.10\\\nmodule_bcbio_variation_recall = mugqic/bcbio.variation.recall/0.2.6\\\nmodule_varscan = mugqic/VarScan/2.4.3\\\nmodule_conpair = mugqic/Conpair/0.2\\\nmodule_scones = mugqic/SCoNEs/2.1.2\\\nmodule_sequenza_utils = mugqic/Sequenza-utils/3.0.0\\\nmodule_gcc = mugqic/gcc/4.9.3\\\nmodule_amber = mugqic/amber/3.5\\\nmodule_cobalt = mugqic/cobalt/1.11\\\nmodule_purple = mugqic/purple/2.53\\\nmodule_circos = mugqic/circos/0.69-6\\\nmodule_cpsr = mugqic/cpsr/0.6.2\\\nmodule_pcgr = mugqic/pcgr/0.9.2\\\nstrelka2_bed_file = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.strelka2.bed.gz\\\ncommon_name = Human\\\nassembly_synonyms = hg38\\\nCTAT_bundle_version = GRCh38_gencode_v32_CTAT_lib_Dec062019\\\n\\\n[picard_sam_to_fastq]\\\ncluster_cpu = -c 12 -N 1\\\ncluster_mem = --mem=32G\\\nram = 18G\\\ncluster_walltime = --time=72:00:00\\\nother_options = --MAX_RECORDS_IN_RAM=5000000\\\n\\\n[samtools_cram_output]\\\noptions = -h -T %(genome_fasta)s -C\\\nvariantBam_options = --cram -strip-tags BI,OQ\\\ncluster_cpu = %(PINT_CPU)s\\\ncluster_walltime = 48:00:0\\\n\\\n[sym_link_fastq]\\\ncluster_walltime = 3:00:00\\\n\\\n[sym_link_bam]\\\ncluster_walltime = 3:00:00\\\n\\\n[trimmomatic]\\\ncluster_mem = 20G\\\nram = 19G\\\ncluster_cpu = 5\\\nthreads = %(cluster_cpu)s\\\ntrailing_min_quality = 30\\\nmin_length = 50\\\nillumina_clip_settings = :2:30:15\\\njava_other_options = -XX:ParallelGCThreads=5 -Dsamjdk.buffer_size=1048576\\\n\\\n[skewer_trimming]\\\ncluster_cpu = %(QUART_CPU)s\\\nthreads = %(cluster_cpu)s\\\noptions = --min 25 -q 25 --compress -f sanger\\\nadapter_fasta = \\\ncluster_walltime = 48:00:00\\\n\\\n[bwa_mem]\\\ncluster_cpu = %(HALF_CPU)s\\\nbwa_other_options = -t %(cluster_cpu)s -K 100000000 -Y\\\nsequencing_center = McGill University and Genome Quebec Innovation Centre\\\nsequencing_technology = Illumina\\\n\\\n[picard_sort_sam]\\\nram = 16G\\\nmax_records_in_ram = 3750000\\\n\\\n[sambamba_sort_sam]\\\noptions = -m 10G\\\n\\\n[bwa_mem_sambamba_sort_sam]\\\ncluster_cpu = %(HALF_CPU)s\\\ncluster_walltime = 48:00:00\\\ncluster_mem = 60G\\\n\\\n[bwakit_picard_sort_sam]\\\ncluster_cpu = 4\\\ncluster_walltime = 48:00:00\\\ncluster_mem = 60G\\\n\\\n[sambamba_merge_sam_extract_unmapped]\\\ncluster_cpu = 8\\\noptions = -t %(cluster_cpu)s\\\ncluster_walltime = 35:00:00\\\ncluster_mem = 32G\\\n\\\n[sambamba_extract_unmapped]\\\ncluster_cpu = %(PINT_CPU)s\\\noptions = -t %(PINT_CPU)s -f bam -F \"unmapped\"\\\ncluster_walltime = 3:00:00\\\n\\\n[gatk_indel_realigner]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304\\\nnb_jobs = 23\\\nram = 12G\\\nmax_reads_in_memory = 500000\\\ncluster_cpu = 1\\\nother_options = \\\ncluster_walltime = 35:00:0\\\ncluster_mem = 12G\\\nmodule_gatk = mugqic/GenomeAnalysisTK/3.8\\\n\\\n[gatk_realigner_target_creator]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304\\\nram = 12G\\\nknown_mills = %(mills)s\\\ncluster_cpu = 1\\\nother_options = -nt 1\\\nmodule_gatk = mugqic/GenomeAnalysisTK/3.8\\\nknown_indel_sites = %(mills)s\\\n\\\n[sambamba_merge_realigned]\\\ncluster_cpu = %(QUART_CPU)s\\\noptions = -t %(cluster_cpu)s\\\ncluster_walltime = 35:00:00\\\ncluster_mem = 48G\\\n\\\n[sambamba_merge_unmapped]\\\ncluster_cpu = %(QUART_CPU)s\\\noptions = -t %(cluster_cpu)s\\\ncluster_walltime = 12:00:00\\\n\\\n[merge_realigned]\\\ncluster_walltime = 35:00:00\\\ncluster_cpu = 3\\\ncluster_mem = --mem=32G\\\n\\\n[bvatools_groupfixmate]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304\\\nram = 16G\\\n\\\n[samtools_sort]\\\ncluster_cpu = 5\\\nother_options = -@ %(cluster_cpu)s -m 20000M\\\ncluster_walltime = 71:00:00\\\n\\\n[fix_mate_by_coordinate]\\\ncluster_cpu = 4\\\ncluster_walltime = 71:00:00\\\ncluster_mem = 52G\\\n\\\n[samtools_fixmate]\\\nmodule_samtools = mugqic/samtools/1.9\\\n\\\n[fix_mate_by_coordinate_samtools]\\\ncluster_cpu = %(QUART_CPU)s\\\noptions = -m -O bam -@ %(cluster_cpu)s\\\ncluster_walltime = 35:00:00\\\ncluster_mem = 48G\\\n\\\n[picard_mark_duplicates]\\\ncluster_cpu = %(PINT_CPU)s\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=2 -Dsamjdk.buffer_size=4194304\\\nram = 14G\\\nmax_records_in_ram = 1000000\\\ncluster_walltime = 71:00:00\\\ncluster_mem = 15G\\\n\\\n[gatk_base_recalibrator]\\\ncluster_cpu = %(HALF_CPU)s\\\nthreads = %(cluster_cpu)s\\\ncluster_mem = 55G\\\nram = %(cluster_mem)s\\\noptions = --bqsr-baq-gap-open-penalty 30\\\nknown_dbsnp = %(dbsnp)s\\\nknown_gnomad = %(gnomad_exome)s\\\nknown_mills = %(mills)s\\\ncluster_walltime = 35:00:0\\\n\\\n[gatk_print_reads]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=4 -Dsamjdk.buffer_size=4194304\\\ncluster_cpu = -l nodes=1:ppn=40\\\nthreads = %(cluster_cpu)s\\\ncluster_mem = 187G\\\nram = 180G\\\ncluster_walltime = 96:00:0\\\n\\\n[gatk_apply_bqsr]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=2 -Dsamjdk.buffer_size=4194304 -Dsamjdk.use_async_io_read_samtools=true -Dsamjdk.use_async_io_write_samtools=true -Dsamjdk.use_async_io_write_tribble=false\\\ncluster_cpu = 40\\\nthreads = %(cluster_cpu)s\\\noptions = \\\ncluster_mem = 186G\\\nram = 180G\\\ncluster_walltime = 96:00:0\\\n\\\n[recalibration]\\\ncluster_walltime = 96:00:0\\\ncluster_mem = 51G\\\nram = 50G\\\n\\\n[sambamba_index]\\\ncluster_cpu = %(QUART_CPU)s\\\noptions = -t %(cluster_cpu)s\\\n\\\n[picard_collect_multiple_metrics]\\\nmodule_gatk = mugqic/GenomeAnalysisTK/4.2.2.0\\\ncluster_cpu = 1\\\ncluster_mem = 12G\\\nram = 11G\\\nmax_records_in_ram = 1000000\\\noptions = --FILE_EXTENSION \".txt\"\\\ncluster_walltime = 48:00:00\\\n\\\n[picard_calculate_hs_metrics]\\\nmodule_gatk = mugqic/GenomeAnalysisTK/4.2.2.0\\\ncluster_mem = 9G\\\nram = 8G\\\ncluster_walltime = 48:00:00\\\n\\\n[metrics]\\\nmodule_gatk = mugqic/GenomeAnalysisTK/4.2.2.0\\\ncluster_walltime = walltime=24:00:0\\\ncluster_mem = 12G\\\n\\\n[picard_collect_oxog_metrics]\\\nmodule_gatk = mugqic/GenomeAnalysisTK/4.2.2.0\\\ncluster_mem = 13G\\\nram = 12G\\\nmax_records_in_ram = 4000000\\\ncluster_walltime = 35:00:0\\\n\\\n[picard_collect_gcbias_metrics]\\\nmodule_gatk = mugqic/GenomeAnalysisTK/4.2.2.0\\\ncluster_mem = 13G\\\nram = 12G\\\nmax_records_in_ram = 4000000\\\ncluster_walltime = 35:00:0\\\n\\\n[dna_sample_qualimap]\\\ncluster_mem = 120G\\\nram = 120G\\\nuse_bed = false\\\ncluster_cpu = -l nodes=1:ppn=24\\\nqualimap_options = --skip-duplicated -nt 1 -gd HUMAN\\\ncluster_walltime = 35:00:0\\\n\\\n[dna_sambamba_flagstat]\\\ncluster_cpu = 6\\\nflagstat_options = -t %(cluster_cpu)s\\\ncluster_walltime = -l walltime=12:00:0\\\n\\\n[fastqc]\\\ncluster_cpu = 4\\\nthreads = %(cluster_cpu)s\\\ncluster_walltime = -l walltime=35:00:0\\\n\\\n[multiqc]\\\nmodule_python = mugqic/python/3.7.3\\\ncluster_walltime = -l walltime=2:00:0\\\noptions = \\\n\\\n[gatk_depth_of_coverage]\\\nmodule_gatk = mugqic/GenomeAnalysisTK/3.8\\\njava_other_options = -XX:ParallelGCThreads=2\\\nram = 8000M\\\ncluster_mem = 8G\\\nsummary_coverage_thresholds = 10,25,50,75,100,500\\\ncluster_cpu = 1\\\ncluster_walltime = 48:00:00\\\n\\\n[bvatools_depth_of_coverage]\\\ncoverage_targets = auto\\\nother_options = --gc --maxDepth 1001 --summaryCoverageThresholds 1,5,10,25,50,75,100,500,1000 --minMappingQuality 15 --minBaseQuality 15 --ommitN\\\ncluster_mem = 35G\\\nram = 35G\\\ncluster_cpu = %(QUART_CPU)s\\\nthreads = %(cluster_cpu)s\\\ncluster_walltime = 96:00:00\\\n\\\n[igvtools_compute_tdf]\\\nram = 6G\\\ncluster_walltime = 96:00:00\\\ncluster_cpu = 1\\\noption = -f min,max,mean -w 25\\\ncluster_mem = 7G\\\n\\\n[gatk_callable_loci]\\\nmodule_gatk = mugqic/GenomeAnalysisTK/3.8\\\njava_other_options = -XX:ParallelGCThreads=2\\\ncluster_mem = 11G\\\nram = 10G\\\nother_options = -dt none --minDepth 10 --maxDepth 500 --minDepthForLowMAPQ 10 --minMappingQuality 10 --minBaseQuality 15\\\ncluster_walltime = 35:00:00\\\n\\\n[bvatools_basefreq]\\\ncluster_mem = 8G\\\nthreads = 1\\\nram = 8G\\\n\\\n[extract_common_snp_freq]\\\ncluster_cpu = 2\\\ncluster_walltime = 35:00:00\\\ncluster_mem = 20G\\\n\\\n[bvatools_ratiobaf]\\\ncluster_cpu = 5\\\ncluster_mem = 71G\\\nram = 70G\\\nother_options = --plot --maxDepth 1000  --exclude %(excluded_chromosome)s\\\n\\\n[baf_plot]\\\ncluster_cpu = %(QUART_CPU)s\\\ncluster_walltime = 24:00:00\\\ncluster_mem = 48G\\\n\\\n[vcftools_missing_indv]\\\noptions = \\\ncluster_walltime = 24:00:00\\\n\\\n[vcftools_depth]\\\noptions = \\\ncluster_walltime = 24:00:00\\\n\\\n[gatk_crosscheck_fingerprint]\\\nmodule_gatk = mugqic/GenomeAnalysisTK/4.2.2.0\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304 -Dsamjdk.use_async_io_read_samtools=true -Dsamjdk.use_async_io_write_samtools=true -Dsamjdk.use_async_io_write_tribble=false\\\ncluster_cpu = 4\\\noptions = --NUM_THREADS %(cluster_cpu)s --EXIT_CODE_WHEN_MISMATCH 0\\\ncluster_mem = 16G\\\nram = 15G\\\nhaplotype_database = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.fingerprint.map\\\nlod_threshold = 3.0\\\ncluster_walltime = 24:00:00\\\n\\\n[gatk_cluster_crosscheck_metrics]\\\nmodule_gatk = mugqic/GenomeAnalysisTK/4.2.2.0\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304 -Dsamjdk.use_async_io_read_samtools=true -Dsamjdk.use_async_io_write_samtools=true -Dsamjdk.use_async_io_write_tribble=false\\\noptions = \\\ncluster_mem = 16G\\\nram = 15G\\\nlod_threshold = 5.0\\\ncluster_walltime = 24:00:00\\\n\\\n[verify_bam_id]\\\noptions = --verbose --ignoreRG --noPhoneHome\\\nvcf = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.1000G_phase1.snps.high_confidence.EUR.vcf\\\ncluster_walltime = 24:00:00\\\ncluster_cpu = 2\\\ncluster_mem = 20G\\\n\\\n[run_checkmate]\\\nmodule_python = mugqic/python/2.7.14\\\noptions = -V\\\nbed = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.SNP_GRCh38_hg19_woChr.bed\\\ncluster_walltime = 24:00:00\\\ncluster_mem = 12G\\\n\\\n[run_peddy]\\\noptions = \\\ncluster_cpu = %(QUART_CPU)s\\\nthreads = %(cluster_cpu)s\\\ncluster_walltime = 24:00:00\\\ncluster_mem = 24G\\\n\\\n[gatk_haplotype_caller]\\\ncluster_cpu = %(PINT_CPU)s\\\noptions = --useNewAFCalculator --emitRefConfidence GVCF -dt none -nct %(cluster_cpu)s -G StandardAnnotation -G StandardHCAnnotation\\\ncluster_mem = 36G\\\nram = 35G\\\nnb_jobs = 23\\\ncluster_walltime = 35:00:00\\\ninterval_padding = \\\n\\\n[gatk_cat_variants]\\\noptions = \\\ncluster_mem = 8G\\\nram = 8G\\\ncluster_walltime = 24:00:00\\\n\\\n[picard_merge_vcfs]\\\nmax_records_in_ram = 2000000\\\noptions = \\\nram = 12G\\\n\\\n[gatk_merge_and_call_individual_gvcfs]\\\noptions = -nt 1\\\n\\\n[gatk_merge_and_call_combined_gvcfs]\\\noptions = -nt 1 -G StandardAnnotation -G StandardHCAnnotation -A FisherStrand -A QualByDepth -A ChromosomeCounts\\\n\\\n[gatk_genotype_gvcf]\\\noptions = --useNewAFCalculator -G StandardAnnotation -G StandardHCAnnotation\\\ncluster_mem = 30G\\\nram = 30G\\\ncluster_walltime = 35:00:00\\\ncluster_cpu = 2\\\n\\\n[gatk_combine_gvcf]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=4 -Dsamjdk.buffer_size=4194304\\\ncluster_mem = 25G\\\nram = 24G\\\nnb_haplotype = 4\\\nnb_batch = 1\\\ncluster_cpu = %(QUART_CPU)s\\\nother_options = \\\ncluster_walltime = 24:00:00\\\n\\\n[merge_and_call_combined_gvcf]\\\ncluster_mem = 25G\\\nram = 24G\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=2 -Dsamjdk.buffer_size=4194304\\\ncluster_walltime = 96:00:00\\\ncluster_cpu = 2\\\n\\\n[merge_and_call_individual_gvcf]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=2 -Dsamjdk.buffer_size=4194304\\\ncluster_mem = 32G\\\nram = 32G\\\ncluster_walltime = 96:00:00\\\ncluster_cpu = 2\\\n\\\n[variant_recalibrator]\\\ntranch_other_options_snps = --resource:hapmap,known=false,training=true,truth=true,prior=15.0 %(hapmap)s --resource:omni,known=false,training=true,truth=false,prior=12.0 %(omni)s --resource:1000G,known=false,training=true,truth=false,prior=10.0 %(1000G)s --resource:dbsnp,known=true,training=false,truth=false,prior=6.0 %(dbsnp)s -an QD -an MQ -an MQRankSum -an ReadPosRankSum -an FS -an SOR --truth-sensitivity-tranche 100.0 --truth-sensitivity-tranche 99.95 --truth-sensitivity-tranche 99.9 --truth-sensitivity-tranche 99.95 --truth-sensitivity-tranche 99.5 --truth-sensitivity-tranche 99.0 --truth-sensitivity-tranche 90.0 -mode SNP\\\ntranch_other_options_indels = --resource:mills,known=false,training=true,truth=true,prior=12.0 %(mills)s --resource:dbsnp,known=true,training=false,truth=false,prior=2.0 %(dbsnp)s -an QD -an MQ -an MQRankSum -an ReadPosRankSum -an FS -an SOR --truth-sensitivity-tranche 100.0 --truth-sensitivity-tranche 99.9 --truth-sensitivity-tranche 99.4 --truth-sensitivity-tranche 99.0 --truth-sensitivity-tranche 90.0 -mode INDEL\\\napply_other_options_snps = --truth-sensitivity-filter-level 99.95 --mode SNP\\\napply_other_options_indels = --truth-sensitivity-filter-level 99.4 --mode INDEL\\\ncluster_walltime = 35:00:00\\\ncluster_cpu = 2\\\ncluster_mem = 30G\\\n\\\n[gatk_variant_recalibrator]\\\nsmall_sample_option = \\\ncluster_cpu = %(QUART_CPU)s\\\noptions = -nt %(cluster_cpu)s\\\ncluster_mem = 25G\\\nram = 24G\\\n\\\n[gatk_apply_recalibration]\\\ncluster_cpu = %(QUART_CPU)s\\\noptions = -nt %(cluster_cpu)s\\\ncluster_mem = 24G\\\nram = 24G\\\n\\\n[rawmpileup]\\\nnb_jobs = 25\\\nmpileup_other_options = -d 1000 -L 1000 -B -q 11 -Q 10\\\ncluster_walltime = -l walltime=12:00:0\\\ncluster_mem = 8G\\\n\\\n[snp_and_indel_bcf]\\\napproximate_nb_jobs = 15\\\nmpileup_other_options = -d 1000 -B -q 11 -Q 20 -Ou -a FORMAT/DP,FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/SP,FORMAT/SCR\\\nbcftools_other_options = -mvO b\\\ncluster_walltime = 48:00:00\\\ncluster_mem = 12G\\\n\\\n[snpsift_annotate]\\\ncluster_mem = 9G\\\nram = 8G\\\njava_other_options = -XX:ParallelGCThreads=2\\\ncluster_walltime = 24:00:00\\\n\\\n[snp_id_annotation]\\\ncluster_walltime = 24:00:00\\\ncluster_mem = 12G\\\n\\\n[mpileup_snp_id_annotation]\\\ncluster_walltime = 24:00:00\\\n\\\n[haplotype_caller_snp_id_annotation]\\\ncluster_walltime = 24:00:00\\\ncluster_mem = 16G\\\n\\\n[compute_effects]\\\njava_other_options = -XX:ParallelGCThreads=1\\\ncluster_mem = 12G\\\nram = 12000M\\\noptions = -lof\\\nsnpeff_genome = %(assembly_synonyms)s\\\ncluster_walltime = 12:00:0\\\n\\\n[mpileup_snp_effect]\\\ncluster_cpu = 2\\\ncluster_walltime = 24:00:00\\\ncluster_mem = 24G\\\n\\\n[haplotype_caller_snp_effect]\\\ncluster_cpu = 1\\\ncluster_walltime = 24:00:00\\\ncluster_mem = 16G\\\n\\\n[snpsift_dbnsfp]\\\ncluster_cpu = 2\\\nram = 24G\\\njava_other_options = -XX:ParallelGCThreads=2\\\n\\\n[dbnsfp_annotation]\\\ncluster_cpu = %(QUART_CPU)s\\\ncluster_walltime = 35:00:00\\\ncluster_mem = --mem=40G\\\n\\\n[gemini_annotations]\\\ncluster_cpu = %(QUART_CPU)s\\\noptions = -t snpEff --cores %(cluster_cpu)s --save-info-string\\\ncluster_walltime = -l walltime=72:00:0\\\ntmp_dir = ${SLURM_TMPDIR}\\\n\\\n[vcf_stats]\\\nmodule_python = mugqic/python/2.7.14\\\n\\\n[report]\\\ntitle = DNA-Seq Analysis Report\\\n\\\n[sv_annotation]\\\ncluster_walltime = 3:00:0\\\ncluster_mem = 12G\\\n\\\n[delly_call_filter]\\\ncluster_cpu = %(QUART_CPU)s\\\nthreads = %(cluster_cpu)s\\\noptions = -q 15\\\nsv_types_options = DEL,INS,DUP,INV,BND\\\nexclude_list = ${DELLY_PATH}/excludeTemplates/human.hg38.excl.tsv\\\ncluster_walltime = 35:00:0\\\ncluster_mem = 60G\\\n\\\n[delly_call_filter_germline]\\\ntype_options = germline\\\nDUP_options = -m 300 -a 0.1 -r 0.75\\\nDEL_options = -m 300 -a 0.1 -r 0.75\\\nINV_options = -m 300 -a 0.1 -r 0.75\\\nBND_options = -m 0 -a 0.1 -r 0.75\\\nINS_options = \\\nbcftools_options = \\\n\\\n[manta_sv]\\\nmodule_python = mugqic/python/2.7.14\\\noption_mode = local\\\ncluster_cpu = %(HALF_CPU)s\\\noption_nodes = %(cluster_cpu)s\\\ncluster_mem = 55G\\\nram = 55G\\\nexperiment_type_option = \\\ncluster_walltime = 24:00:0\\\n\\\n[extract_discordant_reads]\\\ncluster_cpu = %(QUART_CPU)s\\\nsambamba_options = -t %(cluster_cpu)s\\\ndiscordants_sort_option = -t %(cluster_cpu)s\\\ncluster_walltime = -l walltime=35:00:0\\\ncluster_mem = 32G\\\noptions = \\\n\\\n[extract_split_reads]\\\ncluster_cpu = %(QUART_CPU)s\\\nsambamba_options = -t %(cluster_cpu)s\\\nsplit_sort_option = -t %(cluster_cpu)s\\\ncluster_walltime = -l walltime=35:00:0\\\ncluster_mem = 32G\\\noptions = \\\n\\\n[lumpy_paired_sv_calls]\\\nmodule_python = mugqic/python/2.7.13\\\noptions = \\\nheader_options = -h %(vcf_header)s\\\ncluster_walltime = -l walltime=72:00:0\\\ncluster_cpu = 3\\\ncluster_mem = 16G\\\nmodule_samtools = mugqic/samtools/1.3\\\n\\\n[wham_call_sv]\\\nexclude = chr1_KI270706v1_random,chr1_KI270707v1_random,chr1_KI270708v1_random,chr1_KI270709v1_random,chr1_KI270710v1_random,chr1_KI270711v1_random,chr1_KI270712v1_random,chr1_KI270713v1_random,chr1_KI270714v1_random,chr2_KI270715v1_random,chr2_KI270716v1_random,chr3_GL000221v1_random,chr4_GL000008v2_random,chr5_GL000208v1_random,chr9_KI270717v1_random,chr9_KI270718v1_random,chr9_KI270719v1_random,chr9_KI270720v1_random,chr11_KI270721v1_random,chr14_GL000009v2_random,chr14_GL000225v1_random,chr14_KI270722v1_random,chr14_GL000194v1_random,chr14_KI270723v1_random,chr14_KI270724v1_random,chr14_KI270725v1_random,chr14_KI270726v1_random,chr15_KI270727v1_random,chr16_KI270728v1_random,chr17_GL000205v2_random,chr17_KI270729v1_random,chr17_KI270730v1_random,chr22_KI270731v1_random,chr22_KI270732v1_random,chr22_KI270733v1_random,chr22_KI270734v1_random,chr22_KI270735v1_random,chr22_KI270736v1_random,chr22_KI270737v1_random,chr22_KI270738v1_random,chr22_KI270739v1_random,chrY_KI270740v1_random,chrUn_KI270302v1,chrUn_KI270304v1,chrUn_KI270303v1,chrUn_KI270305v1,chrUn_KI270322v1,chrUn_KI270320v1,chrUn_KI270310v1,chrUn_KI270316v1,chrUn_KI270315v1,chrUn_KI270312v1,chrUn_KI270311v1,chrUn_KI270317v1,chrUn_KI270412v1,chrUn_KI270411v1,chrUn_KI270414v1,chrUn_KI270419v1,chrUn_KI270418v1,chrUn_KI270420v1,chrUn_KI270424v1,chrUn_KI270417v1,chrUn_KI270422v1,chrUn_KI270423v1,chrUn_KI270425v1,chrUn_KI270429v1,chrUn_KI270442v1,chrUn_KI270466v1,chrUn_KI270465v1,chrUn_KI270467v1,chrUn_KI270435v1,chrUn_KI270438v1,chrUn_KI270468v1,chrUn_KI270510v1,chrUn_KI270509v1,chrUn_KI270518v1,chrUn_KI270508v1,chrUn_KI270516v1,chrUn_KI270512v1,chrUn_KI270519v1,chrUn_KI270522v1,chrUn_KI270511v1,chrUn_KI270515v1,chrUn_KI270507v1,chrUn_KI270517v1,chrUn_KI270529v1,chrUn_KI270528v1,chrUn_KI270530v1,chrUn_KI270539v1,chrUn_KI270538v1,chrUn_KI270544v1,chrUn_KI270548v1,chrUn_KI270583v1,chrUn_KI270587v1,chrUn_KI270580v1,chrUn_KI270581v1,chrUn_KI270579v1,chrUn_KI270589v1,chrUn_KI270590v1,chrUn_KI270584v1,chrUn_KI270582v1,chrUn_KI270588v1,chrUn_KI270593v1,chrUn_KI270591v1,chrUn_KI270330v1,chrUn_KI270329v1,chrUn_KI270334v1,chrUn_KI270333v1,chrUn_KI270335v1,chrUn_KI270338v1,chrUn_KI270340v1,chrUn_KI270336v1,chrUn_KI270337v1,chrUn_KI270363v1,chrUn_KI270364v1,chrUn_KI270362v1,chrUn_KI270366v1,chrUn_KI270378v1,chrUn_KI270379v1,chrUn_KI270389v1,chrUn_KI270390v1,chrUn_KI270387v1,chrUn_KI270395v1,chrUn_KI270396v1,chrUn_KI270388v1,chrUn_KI270394v1,chrUn_KI270386v1,chrUn_KI270391v1,chrUn_KI270383v1,chrUn_KI270393v1,chrUn_KI270384v1,chrUn_KI270392v1,chrUn_KI270381v1,chrUn_KI270385v1,chrUn_KI270382v1,chrUn_KI270376v1,chrUn_KI270374v1,chrUn_KI270372v1,chrUn_KI270373v1,chrUn_KI270375v1,chrUn_KI270371v1,chrUn_KI270448v1,chrUn_KI270521v1,chrUn_GL000195v1,chrUn_GL000219v1,chrUn_GL000220v1,chrUn_GL000224v1,chrUn_KI270741v1,chrUn_GL000226v1,chrUn_GL000213v1,chrUn_KI270743v1,chrUn_KI270744v1,chrUn_KI270745v1,chrUn_KI270746v1,chrUn_KI270747v1,chrUn_KI270748v1,chrUn_KI270749v1,chrUn_KI270750v1,chrUn_KI270751v1,chrUn_KI270752v1,chrUn_KI270753v1,chrUn_KI270754v1,chrUn_KI270755v1,chrUn_KI270756v1,chrUn_KI270757v1,chrUn_GL000214v1,chrUn_KI270742v1,chrUn_GL000216v2,chrUn_GL000218v1,chrEBV\\\ncluster_cpu = %(QUART_CPU)s\\\ncores = %(cluster_cpu)s\\\nheader_options = -h %(vcf_header)s\\\ncluster_walltime = 24:00:0\\\ncluster_mem = %(HALF_MEM)s\\\n\\\n[cnvkit_batch]\\\nmin_background_samples = 20\\\nbatch_options = -m wgs --target-avg-size 5000 --short-names\\\nfix_options = --no-edge\\\nsegment_options = -m cbs -t 0.00001 --drop-low-coverage -p %(cluster_cpu)s\\\ncall_options = \\\nexport_options = vcf\\\nsegmetrics_options = --ci --pi\\\nmetrics_options = \\\nscatter_options = \\\ndiagram_options = \\\ncluster_cpu = 6\\\nthreads = 6\\\naccess = /cvmfs/soft.mugqic/CentOS6/genomes/species/Homo_sapiens.GRCh38/annotations/Homo_sapiens.GRCh38.access-5k-mappable.bed\\\nrefFlat = /cvmfs/soft.mugqic/CentOS6/genomes/species/Homo_sapiens.GRCh38/annotations/Homo_sapiens.GRCh38.Ensembl87.ref_flat.tsv\\\ncluster_walltime = -l walltime=48:00:0\\\nmodule_python = mugqic/python/2.7.14\\\nmodule_R = mugqic/R_Bioconductor/3.2.3_3.2\\\n\\\n[run_breakseq2]\\\nmodule_pyhton = mugqic/python/2.7.14\\\noptions = \\\nbcftools_options = -f PASS -Ov\\\ncluster_cpu = %(QUART_CPU)s\\\nthreads = %(cluster_cpu)s\\\ngff = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.breakseq2_bplib_20150129.gff\\\ncluster_walltime = 35:00:00\\\n\\\n[metasv_ensemble]\\\noptions = --boost_sc --filter_gaps --keep_standard_contigs --mean_read_length 150\\\ncluster_cpu = %(QUART_CPU)s\\\nthreads = %(cluster_cpu)s\\\nfilter_pass_options = \\\ncluster_walltime = 35:00:0\\\ncluster_mem = --mem=60G\\\n\\\n[svaba_run]\\\ncluster_cpu = %(HALF_CPU)s\\\noptions = -p %(cluster_cpu)s\\\nref = %(genome_bwa_index)s\\\ndbsnp = $SVABA_HOME/dbsnp_indel.vcf\\\ncluster_walltime = 35:00:0\\\ncluster_mem = 60G\\\n\\\n[haplotype_caller_dbnsfp_annotation]\\\ncluster_walltime = 24:00:00\\\ncluster_cpu = 3\\\ncluster_mem = 40G\\\n\\\n[sambamba_merge_sam_files]\\\ncluster_cpu = %(QUART_CPU)s\\\noptions = -t %(cluster_cpu)s\\\n\\\n[sym_link_pair]\\\ncluster_walltime = 3:00:0\\\n\\\n[sambamba_mark_duplicates]\\\ncluster_cpu = %(QUART_CPU)s\\\noptions = -t %(cluster_cpu)s\\\ntmp_dir = tmp_dir\\\ncluster_mem = 36G\\\ncluster_walltime = 35:00:0\\\n\\\n[conpair_concordance_contamination]\\\nmodule_gatk = mugqic/GenomeAnalysisTK/3.8\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304\\\nmarkers_bed = ${CONPAIR_DATA}/markers/%(assembly)s.autosomes.phase3_shapeit2_mvncall_integrated.20130502.SNV.genotype.sselect_v4_MAF_0.4_LD_0.8.liftover.bed\\\nmarkers_txt = ${CONPAIR_DATA}/markers/%(assembly)s.autosomes.phase3_shapeit2_mvncall_integrated.20130502.SNV.genotype.sselect_v4_MAF_0.4_LD_0.8.liftover.txt\\\nconcord_options = --normal_homozygous_markers_only\\\ncontam_options = \\\ncluster_mem = 6G\\\nram = 6G\\\ncluster_walltime = 24:00:0\\\n\\\n[picard_collect_sequencing_artifacts_metrics]\\\nFFPE = true\\\ncluster_mem = 12G\\\nram = 12000M\\\noptions = --FILE_EXTENSION \".txt\"\\\nmax_records_in_ram = 4000000\\\ncluster_walltime = -l walltime=35:00:0\\\n\\\n[qualimap]\\\ncluster_cpu = 4\\\ncluster_mem = 60G\\\nram = 60G\\\n\\\n[picard_ScatterIntervalsByNs]\\\ncluster_mem = 3G\\\nram = 3000M\\\n\\\n[gatk_splitInterval]\\\ncluster_mem = 3G\\\nram = 3000M\\\noptions = --subdivision-mode BALANCING_WITHOUT_INTERVAL_SUBDIVISION\\\n\\\n[gatk_interval_list2bed]\\\ncluster_mem = 3200M\\\nram = 3G\\\ncluster_walltime = -l walltime=3:00:0\\\ncluster_cpu = -l nodes=1:ppn=2\\\n\\\n[gatk_bed2interval_list]\\\ncluster_mem = 3200M\\\nram = 3G\\\n\\\n[gatk_preProcessInterval]\\\ncluster_mem = 3200M\\\nram = 3G\\\noptions = --interval-merging-rule OVERLAPPING_ONLY --bin-length 5000 --padding 250\\\n\\\n[rawmpileup_panel]\\\nnb_jobs = 25\\\nmodule_samtools = mugqic/samtools/1.3\\\npanel = test_rapid/SureSelectHumanAllExonV5.targets_ext1k.bed\\\nmpileup_other_options = -d 1000 -L 1000 -B -q 1 -Q 10\\\ncluster_walltime = 12:00:0\\\ncluster_cpu = 1\\\n\\\n[varscan2_somatic_panel]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304\\\nother_options = --min-coverage 3 --min-var-freq 0.05 --p-value 1 --somatic-p-value 0.05 --strand-filter 0\\\ncluster_mem = 4300M\\\nram = 4G\\\ncluster_walltime = 12:00:0\\\ncluster_cpu = 2\\\n\\\n[merge_varscan2]\\\nmodule_python = mugqic/python/2.7.18\\\nsomatic_filter_options = -Oz -i 'SS=\"2\"'\\\ngermline_filter_options = -Oz -i 'SS=\"1\"|SS=\"3\"'\\\ngenotype_filter_options = -e 'GT[*]=\"RR\"'\\\ntabix_options = -pvcf\\\ncluster_walltime = -l walltime=3:00:0\\\ncluster_cpu = 2\\\ncluster_mem = 8G\\\n\\\n[preprocess_vcf_panel]\\\ncluster_walltime = -l walltime=3:00:0\\\ncluster_mem = 8G\\\n\\\n[rawmpileup_cat]\\\ncluster_walltime = -l walltime=35:00:0\\\ncluster_mem = 8G\\\n\\\n[varscan2_somatic]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304\\\nother_options = --min-coverage 3 --min-var-freq 0.05 --p-value 0.10 --somatic-p-value 0.05 --strand-filter 0\\\ncluster_mem = 4G\\\nram = 4G\\\ncluster_walltime = -l walltime=12:00:0\\\ncluster_cpu = 2\\\n\\\n[varscan2_readcount_fpfilter]\\\nreadcount_options = -q 1 -b 20 -i -w 1000 -d 2500\\\nfpfilter_options = --dream3-settings --keep-failures\\\nsomatic_filter_options = -i 'SS=\"2\"'\\\ngermline_filter_options = -i 'SS=\"1\"|SS=\"3\"'\\\ngenotype_filter_options = -e 'GT[*]=\"RR\"'\\\nram = 12G\\\ncluster_cpu = 3\\\ncluster_mem = 12G\\\ncluster_walltime = -l walltime=3:00:0\\\n\\\n[gatk_mutect2]\\\ncluster_cpu = %(QUART_CPU)s\\\noptions = --pair-hmm-implementation AVX_LOGLESS_CACHING_OMP --native-pair-hmm-threads %(cluster_cpu)s --max-reads-per-alignment-start 0 --read-validation-stringency LENIENT --af-of-alleles-not-in-resource 0.0000025\\\ncluster_mem = 36G\\\nram = 36000M\\\nnb_jobs = 23\\\ncosmic = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.cosmic.coding.87.vcf.gz\\\nknown_sites = %(af_gnomad)s\\\npon = \\\ncluster_walltime = --time=72:00:0\\\n\\\n[gatk_learn_read_orientation_model]\\\noptions = \\\ncluster_mem = 16G\\\nram = 16000M\\\ncluster_walltime = 24:00:0\\\n\\\n[gatk_merge_stats]\\\nram = 6G\\\noptions = \\\ncluster_walltime = -l walltime=3:00:0\\\n\\\n[gatk_get_pileup_summaries]\\\noptions = \\\nknown_sites = %(af_gnomad)s\\\ncluster_mem = 16G\\\nram = 16000M\\\ncluster_walltime = 24:00:0\\\n\\\n[gatk_calculate_contamination]\\\noptions = \\\ncluster_mem = 16G\\\nram = 16000M\\\ncluster_walltime = 24:00:0\\\n\\\n[gatk_filter_mutect_calls]\\\noptions = \\\ncluster_mem = 16G\\\nram = 16000M\\\ncluster_walltime = -l walltime=24:00:0\\\n\\\n[gatk_merge_vcfs]\\\noptions = \\\ncluster_mem = 16G\\\nram = 16000M\\\ncluster_walltime = -l walltime=24:00:0\\\n\\\n[merge_filter_mutect2]\\\nbcftools_options = \\\nfilter_options = -f PASS\\\ncluster_mem = 18G\\\nram = 18G\\\ncluster_walltime = -l walltime=3:00:0\\\n\\\n[samtools_paired]\\\nmodule_bcftools = mugqic/bcftools/1.9\\\nnb_jobs = 23\\\nmpileup_other_options = -d 1000 -B -q 10 -Q 10 -Ou -a DP,AD,ADF,ADR,SP\\\nbcftools_calls_options = -mvO b\\\ncluster_walltime = -l walltime=24:00:0\\\n\\\n[merge_filter_paired_samtools]\\\nconcat_options = -Ob\\\nsomatic_filter_options = -i 'INFO/STATUS~\"somatic\"'\\\nsomatic_vcffilter_options = -g \"! ( GT = 1/1 )\"\\\ngermline_loh_filter_options = -i 'INFO/STATUS~\"germline\"|INFO/STATUS~\"loh\"'\\\ngenotype_filter_options = -e 'GT[*]=\"RR\"'\\\ncluster_mem = 12G\\\ncluster_walltime = -l walltime=3:00:0\\\n\\\n[vardict_paired]\\\nmodule_python = mugqic/python/2.7.18\\\ncluster_cpu = 4\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304\\\nuse_bed = false\\\ndict2bed_options = -c 5000 -o 250\\\nnb_jobs = 22\\\nvardict_options = -f 0.03 -Q 11 -c 1 -S 2 -E 3 -g 4 -th %(cluster_cpu)s\\\nvar2vcf_options = -f 0.03 -P 0.9 -m 4.25 -M\\\njava_options = -Xms768m\\\ncluster_mem = 16G\\\nram = 16000M\\\nclasspath = $VARDICT_HOME/lib/VarDict-1.4.8.jar:$VARDICT_HOME/lib/commons-cli-1.2.jar:$VARDICT_HOME/lib/jregex-1.2_01.jar:$VARDICT_HOME/lib/htsjdk-2.8.0.jar com.astrazeneca.vardict.Main\\\ncluster_walltime = -l walltime=72:00:0\\\n\\\n[merge_filter_paired_vardict]\\\nsomatic_filter_options = -f PASS -i 'INFO/STATUS~\".*Somatic\"'\\\ngermline_filter_options = -f PASS -i 'INFO/STATUS~\"Germline\"|INFO/STATUS~\".*LOH\"'\\\ngenotype_filter_options = -e 'GT[*]=\"RR\"'\\\ncluster_mem = 12G\\\ncluster_walltime = -l walltime=3:00:0\\\n\\\n[strelka2_paired_somatic]\\\nmodule_python = mugqic/python/2.7.18\\\noption_mode = local\\\ncluster_cpu = %(HALF_CPU)s\\\noption_nodes = %(cluster_cpu)s\\\ncluster_mem = 55G\\\nram = 55G\\\nbed_file = %(strelka2_bed_file)s\\\nexperiment_type_option = \\\nfilter_options = -f PASS -Oz\\\ncluster_walltime = -l walltime=24:00:0\\\n\\\n[strelka2_paired_germline]\\\nmodule_python = mugqic/python/2.7.18\\\noption_mode = local\\\ncluster_cpu = %(HALF_CPU)s\\\noption_nodes = %(cluster_cpu)s\\\ncluster_mem = 55G\\\nram = 55G\\\nbed_file = %(strelka2_bed_file)s\\\nexperiment_type_option = \\\nfilter_options = -f PASS -Oz -e 'GT[*]=\"RR\"'\\\ncluster_walltime = -l walltime=48:00:0\\\n\\\n[strelka2_paired_germline_snpeff]\\\nsplit_options = -Oz -i'GT=\"alt\"'\\\noptions = \\\ncluster_mem = 12G\\\nram = 12000M\\\ncluster_walltime = -l walltime=24:00:0\\\n\\\n[bcbio_ensemble]\\\ncluster_cpu = 2\\\ncluster_mem = 24G\\\nram = 24G\\\n\\\n[bcbio_ensemble_somatic]\\\ncluster_cpu = 6\\\noptions = --cores %(cluster_cpu)s --numpass 1 --names mutect2,strelka2,vardict,varscan2\\\ncluster_mem = 24G\\\nram = 24G\\\ncluster_walltime = -l walltime=3:00:0\\\n\\\n[bcbio_ensemble_germline]\\\ncluster_cpu = 6\\\noptions = --cores %(cluster_cpu)s --numpass 1 --names strelka2,vardict,varscan2\\\ncluster_mem = 24G\\\nram = 24G\\\ncluster_walltime = -l walltime=3:00:0\\\n\\\n[gatk_variant_annotator]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304\\\nmodule_gatk = mugqic/GenomeAnalysisTK/3.7\\\ncluster_mem = 12G\\\nram = 12000M\\\nnb_jobs = 20\\\ncluster_walltime = -l walltime=12:00:0\\\n\\\n[gatk_variant_annotator_somatic]\\\ncluster_cpu = 2\\\nother_options = -nt 2 --dbsnp %(known_variants)s -G StandardAnnotation -G StandardSomaticAnnotation -A HomopolymerRun -A Coverage -A DepthPerAlleleBySample -A ClippingRankSumTest -A BaseQualityRankSumTest -A MappingQualityRankSumTest -A MappingQualityZeroBySample -A LowMQ -A ReadPosRankSumTest -A GCContent\\\n\\\n[gatk_variant_annotator_germline]\\\ncluster_cpu = 2\\\nother_options = -nt 2 --dbsnp %(known_variants)s -A HomopolymerRun -A Coverage -A DepthPerAlleleBySample -A ClippingRankSumTest -A BaseQualityRankSumTest -A MappingQualityRankSumTest -A MappingQualityZeroBySample -A LowMQ -A ReadPosRankSumTest -A GCContent\\\n\\\n[merge_gatk_variant_annotator]\\\ncluster_cpu = 2\\\ncluster_walltime = -l walltime=3:00:0\\\n\\\n[filter_ensemble]\\\nmodule_python = mugqic/python/3.10.4\\\ncall_filter = 2\\\nsomatic_filter_options = -Oz -i'TDP>=10 && TVAF>=0.05 && NDP>=10 && NVAF<=0.05'\\\ngermline_filter_options = -Oz -i'TDP>=10 && TVAF>=0.05 && NDP>=10 && NVAF>=0.05'\\\ncluster_mem = 12G\\\ncluster_walltime = -l walltime=3:00:0\\\n\\\n[report_cpsr]\\\noptions = --no_vcf_validate --force_overwrite --no_docker --secondary_findings --gwas_findings --panel_id 0\\\nassembly = grch38\\\ncluster_cpu = %(PINT_CPU)s\\\ncluster_mem = 36G\\\ncluster_walltime = -l walltime=3:00:0\\\n\\\n[report_pcgr]\\\noptions = --no_vcf_validate --force_overwrite --no_docker --vep_buffer_size 500 --vep_regulatory --show_noncoding --vcf2maf\\\ntumor_type = --tumor_site 0\\\ntumor_options = --call_conf_tag TAL --tumor_dp_tag TDP --tumor_af_tag TVAF --tumor_dp_min 10 --tumor_af_min 0.05\\\nnormal_options = --control_dp_tag NDP --control_af_tag NVAF --control_dp_min 10 --control_af_max 0.05\\\nmutsig_options = --estimate_signatures\\\ntmb_options = --estimate_tmb --tmb_algorithm nonsyn\\\nmsi_options = --estimate_msi_status\\\nassembly = grch38\\\nassay = --assay WGS\\\ncluster_cpu = %(HALF_CPU)s\\\ncluster_mem = 36G\\\ncluster_walltime = -l walltime=3:00:0\\\n\\\n[compute_cancer_effects_somatic]\\\njava_other_options = -XX:ParallelGCThreads=1\\\noptions = -cancer -lof\\\nsnpeff_genome = hg19\\\ncluster_walltime = 12:00:0\\\ncluster_mem = 12G\\\nram = 12000M\\\n\\\n[compute_cancer_effects_germline]\\\njava_other_options = -XX:ParallelGCThreads=1\\\noptions = -lof\\\nsnpeff_genome = hg19\\\ncluster_walltime = -l walltime=12:00:0\\\nram = 12000M\\\ncluster_mem = 12G\\\n\\\n[gatk_combine_variants]\\\n\\\n[decompose_and_normalize_mnps]\\\ncluster_walltime = 12:00:0\\\n\\\n[set_somatic_and_actionable_mutations]\\\nset_somatic = --min-depth 30 --min-tumor-depth 10 --min-norm-depth 10\\\ncluster_walltime = -l walltime=24:00:0\\\n\\\n[mpileup_sequenza]\\\ncluster_walltime = -l walltime=12:00:0\\\n\\\n[sequenza]\\\nnb_jobs = 23\\\ngc_file = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.gc50Base.txt\\\nbin_window_size = 50\\\nmpileup_options = -d 1000 -L 1000 -B -Q 25 -q 15\\\npileup_options = -q 20 -N 30\\\ncluster_walltime = -l walltime=24:00:0\\\ncluster_mem = 12G\\\n\\\n[amber]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304\\\ncluster_mem = 16G\\\nram = 16000M\\\ncluster_cpu = %(PINT_CPU)s\\\nthreads = %(cluster_cpu)s\\\nloci = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.GermlineHetPon.vcf.gz\\\ncluster_walltime = -l walltime=12:00:0\\\n\\\n[cobalt]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304\\\ncluster_mem = 16G\\\nram = 16000M\\\ncluster_cpu = %(PINT_CPU)s\\\nthreads = %(cluster_cpu)s\\\ngc_profile = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.GC_profile.1000bp.cnp\\\ncluster_walltime = -l walltime=12:00:0\\\n\\\n[purple]\\\njava_other_options = -XX:+UseParallelGC -XX:ParallelGCThreads=1 -Dsamjdk.buffer_size=4194304\\\nmodule_perl = mugqic/perl/5.34.0\\\ncluster_mem = 17G\\\nram = 16G\\\ncluster_cpu = %(PINT_CPU)s\\\nthreads = %(cluster_cpu)s\\\ngc_profile = %(assembly_dir)s/annotations/%(scientific_name)s.%(assembly)s.GC_profile.1000bp.cnp\\\ncluster_walltime = -l walltime=12:00:0\\\n\\\n[samtools_single]\\\nnb_jobs = 25\\\nmodule_samtools = mugqic/samtools/0.1.19\\\nmpileup_other_options = -B -q 15 -Q 25 -D -S -g\\\nbcftools_view_options = -bvcg\\\ncluster_walltime = -l walltime=12:00:0\\\n\\\n[merge_samtools_single]\\\ncluster_walltime = -l walltime=12:00:0\\\n\\\n[tabix_split]\\\ncluster_walltime = -l walltime=12:00:0\\\n\\\n[shapeit]\\\ncluster_cpu = %(PINT_CPU)s\\\ncheck_options = \\\ncheck_threads = %(cluster_cpu)s\\\nphase_options = \\\nphase_threads = %(cluster_cpu)s\\\ncluster_walltime = -l walltime=12:00:0\\\n\\\n[scnaphase]\\\ncluster_walltime = 12:00:0\\\ncluster_mem = 16G\\\n\\\n[delly_call_filter_somatic]\\\ntype_options = somatic\\\nDUP_options = -m 300 -a 0.1 -r 0.75\\\nDEL_options = -m 300 -a 0.1 -r 0.75\\\nINV_options = -m 300 -a 0.1 -r 0.75\\\nBND_options = -m 0 -a 0.1 -r 0.75\\\nINS_options = \\\nbcftools_options = -i 'FORMAT/DV[0]>4|(INFO/SR>1&INFO/PE>5)|(INFO/SR>5&INFO/PE>1)'\\\n\\\n[scones]\\\nwindow = 10000\\\nbest_model = 0\\\n\\\n[bvatools_bincounter]\\\nother_options = --minMapQ 15\\\ncluster_cpu = 2\\\njava_other_options = -XX:ParallelGCThreads=1\\\ncluster_mem = 31G\\\nram = 30G\\\ncluster_walltime = -l walltime=24:00:0\\\n\\\n[scones_pair]\\\ncluster_cpu = %(HALF_CPU)s\\\nother_options = -t %(cluster_cpu)s\\\ngc_map_bedfile = %(assembly_dir)s/annotations/mappabilityGC/hg1k_v37_bin10kb_GCMAP.bed\\\ncluster_walltime = -l walltime=24:00:0\\\n\\\n[scones_filter]\\\nbest_model = 3\\\ncluster_walltime = 3:00:0\\\ncluster_mem = 8G\\\n\\\n[scones_annotate]\\\nexcluded_regions_bed = %(assembly_dir)s/annotations/bed/%(scientific_name)s.%(assembly)s.TeloCentro_1Mb.bed\\\ngenes_bed = %(assembly_dir)s/annotations/bed/%(scientific_name)s.%(assembly)s.gene.bed\\\ndgv_bed = %(assembly_dir)s/annotations/bed/%(scientific_name)s.%(assembly)s.DGV.bed\\\nmicrosat_bed = %(assembly_dir)s/annotations/bed/%(scientific_name)s.%(assembly)s.microsat.bed\\\nrepeat_masker_bed = %(assembly_dir)s/annotations/bed/%(scientific_name)s.%(assembly)s.repeatMasker.bed\\\nautosome_size_file = %(assembly_dir)s/%(scientific_name)s.%(assembly)s.AutosomeSize.txt\\\ncluster_walltime = -l walltime=3:00:0\\\ncluster_mem = 8G\\\n\\\n[run_arriba]\\\nblacklist = $ARRIBA_HOME/database/blacklist_hg38_GRCh38_2018-01-13.tsv\\\n\\\n",
+    "operation_platform": "beluga",
+    "operation_cmd_line": "module purge\nmodule load python/3.10.2 mugqic/genpipes/4.2.0\ntumor_pair.py \\\n    -j slurm \\\n    -t ensemble \\\n    -r readset.txt \\\n    -p pair.txt \\\n    -s 1-40 \\\n    -c $MUGQIC_PIPELINES_HOME/pipelines/tumor_pair/tumor_pair.base.ini \\\n        $MUGQIC_PIPELINES_HOME/pipelines/common_ini/beluga.ini \\\n        $MUGQIC_PIPELINES_HOME/pipelines/tumor_pair/tumor_pair.extras.ini \\\n        $MUGQIC_PIPELINES_HOME/resources/genomes/config/Homo_sapiens.GRCh38.ini \\\n  > Tumour_Pair_run.sh\nrm -r Tumour_Pair_CHUNKS;\nmkdir Tumour_Pair_CHUNKS;\n$MUGQIC_PIPELINES_HOME/utils/chunk_genpipes.sh -n 100 Tumour_Pair_run.sh Tumour_Pair_CHUNKS",
+    "operation_name": "genpipes_tumour_pair",
+    "sample": [
+                {
+                    "sample_name": "MoHQ-CM-1-10-3393-1DT",
+                    "readset": [
+                        {
+                            "readset_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1",
+                            "job": [
+                                {
+                                    "job_name": "picard_sam_to_fastq",
+                                    "job_start": "",
+                                    "job_stop": "",
+                                    "file": [
+                                        {
+                                            "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/raw_reads/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1.pair1.fastq.gz",
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.pair1.fastq.gz",
+                                            "file_extra_metadata": {"read_type": "R1"}
+                                        },
+                                        {
+                                            "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/raw_reads/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1.pair2.fastq.gz",
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.pair2.fastq.gz",
+                                            "file_extra_metadata": {"read_type": "R2"}
+                                        }
+                                    ]
+                                },
+                                {
+                                    "job_name": "skewer_trimming",
+                                    "job_start": "",
+                                    "job_stop": "",
+                                    "file": [
+                                        {
+                                            "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1-trimmed-pair1.fastq.gz",
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1-trimmed-pair1.fastq.gz",
+                                            "file_extra_metadata": {"read_type": "R1"}
+                                        },
+                                        {
+                                            "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1-trimmed-pair2.fastq.gz",
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1-trimmed-pair2.fastq.gz",
+                                            "file_extra_metadata": {"read_type": "R2"}
+                                        },
+                                        {
+                                            "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1.trim.pair1.fastq.gz",
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.trim.pair1.fastq.gz",
+                                            "file_extra_metadata": {"read_type": "R1"}
+                                        },
+                                        {
+                                            "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1.trim.pair2.fastq.gz",
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.trim.pair2.fastq.gz",
+                                            "file_extra_metadata": {"read_type": "R2"}
+                                        }
+                                    ]
+                                },
+                                {
+                                    "job_name": "bwa_mem_sambamba",
+                                    "job_start": "",
+                                    "job_stop": "",
+                                    "file": [
+                                        {
+                                            "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1/MoHQ-CM-1-10-3393-1DT.A00266_0642_1.bam",
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.bam"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "job_name": "sambamba_sort",
+                                    "job_start": "",
+                                    "job_stop": "",
+                                    "file": [
+                                        {
+                                            "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1/MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam",
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam"
+                                        },
+                                        {
+                                            "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1/MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam.bai",
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam.bai"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "job_name": "sequenza",
+                                    "job_start": "",
+                                    "job_stop": "",
+                                    "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/pairedVariants/MoHQ-CM-1-10/sequenza/rawSequenza",
+                                    "file": [
+                                        {
+                                            "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1/MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam",
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr1.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr1.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr2.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr2.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr3.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr3.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr4.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr4.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr5.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr5.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr6.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr6.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr7.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr7.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr8.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr8.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr9.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr9.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr10.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr10.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr11.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr11.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr12.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr12.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr13.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr13.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr14.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr14.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr15.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr15.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr16.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr16.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr17.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr17.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr18.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr18.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr19.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr19.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr20.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr20.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr21.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr21.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chr22.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chr22.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chrX.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chrX.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chrY.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chrY.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.seqz.chrM.gz"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10.binned.seqz.chrM.gz"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "job_name": "sambamba_merge_sam_files",
+                                    "job_start": "",
+                                    "job_stop": "",
+                                    "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT",
+                                    "file": [
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.bam"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "job_name": "gatk_indel_realigner",
+                                    "job_start": "",
+                                    "job_stop": "",
+                                    "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/realign/MoHQ-CM-1-10",
+                                    "file": [
+                                        {
+                                            "file_name": "1.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.1.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.1.bai"
+                                        },
+                                        {
+                                            "file_name": "2.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.2.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.2.bai"
+                                        },
+                                        {
+                                            "file_name": "3.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.3.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.3.bai"
+                                        },
+                                        {
+                                            "file_name": "4.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.4.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.4.bai"
+                                        },
+                                        {
+                                            "file_name": "5.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.5.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.5.bai"
+                                        },
+                                        {
+                                            "file_name": "6.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.6.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.6.bai"
+                                        },
+                                        {
+                                            "file_name": "7.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.7.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.7.bai"
+                                        },
+                                        {
+                                            "file_name": "8.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.8.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.8.bai"
+                                        },
+                                        {
+                                            "file_name": "9.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.9.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.9.bai"
+                                        },
+                                        {
+                                            "file_name": "10.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.10.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.10.bai"
+                                        },
+                                        {
+                                            "file_name": "11.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.11.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.11.bai"
+                                        },
+                                        {
+                                            "file_name": "12.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.12.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.12.bai"
+                                        },
+                                        {
+                                            "file_name": "13.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.13.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.13.bai"
+                                        },
+                                        {
+                                            "file_name": "14.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.14.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.14.bai"
+                                        },
+                                        {
+                                            "file_name": "15.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.15.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.15.bai"
+                                        },
+                                        {
+                                            "file_name": "16.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.16.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.16.bai"
+                                        },
+                                        {
+                                            "file_name": "17.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.17.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.17.bai"
+                                        },
+                                        {
+                                            "file_name": "18.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.18.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.18.bai"
+                                        },
+                                        {
+                                            "file_name": "19.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.19.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.19.bai"
+                                        },
+                                        {
+                                            "file_name": "20.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.20.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.20.bai"
+                                        },
+                                        {
+                                            "file_name": "21.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.21.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.21.bai"
+                                        },
+                                        {
+                                            "file_name": "others.intervals"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.others.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.sorted.realigned.others.bai"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "job_name": "sambamba_merge_realigned",
+                                    "job_start": "",
+                                    "job_stop": "",
+                                    "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1",
+                                    "file": [
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam.bai"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "job_name": "conpair_concordance_contamination",
+                                    "job_start": "",
+                                    "job_stop": "",
+                                    "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1",
+                                    "file": [
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam.bai"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "job_name": "metrics_dna_picard_metrics",
+                                    "job_start": "",
+                                    "job_stop": "",
+                                    "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1",
+                                    "file": [
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam.bai"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "job_name": "metrics_dna_sample_qualimap",
+                                    "job_start": "",
+                                    "job_stop": "",
+                                    "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1",
+                                    "file": [
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam.bai"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "job_name": "metrics_dna_fastqc",
+                                    "job_start": "",
+                                    "job_stop": "",
+                                    "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1",
+                                    "file": [
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam"
+                                        },
+                                        {
+                                            "file_name": "MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam.bai"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "readset_name": "MoHQ-CM-1-10-3357-1DN.A00266_0642_1"
+                        }
+                    ]
+                },
+            ]
+}
