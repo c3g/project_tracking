@@ -157,12 +157,49 @@ def readsets_from_samples(project_name: str, sample_id: str):
     return [i.flat_dict for i in db_action.readsets(project_name, sample_id)]
 
 
+@bp.route('/<string:project_name>/digest_sample', methods=['POST'])
+@capitalize
+def digest_sample_to_readsetfile(project_name: str):
+    """
+    POST: Sample name or id list
+    return: all information to create a "Genpipes readset file"
+    """
+
+    if request.method == 'POST':
+        try:
+            ingest_data = request.get_json(force=True)
+        except:
+            flash('Data does not seems to be json')
+            return redirect(request.url)
+
+
+        return [i.flat_dict for i in db_action.digest_sample(project_name=project_name.upper(), ingest_data=ingest_data)]
+
+
+@bp.route('/<string:project_name>/digest_readset', methods=['POST'])
+@capitalize
+def digest_readset_to_readsetfile(project_name: str):
+    """
+    POST: Readset Name or id list
+    return: all information to create a "Genpipes readset file"
+    """
+
+    if request.method == 'POST':
+        try:
+            ingest_data = request.get_json(force=True)
+        except:
+            flash('Data does not seems to be json')
+            return redirect(request.url)
+
+        return [i.flat_dict for i in
+                db_action.digest_readset(project_name=project_name.upper(), ingest_data=ingest_data)]
+
 
 @bp.route('/<string:project_name>/ingest_run_processing', methods=['GET', 'POST'])
 @capitalize
 def ingest_run_processing(project_name: str):
     """
-    Ingest POSTed json describing run processing
+    POST:  json describing run processing
     return: The Operation object
     """
 
@@ -183,9 +220,9 @@ def ingest_run_processing(project_name: str):
         return [i.flat_dict for i in db_action.ingest_run_processing(project_name=project_name.upper(), ingest_data=ingest_data)]
 
 
-@bp.route('/<string:project_name>/transfer_file', methods=['POST'])
+@bp.route('/<string:project_name>/ingest_transfer', methods=['POST'])
 @capitalize
-def add_file_location(project_name: str):
+def ingest_transfer(project_name: str):
     """
     Add new location to file that has already been moved before
     the db was created
