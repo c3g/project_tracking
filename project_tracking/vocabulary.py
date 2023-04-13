@@ -54,6 +54,8 @@ OPERATION_NAME = "operation_name"
 # Not sure if coming from JSON?
 OPERATION_CONFIG_NAME = "operation_config_name"
 OPERATION_CONFIG_VERSION = "operation_config_version"
+OPERATION_CONFIG_MD5SUM = "operation_config_md5sum"
+OPERATION_CONFIG_DATA = "operation_config_data"
 
 # location table
 # Not sure if coming from JSON?
