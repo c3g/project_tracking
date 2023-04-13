@@ -12,12 +12,12 @@ from project_tracking import create_app
 
 logger = logging.getLogger(__name__)
 
-def test_create_api(client, ingestion_json, app):
+def test_create_api(client, run_processing_json, app):
     response = client.get('admin/create_project/MOH-Q')
     assert response.status_code == 200
     assert json.loads(response.data)['name'] == 'MOH-Q'
     assert json.loads(response.data)['id'] == 1
-    response = client.post('project/MOH-Q/ingest_run_processing', data=json.dumps(ingestion_json))
+    response = client.post('project/MOH-Q/ingest_run_processing', data=json.dumps(run_processing_json))
     assert response.status_code == 200
     assert json.loads(response.data)[0]['name'] == "run_processing"
     assert json.loads(response.data)[0]['id'] == 1
@@ -25,17 +25,17 @@ def test_create_api(client, ingestion_json, app):
         s = database.get_session()
 
 
-def test_create(not_app_db, ingestion_json, transfer_json):
-    project_name = ingestion_json[vb.PROJECT_NAME]
+def test_create(not_app_db, run_processing_json, transfer_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
     db_action.create_project(project_name, session=not_app_db)
 
-    [run_processing_operation, run_processing_job] = db_action.ingest_run_processing(project_name, ingestion_json, not_app_db)
+    [run_processing_operation, run_processing_job] = db_action.ingest_run_processing(project_name, run_processing_json, not_app_db)
 
     assert isinstance(run_processing_operation, model.Operation)
     assert isinstance(run_processing_job, model.Job)
     assert not_app_db.scalars(select(model.Project)).first().name == project_name
 
-    for patient_json in ingestion_json[vb.PATIENT]:
+    for patient_json in run_processing_json[vb.PATIENT]:
         assert not_app_db.scalars(select(model.Patient).where(model.Patient.name == patient_json[vb.PATIENT_NAME])).first().name == patient_json[vb.PATIENT_NAME]
         for sample_json in patient_json[vb.SAMPLE]:
             assert not_app_db.scalars(select(model.Sample).where(model.Sample.name == sample_json[vb.SAMPLE_NAME])).first().name == sample_json[vb.SAMPLE_NAME]
@@ -47,7 +47,7 @@ def test_create(not_app_db, ingestion_json, transfer_json):
     assert isinstance(transfer_operation, model.Operation)
     assert isinstance(transfer_job, model.Job)
 
-    # db_action.digest_readset(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/readset_file.tsv"), session=not_app_db)
-    # db_action.digest_pair(ingestion_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/pair_file.csv"), session=not_app_db)
+    # db_action.digest_readset(run_processing_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/readset_file.tsv"), session=not_app_db)
+    # db_action.digest_pair(run_processing_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/pair_file.csv"), session=not_app_db)
 
     # assert 1 == 2

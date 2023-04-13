@@ -128,8 +128,8 @@ def ingestion_csv():
     return json.dumps(data)
 
 @pytest.fixture()
-def ingestion_json():
-    with open(os.path.join(os.path.dirname(__file__), 'data/event.json'), 'r') as file:
+def run_processing_json():
+    with open(os.path.join(os.path.dirname(__file__), 'data/run_processing.json'), 'r') as file:
         data = json.load(file)
     return data
 
