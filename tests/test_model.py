@@ -16,7 +16,7 @@ def test_add_model(not_app_db, pre_filled_model):
     assert not_app_db.query(model.Patient).one().name == entry_dict["pa_name"]
     assert not_app_db.query(model.Operation).one().name == entry_dict["op_name"]
     m1 = not_app_db.query(model.Metric).first()
-    r1 = m1.readset[0]
+    r1 = m1.readsets[0]
     assert m1.name == entry_dict["metric_name"]
     assert r1.name == entry_dict["re1_name"]
-    assert r1.metric[0].value == entry_dict["me1_value"]
+    assert r1.metrics[0].value == entry_dict["me1_value"]

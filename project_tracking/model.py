@@ -14,8 +14,11 @@ from sqlalchemy import (
     Integer,
     JSON,
     Enum,
-    Table
+    select,
+    Table,
+    LargeBinary
     )
+
 from sqlalchemy.orm import (
     relationship,
     DeclarativeBase,
@@ -25,6 +28,9 @@ from sqlalchemy.orm import (
     attributes
     )
 
+from sqlalchemy_json import mutable_json_type
+
+from . import database
 
 class LaneEnum(enum.Enum):
     """
@@ -118,20 +124,11 @@ readset_operation = Table(
     Column("operation_id", ForeignKey("operation.id"), primary_key=True),
 )
 
-
-operation_bundle = Table(
-    "operation_bundle",
+job_file = Table(
+    "job_file",
     Base.metadata,
-    Column("operation_id", ForeignKey("operation.id"), primary_key=True),
-    Column("bundle_id", ForeignKey("bundle.id"), primary_key=True),
-)
-
-
-bundle_bundle = Table(
-    "bundle_bundle",
-    Base.metadata,
-    Column("bundle_id", Integer, ForeignKey("bundle.id"), primary_key=True),
-    Column("reference_id", Integer, ForeignKey("bundle.id"), primary_key=True),
+    Column("file_id", ForeignKey("file.id"), primary_key=True),
+    Column("job_id", ForeignKey("job.id"), primary_key=True),
 )
 
 
@@ -153,8 +150,7 @@ class BaseTable(Base):
     deleted: Mapped[bool] = mapped_column(default=False)
     creation: Mapped[datetime] = mapped_column(default=datetime.now(), nullable=True)
     modification: Mapped[datetime] = mapped_column(default=None, nullable=True)
-    extra_metadata: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
-
+    extra_metadata: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
 
     def __repr__(self):
         """
@@ -188,7 +184,8 @@ class BaseTable(Base):
     def flat_dict(self):
         """
         Flat casting of object, to be used in flask responses
-        Returning only ids of the referenced objects
+        Returning only ids of the referenced objects except for
+        file where the locations details are also returned
         """
         dumps = {}
         for key, val in self.dict.items():
@@ -205,12 +202,16 @@ class BaseTable(Base):
             elif isinstance(val, enum.Enum):
                 val = val.value
             dumps[key] = val
+            if self.__tablename__ == 'file' and key == 'locations':
+                dumps[key] = [v.flat_dict for v in getattr(self,'locations')]
+
+        dumps['tablename'] = self.__tablename__
         return dumps
 
     @property
     def dumps(self):
         """
-        Dumping the flat    _dict
+        Dumping the flat_dict
         """
         return json.dumps(self.flat_dict)
 
@@ -232,9 +233,10 @@ class Project(BaseTable):
 
     fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
+    alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
 
-    patient: Mapped[list["Patient"]] = relationship(back_populates="project")
+    patients: Mapped[list["Patient"]] = relationship(back_populates="project")
+    operations: Mapped[list["Operation"]] = relationship(back_populates="project")
 
 
 class Patient(BaseTable):
@@ -258,12 +260,31 @@ class Patient(BaseTable):
     project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
     fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
+    alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
     cohort: Mapped[str] = mapped_column(default=None, nullable=True)
     institution: Mapped[str] = mapped_column(default=None, nullable=True)
 
-    project: Mapped["Project"] = relationship(back_populates="patient")
-    sample: Mapped[list["Sample"]] = relationship(back_populates="patient")
+    project: Mapped["Project"] = relationship(back_populates="patients")
+    samples: Mapped[list["Sample"]] = relationship(back_populates="patient")
+
+    @classmethod
+    def from_name(cls ,name, project, cohort=None, institution=None, session=None):
+        """
+        get patient if it exist, set it if it does not exist
+        """
+        if session is None:
+            session = database.get_session()
+
+        # Name is unique
+        patient = session.scalars(select(cls).where(cls.name == name)).first()
+
+        if not patient:
+            patient = cls(name=name, cohort=cohort, institution=institution, project=project)
+        else:
+            if patient.project != project:
+                logger.error(f"patient {patient.name} already in project {patient.project}")
+
+        return patient
 
 
 class Sample(BaseTable):
@@ -286,11 +307,31 @@ class Sample(BaseTable):
     patient_id: Mapped[int] = mapped_column(ForeignKey("patient.id"), default=None)
     fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
+    alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
     tumour: Mapped[bool] = mapped_column(default=False)
 
-    patient: Mapped["Patient"] = relationship(back_populates="sample")
-    readset: Mapped[list["Readset"]] = relationship(back_populates="sample")
+    patient: Mapped["Patient"] = relationship(back_populates="samples")
+    readsets: Mapped[list["Readset"]] = relationship(back_populates="sample")
+
+    @classmethod
+    def from_name(cls, name, patient, tumour=None, session=None):
+        """
+        get sample if it exist, set it if it does not exist
+        """
+        if not session:
+            session = database.get_session()
+
+        # Name is unique
+        sample = session.scalars(select(cls).where(cls.name == name)).first()
+
+        if not sample:
+            sample = cls(name=name, patient=patient, tumour=tumour)
+        else:
+            if sample.patient != patient:
+                logger.error(f"sample {sample.patient} already attatched to project {patient.name}")
+
+        return sample
+
 
 class Experiment(BaseTable):
     """
@@ -311,9 +352,33 @@ class Experiment(BaseTable):
     sequencing_technology: Mapped[str] = mapped_column(default=None, nullable=True)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
     library_kit: Mapped[str] = mapped_column(default=None, nullable=True)
-    kit_expiration_date: Mapped[str] = mapped_column(default=None, nullable=True)
+    kit_expiration_date: Mapped[datetime] = mapped_column(default=None, nullable=True)
 
-    readset: Mapped[list["Readset"]] = relationship(back_populates="experiment")
+    readsets: Mapped[list["Readset"]] = relationship(back_populates="experiment")
+
+    @classmethod
+    def from_attributes(cls, sequencing_technology=None, type=None, library_kit=None, kit_expiration_date=None, session=None):
+        """
+        get experiment if it exist, set it if it does not exist
+        """
+        if not session:
+            session = database.get_session()
+        experiment = session.scalars(
+            select(cls)
+                .where(cls.sequencing_technology == sequencing_technology)
+                .where(cls.type == type)
+                .where(cls.library_kit == library_kit)
+                .where(cls.kit_expiration_date == kit_expiration_date)
+        ).first()
+        if not experiment:
+            experiment = cls(
+                sequencing_technology=sequencing_technology,
+                type=type,
+                library_kit=library_kit,
+                kit_expiration_date=kit_expiration_date
+            )
+        return experiment
+
 
 class Run(BaseTable):
     """
@@ -336,7 +401,31 @@ class Run(BaseTable):
     instrument: Mapped[str] = mapped_column(default=None, nullable=True)
     date: Mapped[datetime] = mapped_column(default=None, nullable=True)
 
-    readset: Mapped[list["Readset"]] = relationship(back_populates="run")
+    readsets: Mapped[list["Readset"]] = relationship(back_populates="run")
+
+    @classmethod
+    def from_attributes(cls, fms_id=None, name=None, instrument=None, date=None, session=None):
+        """
+        get run if it exist, set it if it does not exist
+        """
+        if not session:
+            session = database.get_session()
+        run = session.scalars(
+            select(cls)
+                .where(cls.fms_id == fms_id)
+                .where(cls.name == name)
+                .where(cls.instrument == instrument)
+                .where(cls.date == date)
+        ).first()
+        if not run:
+            run = cls(
+                fms_id=fms_id,
+                name=name,
+                instrument=instrument,
+                date=date
+            )
+        return run
+
 
 class Readset(BaseTable):
     """
@@ -364,20 +453,21 @@ class Readset(BaseTable):
     experiment_id: Mapped[int] = mapped_column(ForeignKey("experiment.id"), default=None)
     run_id: Mapped[int] = mapped_column(ForeignKey("run.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[dict] = mapped_column(JSON, default=None, nullable=True)
+    alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
     lane: Mapped[LaneEnum]  =  mapped_column(default=None, nullable=True)
     adapter1: Mapped[str] = mapped_column(default=None, nullable=True)
     adapter2: Mapped[str] = mapped_column(default=None, nullable=True)
     sequencing_type: Mapped[SequencingTypeEnum] = mapped_column(default=None, nullable=True)
     quality_offset: Mapped[str] = mapped_column(default=None, nullable=True)
 
-    sample: Mapped["Sample"] = relationship(back_populates="readset")
-    experiment: Mapped["Experiment"] = relationship(back_populates="readset")
-    run: Mapped["Run"] = relationship(back_populates="readset")
-    file: Mapped[list["File"]] = relationship(secondary=readset_file, back_populates="readset")
-    operation: Mapped[list["Operation"]] = relationship(secondary=readset_operation, back_populates="readset")
-    job: Mapped[list["Job"]] = relationship(secondary=readset_job, back_populates="readset")
-    metric: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readset")
+    sample: Mapped["Sample"] = relationship(back_populates="readsets")
+    experiment: Mapped["Experiment"] = relationship(back_populates="readsets")
+    run: Mapped["Run"] = relationship(back_populates="readsets")
+    files: Mapped[list["File"]] = relationship(secondary=readset_file, back_populates="readsets")
+    operations: Mapped[list["Operation"]] = relationship(secondary=readset_operation, back_populates="readsets")
+    jobs: Mapped[list["Job"]] = relationship(secondary=readset_job, back_populates="readsets")
+    metrics: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readsets")
+
 
 class Operation(BaseTable):
     """
@@ -396,27 +486,28 @@ class Operation(BaseTable):
     """
     __tablename__ = "operation"
 
-    operation_config_id: Mapped[int] = mapped_column(ForeignKey("operation_config.id"), default=None)
-    project_id: Mapped[int] = mapped_column(ForeignKey("project.id"))
+    project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
+    operation_config_id: Mapped[int] = mapped_column(ForeignKey("operation_config.id"), default=None, nullable=True)
     platform: Mapped[str] = mapped_column(default=None, nullable=True)
     cmd_line: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     status: Mapped[StatusEnum] = mapped_column(default=StatusEnum.PENDING)
 
-    operation_config: Mapped["OperationConfig"] = relationship(back_populates="operation")
-    project: Mapped["Project"] = relationship()
-    job: Mapped[list["Job"]] = relationship(back_populates="operation")
-    bundle: Mapped[list["Bundle"]] = relationship(secondary=operation_bundle, back_populates="operation")
-    readset: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operation")
+    operation_config: Mapped["OperationConfig"] = relationship(back_populates="operations")
+    project: Mapped["Project"] = relationship(back_populates="operations")
+    jobs: Mapped[list["Job"]] = relationship(back_populates="operation")
+    readsets: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operations")
 
 
 class OperationConfig(BaseTable):
     """
     OperationConfig:
         id integer [PK]
-        config_bundle_id integer [ref: > bundle.id]
+        file_id integer [ref: > file.id]
         name text
         version test
+        md5sum text
+        data bytes
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -425,12 +516,19 @@ class OperationConfig(BaseTable):
     """
     __tablename__ = "operation_config"
 
-    config_bundle_id: Mapped[int] = mapped_column(ForeignKey("bundle.id"), default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     version: Mapped[str] = mapped_column(default=None, nullable=True)
+    md5sum: Mapped[str] = mapped_column(unique=True, default=None, nullable=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary, default=None, nullable=True)
 
-    operation: Mapped[list["Operation"]] = relationship(back_populates="operation_config")
-    bundle: Mapped["Bundle"] = relationship(back_populates = "operation_config")
+    operations: Mapped[list["Operation"]] = relationship(back_populates="operation_config")
+
+    @classmethod
+    def config_data(cls, data):
+        """
+        DocString
+        """
+        pass
 
 
 class Job(BaseTable):
@@ -459,10 +557,11 @@ class Job(BaseTable):
     status: Mapped[StatusEnum] = mapped_column(default=None, nullable=True)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
 
-    operation: Mapped["Operation"] = relationship(back_populates="job")
-    metric: Mapped[list["Metric"]] = relationship(back_populates="job")
-    bundle: Mapped[list["Bundle"]] = relationship(back_populates="job")
-    readset: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="job")
+    operation: Mapped["Operation"] = relationship(back_populates="jobs")
+    metrics: Mapped[list["Metric"]] = relationship(back_populates="job")
+    files: Mapped[list["File"]] = relationship(secondary=job_file,back_populates="jobs")
+    readsets: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="jobs")
+
 
 class Metric(BaseTable):
     """
@@ -482,53 +581,64 @@ class Metric(BaseTable):
     """
     __tablename__ = "metric"
 
+    name: Mapped[str] = mapped_column()
     job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None)
-    name: Mapped[str] = mapped_column(default=None, nullable=True)
     value: Mapped[str] = mapped_column()
     flag: Mapped[FlagEnum] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
     aggregate: Mapped[AggregateEnum] = mapped_column(default=None, nullable=True)
 
-    job: Mapped["Job"] = relationship(back_populates="metric")
-    readset: Mapped[list["Readset"]] = relationship(secondary=readset_metric, back_populates="metric")
+    job: Mapped["Job"] = relationship(back_populates="metrics")
+    readsets: Mapped[list["Readset"]] = relationship(secondary=readset_metric, back_populates="metrics")
 
 
-class Bundle(BaseTable):
+class Location(BaseTable):
     """
-    Bundle:
+    Uri:
         id integer [PK]
-        job_id integer [ref: > job.id]
+        file_id integer [ref: > file.id]
         uri text
-        deliverable bool
+        endpoint text
+        deliverable boolean
         deprecated boolean
         deleted boolean
         creation timestamp
         modification timestamp
         extra_metadata json
     """
-    __tablename__ = "bundle"
+    __tablename__ = "location"
 
-    job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None, nullable=True)
-    uri: Mapped[str] = mapped_column(default=None, nullable=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("file.id"), nullable=False)
+    uri: Mapped[str] = mapped_column(nullable=False, unique=True)
+    endpoint: Mapped[str] = mapped_column(nullable=False)
     deliverable: Mapped[bool] = mapped_column(default=False)
 
-    job: Mapped["Job"] = relationship(back_populates="bundle")
-    file: Mapped[list["File"]] = relationship(back_populates="bundle")
-    operation_config: Mapped[list["OperationConfig"]] = relationship(back_populates="bundle")
-    operation: Mapped[list["Operation"]] = relationship(secondary=operation_bundle, back_populates="bundle")
+    file: Mapped["File"] = relationship(back_populates="locations")
 
-    reference: Mapped[list["Bundle"]] = relationship("Bundle", secondary=bundle_bundle,
-                                                     primaryjoin="Bundle.id ==bundle_bundle.c.bundle_id",
-                                                     secondaryjoin="Bundle.id ==bundle_bundle.c.reference_id")
+    @classmethod
+    def from_uri(cls, uri, file, endpoint=None, session=None):
+        """
+        Sets endpoint from uri
+        """
+        if not session:
+            session = database.get_session()
+
+        location = session.scalars(select(cls).where(cls.uri == uri)).first()
+        if not location:
+            if endpoint is None:
+                endpoint = uri.split(':///')[0]
+            location = cls(uri=uri, file=file, endpoint=endpoint)
+
+        return location
 
 
 class File(BaseTable):
     """
     File:
         id integer [PK]
-        bundle_id integer [ref: > bundle.id]
-        content text
+        name text
         type text
+        md5sum txt
         deliverable boolean
         deprecated boolean
         deleted boolean
@@ -538,10 +648,11 @@ class File(BaseTable):
     """
     __tablename__ = "file"
 
-    content: Mapped[str] = mapped_column()
-    bundle_id: Mapped[int] = mapped_column(ForeignKey("bundle.id"), default=None, nullable=True)
+    name: Mapped[str] = mapped_column(nullable=False)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
+    md5sum: Mapped[str] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
 
-    readset: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="file")
-    bundle: Mapped["Bundle"] = relationship(back_populates="file")
+    locations: Mapped[list["Location"]] = relationship(back_populates="file")
+    readsets: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="files")
+    jobs: Mapped[list["Job"]] = relationship(secondary=job_file, back_populates="files")

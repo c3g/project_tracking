@@ -8,4 +8,4 @@ def test_config():
 
 def test_root(client):
     response = client.get('/')
-    assert response.data == b'Welcome to the TechDev tracking API!'
+    assert response.data == b'Welcome to the TechDev tracking API!\n'

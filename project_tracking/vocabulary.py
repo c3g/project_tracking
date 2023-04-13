@@ -1,4 +1,9 @@
-# Vocabulary for JSON entry for ingesting run processing
+# Vocabulary and standard format entry
+
+# Generic
+DATE_LONG_FMT = "%Y-%m-%d %H:%M:%S"
+DATE_FMT = "%Y-%m-%d"
+
 # project table
 PROJECT_FMS_ID = "project_fms_id"
 PROJECT_NAME = "project_name"
@@ -21,6 +26,7 @@ EXPERIMENT_SEQUENCING_TECHNOLOGY = "experiment_sequencing_technology"
 EXPERIMENT_TYPE = "experiment_type"
 EXPERIMENT_LIBRARY_KIT = "experiment_library_kit"
 EXPERIMENT_KIT_EXPIRATION_DATE = "experiment_kit_expiration_date"
+EXPERIMENT_TYPE_LIST = ["PCR-FREE", "RNASEQ"]
 
 # run table
 RUN_FMS_ID = "run_fms_id"
@@ -38,10 +44,10 @@ READSET_SEQUENCING_TYPE = "readset_sequencing_type"
 READSET_QUALITY_OFFSET = "readset_quality_offset"
 
 # operation table
+OPERATION_PLATFORM = "operation_platform"
+OPERATION_CMD_LINE = "operation_cmd_line"
+OPERATION_NAME = "operation_name"
 # Following is not coming from JSON
-# OPERATION_PLATFORM = "operation_platform"
-# OPERATION_CMD_LINE = "operation_cmd_line"
-# OPERATION_NAME = "operation_name"
 # OPERATION_STATUS = "operation_status"
 
 # operation_config table
@@ -49,28 +55,28 @@ READSET_QUALITY_OFFSET = "readset_quality_offset"
 OPERATION_CONFIG_NAME = "operation_config_name"
 OPERATION_CONFIG_VERSION = "operation_config_version"
 
-# bundle table
+# location table
 # Not sure if coming from JSON?
-BUNDLE_URI = "bundle_uri"
-BUNDLE_DELIVERABLE = "bundle_deliverable"
+LOCATION_URI = "location_uri"
+SRC_LOCATION_URI = "src_location_uri"
+DEST_LOCATION_URI = "dest_location_uri"
+LOCATION_ENDPOINT = "location_endpoint"
+LOCATION_DELIVERABLE = "location_deliverable"
 
 # file table
 FILE = "file"
-FILE_CONTENT = "file_content"
-# FILE_TYPE = "file_type" # parsed from content while ingesting
-# Not sure if coming from JSON?
+FILE_NAME = "file_name"
 FILE_DELIVERABLE = "file_deliverable"
-
-# file table: event file
-FILE_CONFIG_CONTENT = "file_config_content"
-FILE_CONFIG_TYPE = "file_config_type"
 FILE_EXTRA_METADATA = "file_extra_metadata"
+# Not sure if coming from JSON?
+# FILE_TYPE = "file_type" # parsed from content while ingesting
 
 # job table
+JOB = "job"
+JOB_NAME = "job_name"
+JOB_START = "job_start"
+JOB_STOP = "job_stop"
 # Following is not coming from JSON
-# JOB_NAME = "job_name"
-# JOB_START = "job_start"
-# JOB_STOP = "job_stop"
 # JOB_STATUS = "job_status"
 # JOB_TYPE = "job_type" # What do we want for this one?
 
@@ -78,8 +84,8 @@ FILE_EXTRA_METADATA = "file_extra_metadata"
 METRIC = "metric"
 METRIC_NAME = "metric_name"
 METRIC_VALUE = "metric_value"
+METRIC_FLAG = "metric_flag"
 # Following is not coming from JSON
-# METRIC_FLAG = "metric_flag"
 # Defining all metrics in the table?
 # METRIC_RAW_READS_COUNT = "metric_raw_reads_count"
 # METRIC_RAW_DUPLICATION_RATE = "metric_raw_duplication_rate"

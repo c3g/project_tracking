@@ -34,34 +34,34 @@ def test_serialization(not_app_db, ingestion_csv):
     ru = model.Run(instrument=instrument, name=ru_name)
     re1 = model.Readset(name=re1_name, sample=sa, experiment=exp, run=ru)
     re2 = model.Readset(name=re2_name, sample=sa, experiment=exp, run=ru)
-    job1 = model.Job(operation=op, status=model.StatusEnum.DONE, readset=[re1])
-    job2 = model.Job(operation=op, status=model.StatusEnum.DONE, readset=[re2])
-    metric1 = model.Metric(value=me1_value,job=job1, name=metric_name, readset=[re1])
-    metric2 = model.Metric(value=me2_value,job=job2, name=metric_name, readset=[re2])
-    bundle1 = model.Bundle(uri=b1_uri)
-    bundle2 = model.Bundle(uri=b2_uri)
-    bundle3 = model.Bundle(reference=[bundle2, bundle1])
-    bundle4 = model.Bundle(reference=[bundle3])
-    bundle5 = model.Bundle(reference=[bundle4, bundle3])
-    file1 = model.File(content='my.fastq', bundle=bundle1)
-    file2 = model.File(content='*', bundle=bundle2) # do we want that?
+    job1 = model.Job(operation=op, status=model.StatusEnum.DONE, readsets=[re1])
+    job2 = model.Job(operation=op, status=model.StatusEnum.DONE, readsets=[re2])
+    metric1 = model.Metric(value=me1_value, job=job1, name=metric_name, readsets=[re1])
+    metric2 = model.Metric(value=me2_value, job=job2, name=metric_name, readsets=[re2])
+    file1 = model.File(name='my.fastq', readsets=[re1], jobs=[job1])
+    location1 = model.Location.from_uri(uri=b1_uri+'/my.fastq', file=file1, session=not_app_db)
+    location2 = model.Location.from_uri(uri=b2_uri+'/my.fastq', file=file1, session=not_app_db)
+
+
 
 
     with not_app_db as db:
         db.add(re1)
         db.add(re2)
-        db.add(bundle5)
         db.commit()
 
 
     p = not_app_db.scalar(select(model.Project))
     readset = not_app_db.scalars(select(model.Readset)).first()
-    bundles = not_app_db.scalars(select(model.Bundle)).all()
+    locations = not_app_db.scalars(select(model.Location)).all()
     jobs = not_app_db.scalars(select(model.Job)).all()
+    files = not_app_db.scalars(select(model.File)).all()
 
     assert isinstance(p.dumps, str)  # minimal
     assert isinstance(readset.dumps, str)   # join reference
-    for b in bundles:
-        assert isinstance(b.dumps, str)  # Auto reference
+    for l in locations:
+        assert isinstance(l.dumps, str)  # Auto reference
     for j in jobs:
         assert isinstance(j.dumps, str)  # enum type
+    for f in files:
+        assert isinstance(f.dumps, str)  # also dump location

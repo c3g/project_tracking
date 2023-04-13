@@ -4,6 +4,7 @@ import json
 import os
 import logging
 import csv
+import sqlite3
 
 from datetime import datetime
 from sqlalchemy import select, exc
@@ -23,30 +24,242 @@ from .model import (
     Sample,
     Experiment,
     Run,
+    Location,
     Readset,
     Operation,
     OperationConfig,
     Job,
     Metric,
-    Bundle,
     File
     )
 
 logger = logging.getLogger(__name__)
 
-def projects(project = None):
-    """Fetchin all projects in database
+
+def projects(project_name = None, session=None):
+    """
+    Fetching all projects in database
+    """
+    if session is None:
+        session = database.get_session()
+
+    if project_name is None:
+        stmt = (select(Project))
+    else:
+        if isinstance(project_name, str):
+            project_name = [project_name]
+        stmt = (select(Project).where(Project.name.in_(project_name)))
+
+    return session.scalars(stmt).unique().all()
+
+def metrics(project_name=None, readset_id=None, metric_id = None, sample_id=None):
+    """
+    Fetching all metrics that are part of the project or readset or sample
     """
     session = database.get_session()
-    if project is None:
-        return session.scalars((select(Project))).all()
+    if isinstance(project_name, str):
+        project_name = [project_name]
+
+    if metric_id and project_name:
+        if isinstance(metric_id, int):
+            metric_id = [metric_id]
+        stmt = (select(Metric)
+                .where(Metric.id.in_(metric_id))
+                .join(Metric.readsets)
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name))
+                )
+    elif readset_id and project_name:
+        if isinstance(readset_id, int):
+            readset_id = [readset_id]
+        stmt = (select(Metric)
+                .join(Metric.readsets)
+                .where(Readset.id.in_(readset_id))
+                .join(Metric.readsets)
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name))
+                )
+    elif sample_id and project_name:
+        if isinstance(sample_id, int):
+            sample_id = [sample_id]
+        stmt = (select(Metric)
+                .join(Metric.readsets)
+                .join(Readset.sample)
+                .where(Sample.id.in_(sample_id))
+                .join(Metric.readsets)
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name))
+                )
+
+    return session.scalars(stmt).unique().all()
+
+
+def files(project_name, readset_id, run_processing=True):
+    """
+    Fetching all files that are linked to readset
+    """
+    session = database.get_session()
+
+    if isinstance(project_name, str):
+        project_name = [project_name]
+    if isinstance(readset_id, str):
+        readset_id = [readset_id]
+
+    if project_name is  None and readset_id is None:
+        stmt = select(File)
+    elif project_name and readset_id and run_processing:
+        stmt = (select(File)
+                .join(File.readsets)
+                .where(Readset.id.in_(readset_id))
+                # .join(File.jobs)
+                # .where(Job.name==vb.RUN_PROCESSING)
+                .join(File.jobs)
+                .join(Job.operation)
+                .join(Operation.project)
+                .where(Project.name.in_(project_name))
+                )
+
+    return session.scalars(stmt).unique().all()
+
+
+def readsets(project_name=None, sample_id=None, readset_id=None):
+    """
+    Fetching all readsets that are part of the project or sample
+    """
+    session = database.get_session()
+
+    if isinstance(project_name, str):
+        project_name = [project_name]
+
+    if project_name is None and sample_id is None and readset_id is None:
+        stmt = select(Readset)
+    elif project_name and sample_id is None and readset_id is None:
+        stmt = (select(Readset)
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name)))
+    elif sample_id and project_name:
+        if isinstance(sample_id, int):
+            sample_id = [sample_id]
+        stmt = (select(Readset)
+                .join(Readset.sample)
+                .where(Sample.id.in_(sample_id)).where(Project.name.in_(project_name))
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name))
+                )
+    elif readset_id and project_name:
+        if isinstance(readset_id, int):
+            readset_id = [readset_id]
+        stmt = (select(Readset)
+                .where(Readset.id.in_(readset_id))
+                .join(Readset.sample)
+                .join(Sample.patient).
+                join(Patient.project).
+                where(Project.name.in_(project_name))
+                )
+
+    return session.scalars(stmt).unique().all()
+
+
+
+def patient_pair(project_name: str, pair: bool, patient_id=None, tumor: bool=True):
+    """
+    Pair = True: Returns only patients that have a tumorus and a normal sample
+    Pair = False, Tumor = True: Returns patients that only have a tumorus samples
+    Pair = False, Tumor = False: Returns  patients that only have a Normal samples
+    """
+
+    session = database.get_session()
+    if isinstance(project_name, str):
+        project_name = [project_name]
+
+    if patient_id is None:
+        stmt1 = (select(Patient).join(Patient.samples).where(Sample.tumour == True)
+                 .where(Project.name.in_(project_name)))
+        stmt2 = (select(Patient).join(Patient.samples).where(Sample.tumour == False)
+                 .where(Project.name.in_(project_name)))
     else:
-        return [i[0] for i in session.scalars((select(Project).where(Project.name.in_(project))))]
+        if isinstance(patient_id, int):
+            patient_id = [patient_id]
+        stmt1 = (select(Patient).join(Patient.samples).where(Sample.tumour == True)
+                 .where(Project.name.in_(project_name))
+                 .where(Patient.id.in_(patient_id)))
+        stmt2 = (select(Patient).join(Patient.samples).where(Sample.tumour == False)
+                 .where(Project.name.in_(project_name))
+                .where(Patient.id.in_(patient_id)))
+
+
+    s1 = set(session.scalars(stmt1).all())
+    s2 = set(session.scalars(stmt2).all())
+    if pair:
+        return s2.intersection(s1)
+    elif tumor:
+        return s1.difference(s2)
+    else:
+        return s2.difference(s1)
+
+
+def patients(project_name = None, patient_id = None):
+    """Fetchin all patients form projets or selected patient from id
+    """
+    session = database.get_session()
+    if isinstance(project_name, str):
+        project_name = [project_name]
+
+    if project_name is None and patient_id is None:
+        stmt = (select(Patient))
+    elif patient_id is None and project_name:
+        stmt = (select(Patient).join(Patient.project).where(Project.name.in_(project_name)))
+    else:
+        if isinstance(patient_id, int):
+            patient_id = [patient_id]
+        stmt = (select(Patient).where(Patient.id.in_(patient_id))
+                .where(Project.name.in_(project_name)))
+
+    return session.scalars(stmt).unique().all()
+
+
+
+
+def samples(project_name= None, sample_id = None):
+    """Fetchin all projects in database
+    still need to check if sample are part of project when
+     both are provided
+    """
+    session = database.get_session()
+    if isinstance(project_name, str):
+        project_name = [project_name]
+    if project_name is None:
+        stmt = (select(Sample))
+    elif sample_id is None:
+        stmt = (select(Sample).join(Sample.patient).join(Patient.project)
+                .where(Project.name.in_(project_name)))
+    else:
+        if isinstance(sample_id, int):
+            sample_id = [sample_id]
+        stmt = (select(Sample)
+                .where(Sample.id.in_(sample_id))
+                .join(Sample.patient)
+                .join(Patient.project)
+                .where(Project.name.in_(project_name))
+                )
+
+    return session.scalars(stmt).unique().all()
+
 
 def create_project(project_name, fms_id=None, session=None):
     """
-        Creating new project
-        Returns project even if it already exist
+    Creating new project
+    Returns project even if it already exist
     """
     if not session:
         session = database.get_session()
@@ -54,9 +267,11 @@ def create_project(project_name, fms_id=None, session=None):
     project = Project(name=project_name, fms_id=fms_id)
 
     session.add(project)
+
     try:
         session.commit()
     except exc.SQLAlchemyError as error:
+        # crash if project does not exist
         logger.warning(f"Could no commit {project_name}: {error}")
         session.rollback()
 
@@ -70,75 +285,60 @@ def ingest_run_processing(project_name, ingest_data, session=None):
     if not session:
         session = database.get_session()
 
-    project = session.scalars(select(Project).where(Project.name == project_name)).first()
+    project = projects(project_name=project_name, session=session)[0]
 
-    bundle_config = Bundle(uri=ingest_data[vb.BUNDLE_URI])
-    file_config = File(
-        content=ingest_data[vb.FILE_CONFIG_CONTENT],
-        type=ingest_data[vb.FILE_CONFIG_TYPE],
-        bundle=bundle_config
-        )
-    operation_config = OperationConfig(
-        name="ingestion",
-        version="0.1",
-        bundle=bundle_config
-        )
     operation = Operation(
-        platform="abacus",
-        name="ingestion",
+        platform=ingest_data[vb.OPERATION_PLATFORM],
+        name="run_processing",
         status=StatusEnum("DONE"),
-        operation_config=operation_config,
         project=project
         )
     job = Job(
-        name="run_processing_parsing",
+        name="run_processing",
         status=StatusEnum("DONE"),
         start=datetime.now(),
         stop=datetime.now(),
         operation=operation
         )
-    session.add(file_config)
-    # Defining Experiment
-    experiment = session.scalars(
-        select(Experiment)
-        .where(Experiment.sequencing_technology == ingest_data[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY])
-        .where(Experiment.type == ingest_data[vb.EXPERIMENT_TYPE])
-        .where(Experiment.library_kit == ingest_data[vb.EXPERIMENT_LIBRARY_KIT])
-        .where(Experiment.kit_expiration_date == ingest_data[vb.EXPERIMENT_KIT_EXPIRATION_DATE])
-        ).first()
-    if not experiment:
-        experiment = Experiment(
-            sequencing_technology=ingest_data[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY],
-            type=ingest_data[vb.EXPERIMENT_TYPE],
-            library_kit=ingest_data[vb.EXPERIMENT_LIBRARY_KIT],
-            kit_expiration_date=datetime.strptime(ingest_data[vb.EXPERIMENT_KIT_EXPIRATION_DATE], "%d/%m/%Y")
-            )
+    session.add(job)
     # Defining Run
-    run = session.scalars(
-        select(Run)
-        .where(Run.fms_id == ingest_data[vb.RUN_FMS_ID])
-        .where(Run.name == ingest_data[vb.RUN_NAME])
-        .where(Run.instrument == ingest_data[vb.RUN_INSTRUMENT])
-        .where(Run.date == ingest_data[vb.RUN_DATE])
-        ).first()
-    if not run:
-        run = Run(
-            fms_id=ingest_data[vb.RUN_FMS_ID],
-            name=ingest_data[vb.RUN_NAME],
-            instrument=ingest_data[vb.RUN_INSTRUMENT],
-            date=datetime.strptime(ingest_data[vb.RUN_DATE], "%d/%m/%Y %H:%M:%S")
-            )
-    # Defining Bundle
-    bundle = Bundle(uri=ingest_data[vb.BUNDLE_URI], job=job)
+    run = Run.from_attributes(
+        fms_id=ingest_data[vb.RUN_FMS_ID],
+        name=ingest_data[vb.RUN_NAME],
+        instrument=ingest_data[vb.RUN_INSTRUMENT],
+        date=datetime.strptime(ingest_data[vb.RUN_DATE], vb.DATE_LONG_FMT),
+        session=session
+        )
+
     for patient_json in ingest_data[vb.PATIENT]:
-        patient = Patient(name=patient_json[vb.PATIENT_NAME], cohort=patient_json[vb.PATIENT_COHORT], institution=patient_json[vb.PATIENT_INSTITUTION], project=project)
+        patient = Patient.from_name(
+            name=patient_json[vb.PATIENT_NAME],
+            cohort=patient_json[vb.PATIENT_COHORT],
+            institution=patient_json[vb.PATIENT_INSTITUTION],
+            project=project,
+            session=session
+            )
         for sample_json in patient_json[vb.SAMPLE]:
-            sample = Sample(
+            sample = Sample.from_name(
                 name=sample_json[vb.SAMPLE_NAME],
                 tumour=sample_json[vb.SAMPLE_TUMOUR],
-                patient=patient
+                patient=patient,
+                session=session
                 )
             for readset_json in sample_json[vb.READSET]:
+                if readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE]:
+                    kit_expiration_date = datetime.strptime(readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE], vb.DATE_FMT)
+                else:
+                    kit_expiration_date = None
+                # Defining Experiment
+                experiment = Experiment.from_attributes(
+                    sequencing_technology=readset_json[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY],
+                    type=readset_json[vb.EXPERIMENT_TYPE],
+                    library_kit=readset_json[vb.EXPERIMENT_LIBRARY_KIT],
+                    kit_expiration_date=kit_expiration_date,
+                    session=session
+                    )
+                # Let this fails if readset already exists.
                 readset = Readset(
                     name=readset_json[vb.READSET_NAME],
                     lane=LaneEnum(readset_json[vb.READSET_LANE]),
@@ -149,40 +349,45 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                     sample=sample,
                     experiment=experiment,
                     run=run,
-                    operation=[operation],
-                    job=[job]
+                    operations=[operation],
+                    jobs=[job]
                     )
                 for file_json in readset_json[vb.FILE]:
-                    suffixes = Path(file_json[vb.FILE_CONTENT]).suffixes
-                    file_type = os.path.splitext(file_json[vb.FILE_CONTENT])[-1][1:]
+                    suffixes = Path(file_json[vb.FILE_NAME]).suffixes
+                    file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
                     if ".gz" in suffixes:
                         file_type = "".join(suffixes)[1:]
-                    try:
-                        File(
-                            content=file_json[vb.FILE_CONTENT],
+                    # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
+                    if vb.FILE_EXTRA_METADATA in file_json.keys():
+                        file = File(
+                            name=file_json[vb.FILE_NAME],
                             type=file_type,
                             extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
-                            bundle=bundle,
-                            readset=[readset]
+                            readsets=[readset],
+                            jobs=[job]
                             )
-                    except KeyError:
-                        File(
-                            content=file_json[vb.FILE_CONTENT],
+                    else:
+                        file = File(
+                            name=file_json[vb.FILE_NAME],
                             type=file_type,
-                            bundle=bundle,
-                            readset=[readset]
+                            readsets=[readset],
+                            jobs=[job]
                             )
+                    location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
                 for metric_json in readset_json[vb.METRIC]:
                     Metric(
                         name=metric_json[vb.METRIC_NAME],
                         value=metric_json[vb.METRIC_VALUE],
+                        flag=FlagEnum(metric_json[vb.METRIC_FLAG]),
                         job=job,
-                        readset=[readset]
+                        readsets=[readset]
                         )
 
-        session.add(readset)
-        session.flush()
-        operation_id = operation.id
+            session.add(readset)
+            session.flush()
+
+    operation_id = operation.id
+    job_id = job.id
 
     try:
         session.commit()
@@ -190,7 +395,88 @@ def ingest_run_processing(project_name, ingest_data, session=None):
         logger.error("Error: %s", error)
         session.rollback()
 
-    return session.scalars(select(Operation).where(Operation.id == operation_id)).one()
+    # operation
+    operation = session.scalars(select(Operation).where(Operation.id == operation_id)).first()
+    # job
+    job = session.scalars(select(Job).where(Job.id == job_id)).first()
+
+    return [operation, job]
+
+
+def ingest_transfer(project_name, ingest_data, session=None, check_readset_name=True):
+    """Ingesting transfer"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    project = projects(project_name=project_name, session=session)[0]
+
+    operation = Operation(
+        platform=ingest_data[vb.OPERATION_PLATFORM],
+        name="transfer",
+        cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
+        status=StatusEnum("DONE"),
+        project=project
+        )
+    job = Job(
+        name="transfer",
+        status=StatusEnum("DONE"),
+        start=datetime.now(),
+        stop=datetime.now(),
+        operation=operation
+        )
+
+    for readset_json in ingest_data[vb.READSET]:
+        readset_name = readset_json[vb.READSET_NAME]
+        for file_json in readset_json[vb.FILE]:
+            src_uri = file_json[vb.SRC_LOCATION_URI]
+            dest_uri = file_json[vb.DEST_LOCATION_URI]
+            if check_readset_name:
+                file = session.scalars(
+                    select(File)
+                    .join(File.readsets)
+                    .where(Readset.name ==  readset_name )
+                    .join(File.locations    )
+                    .where(Location.uri == src_uri)
+                    ).unique().first()
+                if not file:
+                    raise Exception(f"No file with uri: {src_uri} and readset {readset_name}")
+            else:
+                file = session.scalars(
+                    select(File)
+                        .join(File.readsets)
+                        .where(Readset.name == readset_name)
+                        .join(File.locations)
+                        .where(Location.uri == src_uri)
+                ).unique().first()
+                if not file:
+                    raise Exception(f"No file with uri: {src_uri}")
+
+            new_location = Location.from_uri(uri=dest_uri, file=file, session=session)
+            file.jobs.append(job)
+            session.add(new_location)
+
+    session.add(job)
+    session.flush()
+
+    operation_id = operation.id
+    job_id = job.id
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    # operation
+    operation = session.scalars(select(Operation).where(Operation.id == operation_id)).first()
+    # job
+    job = session.scalars(select(Job).where(Job.id == job_id)).first()
+
+    return [operation, job]
+
 
 def digest_readset(run_name, output_file, session=None):
     """Creating readset file for GenPipes"""
@@ -256,7 +542,8 @@ def digest_pair(run_name, output_file, session=None):
     if not session:
         session = database.get_session()
 
-    patients = session.scalars(select(Patient).select_from(Run).where(Run.name == run_name)).all()
+    stmt = select(Patient).join(Patient.samples).join(Sample.readsets).join(Readset.run).where(Run.name == run_name)
+    patients = session.scalars(stmt).unique().all()
 
     with open(output_file, "w", encoding="utf-8") as out_pair_file:
         csv_writer = csv.writer(out_pair_file, delimiter=',')

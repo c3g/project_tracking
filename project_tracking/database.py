@@ -20,7 +20,7 @@ class Engine:
 
 def get_engine(db_uri):
 
-    logging.info('Connecting to {}'.format(db_uri))
+    logging.debug('Connecting to {}'.format(db_uri))
 
     # in tests the engines can be multiple...
     if Engine.ENGINE is None or Engine.URI != db_uri:
@@ -55,7 +55,7 @@ def get_session(no_app=False, db_uri=None):
     return flask.g.session
 
 
-def init_db(db_uri=None):
+def init_db(db_uri=None, flush=False):
     """
     db_uri is required if db is initialised outside of the flask app
     """
@@ -69,6 +69,8 @@ def init_db(db_uri=None):
             raise e
     engine = get_engine(db_uri)
 
+    if flush:
+        model.Base.metadata.drop_all(engine)
     model.Base.metadata.create_all(engine)
 
 
@@ -84,13 +86,16 @@ def close_db(no_app=False):
         session.remove()
 
 @click.command('init-db')
-def init_db_command(db_uri=None):
-    """Clear the existing data and create new tables."""
+@click.option('--db_uri', default=None)
+@click.option('--flush', is_flag=True)
+def init_db_command(db_uri=None, flush=False):
+    """Create new tables
+     WARNING: flush existing data if flush is true
+     """
     if db_uri is None:
         db_uri = flask.current_app.config["SQLALCHEMY_DATABASE_URI"]
-    init_db(db_uri)
+    init_db(db_uri, flush)
     click.echo('Database initialized')
-
 
 @click.command('add-random-project')
 def add_random_project_command():

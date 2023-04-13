@@ -4,10 +4,15 @@ if [[ -v "${C3G_SQLALCHEMY_DATABASE_URI_FILE}" ]]; then
   export C3G_SQLALCHEMY_DATABASE_URI=$(< C3G_SQLALCHEMY_DATABASE_URI_FILE)
 fi
 
+DB_OPS=
+
+if [[ -v "${C3G_SQLALCHEMY_DATABASE_URI}" ]]; then
+   DB_OPS=--db_uri ${C3G_SQLALCHEMY_DATABASE_URI}
+fi
 
 if [[ -v C3G_INIT_DB ]]; then
   echo instanciating data base
-  flask  --app $APP init-db
+  flask  --app $APP   init-db $DB_OPS
 fi
 
 gunicorn "project_tracking:create_app()"  "${@}"
