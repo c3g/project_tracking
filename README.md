@@ -24,6 +24,24 @@ flask  --app project_tracking init-db
 flask --app project_tracking --debug run
 ```
 
+By default, falsk will run the server on  http://localhost:5000. You can test that everything 
+is fine with curl in a terminal:
+```bash
+$ curl http://localhost:5000/
+Welcome to the TechDev tracking API!
+# The help api is also available. It lists all the server urls.  
+$ curl http://localhost:5000/help
+----------
+URL: 
+        /
+DOC: 
+        Welcome page
+        
+[...]
+```
+
+
+
 Once the server is running, you can still initialise the database, you can even flush it clear of any entry with 
 
 ```bash
