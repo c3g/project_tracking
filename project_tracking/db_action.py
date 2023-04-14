@@ -517,9 +517,9 @@ def digest_readset_file(project_name, digest_data, session=None):
         set(readsets)
         for readset in readsets:
             bed = ""
+            bam = ""
             for file in readset.files:
                 if file.type in ["fastq", "fq", "fq.gz", "fastq.gz"]:
-                    bam = ""
                     if file.extra_metadata["read_type"] == "R1":
                         if location_endpoint:
                             for location in file.locations:
