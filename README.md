@@ -24,7 +24,7 @@ flask  --app project_tracking init-db
 flask --app project_tracking --debug run
 ```
 
-By default, falsk will run the server on  http://localhost:5000. You can test that everything 
+By default, falsk will run the server on  http://127.0.0.1:5000. You can test that everything 
 is fine with curl in a terminal:
 ```bash
 $ curl http://127.0.0.1:5000/
