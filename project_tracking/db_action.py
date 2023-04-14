@@ -517,9 +517,9 @@ def digest_readset_file(project_name, digest_data, session=None):
         set(readsets)
         for readset in readsets:
             bed = ""
-            bam = ""
             for file in readset.files:
                 if file.type in ["fastq", "fq", "fq.gz", "fastq.gz"]:
+                    bam = ""
                     if file.extra_metadata["read_type"] == "R1":
                         if location_endpoint:
                             for location in file.locations:
@@ -535,10 +535,13 @@ def digest_readset_file(project_name, digest_data, session=None):
                         else:
                             fastq1 = file.locations[-1].uri.split("://")[-1]
                 elif file.type == "bam":
+                    bam = ""
                     if location_endpoint:
                         for location in file.locations:
                             if location_endpoint == location.endpoint:
                                 bam = location.uri.split("://")[-1]
+                        if not bam:
+                            raise ValueError(f"looking for bam file in '{location_endpoint}', file only existe on {[l.endpoint for l in file.locations]} system")
                     else:
                         bam = file.locations[-1].uri.split("://")[-1]
                     fastq1 = ""
