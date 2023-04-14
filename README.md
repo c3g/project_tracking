@@ -5,8 +5,8 @@ This is an API to access and modify the C3G data processing tracking database.
 ## Install
 We recommend using postgress in producton, but the project is fully compatible with sqlite.
 We also publish container on quay.io and test or system using podman.
-### From github with sqlite:
-sqlite needs to be installed on your machine.
+### From github with sqlite (best for developer):
+Sqlite needs to be installed on your machine.
 Here, you will deploy a development instance of the app and be able to modify the code in the repo with auto-reload 
 ```bash
 git clone  git@github.com:c3g/project_tracking.git
@@ -24,15 +24,33 @@ flask  --app project_tracking init-db
 flask --app project_tracking --debug run
 ```
 
+By default, falsk will run the server on  http://127.0.0.1:5000. You can test that everything 
+is fine with curl in a terminal:
+```bash
+$ curl http://127.0.0.1:5000/
+Welcome to the TechDev tracking API!
+# The help api is also available. It lists all the server urls.  
+$ curl http://127.0.0.1:5000/help
+----------
+URL: 
+        /
+DOC: 
+        Welcome page
+        
+[...]
+```
+
+
+
 Once the server is running, you can still initialise the database, you can even flush it clear of any entry with 
 
 ```bash
 # WARNING this will erase all entry to you Database!
-flask  --app project_tracking init-db --flush --db_uri "sqlite:////tmp/my_test_db.sql" 
+flask  --app project_tracking init-db --flush --db-uri "sqlite:////tmp/my_test_db.sql" 
 
 ```
 
-## Using podman and sqlite:
+### Using podman and sqlite:
 We have a [quay.io repo for the project](https://quay.io/repository/c3genomics/project_tracking)
 There are a dev release and version releases. The `latest` tag relates to the latest release.
 ```bash

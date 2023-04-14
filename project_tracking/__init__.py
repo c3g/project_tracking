@@ -67,9 +67,9 @@ def create_app(test_config=None):
     @app.route('/')
     def welcome():
         """
-        Root of all the project tracking API
+        Welcome page
         """
-        return 'Welcome to the TechDev tracking API!'
+        return 'Welcome to the TechDev tracking API!\n'
 
     # Loadding the api, look at the api/__init__.py file to see
     # what is being registered
