@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     JSON,
     Enum,
+    DateTime,
     select,
     Table,
     LargeBinary
@@ -27,6 +28,8 @@ from sqlalchemy.orm import (
     collections,
     attributes
     )
+
+from sqlalchemy.sql import func
 
 from sqlalchemy_json import mutable_json_type
 
@@ -148,8 +151,10 @@ class BaseTable(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     deprecated: Mapped[bool] = mapped_column(default=False)
     deleted: Mapped[bool] = mapped_column(default=False)
-    creation: Mapped[datetime] = mapped_column(default=datetime.now(), nullable=True)
-    modification: Mapped[datetime] = mapped_column(default=None, nullable=True)
+    creation: Mapped[DateTime] = Column(DateTime(timezone=True), server_default=func.now())
+    # creation: Mapped[datetime] = mapped_column(default=datetime.now(), nullable=True)
+    # modification: Mapped[datetime] = mapped_column(default=None, nullable=True)
+    modification: Mapped[DateTime] = Column(DateTime(timezone=True), onupdate=func.now())
     extra_metadata: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
 
     def __repr__(self):

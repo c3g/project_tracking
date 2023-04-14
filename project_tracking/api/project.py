@@ -157,11 +157,11 @@ def readsets_from_samples(project_name: str, sample_id: str):
     return [i.flat_dict for i in db_action.readsets(project_name, sample_id)]
 
 
-@bp.route('/<string:project_name>/digest_sample', methods=['POST'])
+@bp.route('/<string:project_name>/digest_readset_file', methods=['POST'])
 @capitalize
-def digest_sample_to_readsetfile(project_name: str):
+def digest_readset_file(project_name: str):
     """
-    POST: Sample name or id list
+    POST: list of Readset/Sample Name or id
     return: all information to create a "Genpipes readset file"
     """
 
@@ -172,27 +172,7 @@ def digest_sample_to_readsetfile(project_name: str):
             flash('Data does not seems to be json')
             return redirect(request.url)
 
-
-        return [i.flat_dict for i in db_action.digest_sample(project_name=project_name.upper(), ingest_data=ingest_data)]
-
-
-@bp.route('/<string:project_name>/digest_readset', methods=['POST'])
-@capitalize
-def digest_readset_to_readsetfile(project_name: str):
-    """
-    POST: Readset Name or id list
-    return: all information to create a "Genpipes readset file"
-    """
-
-    if request.method == 'POST':
-        try:
-            ingest_data = request.get_json(force=True)
-        except:
-            flash('Data does not seems to be json')
-            return redirect(request.url)
-
-        return [i.flat_dict for i in
-                db_action.digest_readset(project_name=project_name.upper(), ingest_data=ingest_data)]
+        return db_action.digest_readset_file(project_name=project_name.upper(), digest_data=ingest_data)
 
 
 @bp.route('/<string:project_name>/ingest_run_processing', methods=['GET', 'POST'])

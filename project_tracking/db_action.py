@@ -478,54 +478,79 @@ def ingest_transfer(project_name, ingest_data, session=None, check_readset_name=
     return [operation, job]
 
 
-def digest_readset(run_name, output_file, session=None):
+def digest_readset_file(project_name, digest_data, session=None):
     """Creating readset file for GenPipes"""
     if not session:
         session = database.get_session()
 
-    readset_header = [
-        "Sample",
-        "Readset",
-        "LibraryType",
-        "RunType",
-        "Run",
-        "Lane",
-        "Adapter1",
-        "Adapter2",
-        "QualityOffset",
-        "BED",
-        "FASTQ1",
-        "FASTQ2",
-        "BAM"
-        ]
+    samples = []
+    readsets = []
+    output = []
 
-    readsets = session.scalars(select(Readset).where(Run.name == run_name).join(Run)).all()
+    if vb.LOCATION_ENDPOINT in digest_data.keys():
+        location_endpoint = digest_data[vb.LOCATION_ENDPOINT]
+    else:
+        location_endpoint = None
 
-    with open(output_file, "w", encoding="utf-8") as out_readset_file:
-        tsv_writer = csv.DictWriter(out_readset_file, delimiter='\t', fieldnames=readset_header)
-        tsv_writer.writeheader()
+    if vb.SAMPLE_NAME in digest_data.keys():
+        for sample_name in digest_data[vb.SAMPLE_NAME]:
+            sample = session.scalars(select(Sample).where(Sample.name == sample_name)).unique().first()
+            samples.append(sample)
+    if vb.SAMPLE_ID in digest_data.keys():
+        for sample_id in digest_data[vb.SAMPLE_ID]:
+            sample = session.scalars(select(Sample).where(Sample.id == sample_id)).unique().first()
+            samples.append(sample)
+    if samples:
+        set(samples)
+        for sample in samples:
+            for readset in sample.readsets:
+                readsets.append(readset)
+    if vb.READSET_NAME in digest_data.keys():
+        for readset_name in digest_data[vb.READSET_NAME]:
+            readset = session.scalars(select(Readset).where(Readset.name == readset_name)).unique().first()
+            readsets.append(readset)
+    if vb.READSET_ID in digest_data.keys():
+        for readset_id in digest_data[vb.READSET_ID]:
+            readset = session.scalars(select(Readset).where(Readset.id == readset_id)).unique().first()
+            readsets.append(readset)
+    if readsets:
+        set(readsets)
         for readset in readsets:
-            files = readset.file
             bed = ""
-            for file in files:
+            for file in readset.files:
                 if file.type in ["fastq", "fq", "fq.gz", "fastq.gz"]:
                     bam = ""
-                    if file.extra_metadata == "R1":
-                        fastq1 = file.content
-                    elif file.extra_metadata == "R2":
-                        fastq2 = file.content
+                    if file.extra_metadata["read_type"] == "R1":
+                        if location_endpoint:
+                            for location in file.locations:
+                                if location_endpoint == location.endpoint:
+                                    fastq1 = location.uri.split("://")[-1]
+                        else:
+                            fastq1 = file.locations[-1].uri.split("://")[-1]
+                    elif file.extra_metadata["read_type"] == "R2":
+                        if location_endpoint:
+                            for location in file.locations:
+                                if location_endpoint == location.endpoint:
+                                    fastq1 = location.uri.split("://")[-1]
+                        else:
+                            fastq1 = file.locations[-1].uri.split("://")[-1]
                 elif file.type == "bam":
-                    bam = file.content
+                    if location_endpoint:
+                        for location in file.locations:
+                            if location_endpoint == location.endpoint:
+                                bam = location.uri.split("://")[-1]
+                    else:
+                        bam = file.locations[-1].uri.split("://")[-1]
                     fastq1 = ""
                     fastq2 = ""
                 if file.type == "bed":
-                    bed = file.content
+                    bed = file.name
             readset_line = {
                 "Sample": readset.sample.name,
                 "Readset": readset.name,
                 "LibraryType": readset.experiment.library_kit,
                 "RunType": readset.sequencing_type.value,
-                "Run": run_name,
+                "Run": readset.run.name,
                 "Lane": readset.lane.value,
                 "Adapter1": readset.adapter1,
                 "Adapter2": readset.adapter2,
@@ -535,7 +560,39 @@ def digest_readset(run_name, output_file, session=None):
                 "FASTQ2": fastq2,
                 "BAM": bam
                 }
-            tsv_writer.writerow(readset_line)
+            # readsets[readset.name] = readset_line
+            output.append(readset_line)
+    # if sample:
+    #     for readset in sample.readsets:
+    #         readsets.append(readset)
+
+    # if vb.READSET_NAME in readset_json.keys():
+    #     readset = session.scalars(select(Readset).where(Readset.name == sample_json[vb.READSET_NAME])).unique().first()
+    # elif vb.READSET_ID in readset_json.keys():
+    #     readset = session.scalars(select(Readset).where(Readset.id == sample_json[vb.READSET_ID])).unique().first()
+    # if readset:
+    #     readsets.append(readset)
+
+    # for sample_json in digest_data[vb.SAMPLE]:
+    #     if vb.SAMPLE_NAME in sample_json.keys():
+    #         sample = session.scalars(select(Sample).where(Sample.name == sample_json[vb.SAMPLE_NAME])).unique().first()
+    #     elif vb.SAMPLE_ID in sample_json.keys():
+    #         sample = session.scalars(select(Sample).where(Sample.id == sample_json[vb.SAMPLE_ID])).unique().first()
+    #     if sample:
+    #         for readset in sample.readsets:
+    #             readsets.append(readset)
+    #     else:
+    #         for readset_json in sample_json[vb.READSET]:
+    #             if vb.READSET_NAME in readset_json.keys():
+    #                 readset = session.scalars(select(Readset).where(Readset.name == sample_json[vb.READSET_NAME])).unique().first()
+    #             elif vb.READSET_ID in readset_json.keys():
+    #                 readset = session.scalars(select(Readset).where(Readset.id == sample_json[vb.READSET_ID])).unique().first()
+    #             if readset:
+    #                 readsets.append(readset)
+
+    # readsets = session.scalars(select(Readset).where(Run.name == run_name).join(Run)).all()
+
+    return output
 
 def digest_pair(run_name, output_file, session=None):
     """Creating pair file for GenPipes Tumour Pair pipeline"""

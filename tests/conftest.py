@@ -134,8 +134,8 @@ def run_processing_json():
     return data
 
 @pytest.fixture()
-def digest_readset_file_json():
-    with open(os.path.join(os.path.dirname(__file__), 'data/digest_readset_file.json'), 'r') as file:
+def readset_file_json():
+    with open(os.path.join(os.path.dirname(__file__), 'data/readset_file.json'), 'r') as file:
         data = json.load(file)
     return data
 
