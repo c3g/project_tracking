@@ -1,6 +1,9 @@
 # Tracking the C3G projects
+[![Test suite](https://github.com/c3g/project_tracking/actions/workflows/run_test.yml/badge.svg?branch=main)](https://github.com/c3g/project_tracking/actions/workflows/run_test.yml) on main branch  
+[![Test suite](https://github.com/c3g/project_tracking/actions/workflows/run_test.yml/badge.svg?branch=dev)](https://github.com/c3g/project_tracking/actions/workflows/run_test.yml) on dev branch
 
 This is an API to access and modify the C3G data processing tracking database.
+
 
 ## Install
 We recommend using postgress in producton, but the project is fully compatible with sqlite.

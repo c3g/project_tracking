@@ -1,6 +1,15 @@
-name: Python package
+name: Tests suite
 
-on: [push]
+on:
+  pull_request
+    types: [opened, synchronize, reopened]
+    branches:
+      - 'main'
+      - 'dev'
+  push:
+    branches:
+      - 'main'
+      - 'dev'
 
 jobs:
   build:
@@ -8,7 +17,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: ["3.10.8"]
+        python-version: ["3.11"]
         os: [ubuntu-latest, macos-latest]
 
     steps:
@@ -29,5 +38,5 @@ jobs:
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       - name: Test with pytest
         run: |
-          pytest
+          pytest -v
 
