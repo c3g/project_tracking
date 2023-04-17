@@ -17,6 +17,7 @@ PATIENT_INSTITUTION = "patient_institution"
 
 # sample table
 SAMPLE = "sample"
+SAMPLE_ID = "sample_id"
 SAMPLE_FMS_ID = "sample_fms_id"
 SAMPLE_NAME = "sample_name"
 SAMPLE_TUMOUR = "sample_tumour"
@@ -36,6 +37,7 @@ RUN_DATE = "run_date"
 
 # readset table
 READSET = "readset"
+READSET_ID = "readset_id"
 READSET_NAME = "readset_name"
 READSET_LANE = "readset_lane"
 READSET_ADAPTER1 = "readset_adapter1"
@@ -54,6 +56,8 @@ OPERATION_NAME = "operation_name"
 # Not sure if coming from JSON?
 OPERATION_CONFIG_NAME = "operation_config_name"
 OPERATION_CONFIG_VERSION = "operation_config_version"
+OPERATION_CONFIG_MD5SUM = "operation_config_md5sum"
+OPERATION_CONFIG_DATA = "operation_config_data"
 
 # location table
 # Not sure if coming from JSON?
