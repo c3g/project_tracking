@@ -16,6 +16,7 @@ def test_digest_api(client, run_processing_json, readset_file_json, app):
     response = client.get('admin/create_project/MOH-Q')
     response = client.post('project/MOH-Q/ingest_run_processing', data=json.dumps(run_processing_json))
     response = client.post('project/MOH-Q/digest_readset_file', data=json.dumps(readset_file_json))
+    response = client.post('project/MOH-Q/digest_pair_file', data=json.dumps(readset_file_json))
     assert response.status_code == 200
 
     with app.app_context():
