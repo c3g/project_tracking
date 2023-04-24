@@ -113,20 +113,6 @@ def client(app):
 def runner(app):
     return app.test_cli_runner()
 
-
-@pytest.fixture()
-def ingestion_csv():
-    data = []
-    with open(os.path.join(os.path.dirname(__file__), 'data/event.csv'), 'r') as fp:
-        csvReader = csv.DictReader(fp)
-
-        for row in csvReader:
-            # Assuming a column named 'No' to
-            # be the primary key
-            data.append(row)
-
-    return json.dumps(data)
-
 @pytest.fixture()
 def run_processing_json():
     with open(os.path.join(os.path.dirname(__file__), 'data/run_processing.json'), 'r') as file:

@@ -2,7 +2,7 @@ from sqlalchemy import select
 from project_tracking import database, model
 
 
-def test_serialization(not_app_db, ingestion_csv):
+def test_serialization(not_app_db):
 
     project_name = 'Conglomerat of Good Health'
     op_config_version = 0.1

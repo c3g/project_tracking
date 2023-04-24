@@ -479,7 +479,7 @@ def ingest_transfer(project_name, ingest_data, session=None, check_readset_name=
 
 
 def digest_readset_file(project_name, digest_data, session=None):
-    """Creating readset file for GenPipes"""
+    """Digesting readset file fields for GenPipes"""
     if not session:
         session = database.get_session()
 
@@ -563,58 +563,57 @@ def digest_readset_file(project_name, digest_data, session=None):
                 "FASTQ2": fastq2,
                 "BAM": bam
                 }
-            # readsets[readset.name] = readset_line
             output.append(readset_line)
-    # if sample:
-    #     for readset in sample.readsets:
-    #         readsets.append(readset)
-
-    # if vb.READSET_NAME in readset_json.keys():
-    #     readset = session.scalars(select(Readset).where(Readset.name == sample_json[vb.READSET_NAME])).unique().first()
-    # elif vb.READSET_ID in readset_json.keys():
-    #     readset = session.scalars(select(Readset).where(Readset.id == sample_json[vb.READSET_ID])).unique().first()
-    # if readset:
-    #     readsets.append(readset)
-
-    # for sample_json in digest_data[vb.SAMPLE]:
-    #     if vb.SAMPLE_NAME in sample_json.keys():
-    #         sample = session.scalars(select(Sample).where(Sample.name == sample_json[vb.SAMPLE_NAME])).unique().first()
-    #     elif vb.SAMPLE_ID in sample_json.keys():
-    #         sample = session.scalars(select(Sample).where(Sample.id == sample_json[vb.SAMPLE_ID])).unique().first()
-    #     if sample:
-    #         for readset in sample.readsets:
-    #             readsets.append(readset)
-    #     else:
-    #         for readset_json in sample_json[vb.READSET]:
-    #             if vb.READSET_NAME in readset_json.keys():
-    #                 readset = session.scalars(select(Readset).where(Readset.name == sample_json[vb.READSET_NAME])).unique().first()
-    #             elif vb.READSET_ID in readset_json.keys():
-    #                 readset = session.scalars(select(Readset).where(Readset.id == sample_json[vb.READSET_ID])).unique().first()
-    #             if readset:
-    #                 readsets.append(readset)
-
-    # readsets = session.scalars(select(Readset).where(Run.name == run_name).join(Run)).all()
 
     return output
 
-def digest_pair(run_name, output_file, session=None):
-    """Creating pair file for GenPipes Tumour Pair pipeline"""
+def digest_pair_file(project_name, digest_data, session=None):
+    """Digesting pair file fields for GenPipes"""
     if not session:
         session = database.get_session()
 
-    stmt = select(Patient).join(Patient.samples).join(Sample.readsets).join(Readset.run).where(Run.name == run_name)
-    patients = session.scalars(stmt).unique().all()
+    pair_dict = {}
+    samples = []
+    # readsets = []
+    output = []
 
-    with open(output_file, "w", encoding="utf-8") as out_pair_file:
-        csv_writer = csv.writer(out_pair_file, delimiter=',')
-        for patient in patients:
-            if len(patient.sample) > 1:
-                tumour = []
-                normal = []
-                for sample in patient.sample:
-                    if sample.tumour:
-                        tumour.append(sample.name)
-                    else:
-                        normal.append(sample.name)
-                combinations = [(patient.name, x, y) for x in normal for y in tumour]
-                csv_writer.writerows(combinations)
+    if vb.SAMPLE_NAME in digest_data.keys():
+        for sample_name in digest_data[vb.SAMPLE_NAME]:
+            sample = session.scalars(select(Sample).where(Sample.name == sample_name)).unique().first()
+            samples.append(sample)
+    if vb.SAMPLE_ID in digest_data.keys():
+        for sample_id in digest_data[vb.SAMPLE_ID]:
+            sample = session.scalars(select(Sample).where(Sample.id == sample_id)).unique().first()
+            samples.append(sample)
+    if vb.READSET_NAME in digest_data.keys():
+        for readset_name in digest_data[vb.READSET_NAME]:
+            readset = session.scalars(select(Readset).where(Readset.name == readset_name)).unique().first()
+            samples.append(readset.sample)
+            # readsets.append(readset)
+    if vb.READSET_ID in digest_data.keys():
+        for readset_id in digest_data[vb.READSET_ID]:
+            readset = session.scalars(select(Readset).where(Readset.id == readset_id)).unique().first()
+            samples.append(readset.sample)
+            # readsets.append(readset)
+    if samples:
+        set(samples)
+        for sample in samples:
+            if not sample.patient.name in pair_dict.keys():
+                pair_dict[sample.patient.name] = {
+                    "T": None,
+                    "N": None
+                    }
+            if sample.tumour:
+                pair_dict[sample.patient.name]["T"] = sample.name
+            else:
+                pair_dict[sample.patient.name]["N"] = sample.name
+    if pair_dict:
+        for patient_name, dict_tn in pair_dict.items():
+            pair_line = {
+                "Patient": patient_name,
+                "Sample_N": dict_tn["N"],
+                "Sample_T": dict_tn["T"]
+                }
+            output.append(pair_line)
+
+    return output

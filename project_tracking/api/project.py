@@ -174,6 +174,22 @@ def digest_readset_file(project_name: str):
 
         return db_action.digest_readset_file(project_name=project_name.upper(), digest_data=ingest_data)
 
+@bp.route('/<string:project_name>/digest_pair_file', methods=['POST'])
+@capitalize
+def digest_pair_file(project_name: str):
+    """
+    POST: list of Readset/Sample Name or id
+    return: all information to create a "Genpipes pair file"
+    """
+
+    if request.method == 'POST':
+        try:
+            ingest_data = request.get_json(force=True)
+        except:
+            flash('Data does not seems to be json')
+            return redirect(request.url)
+
+        return db_action.digest_pair_file(project_name=project_name.upper(), digest_data=ingest_data)
 
 @bp.route('/<string:project_name>/ingest_run_processing', methods=['GET', 'POST'])
 @capitalize
