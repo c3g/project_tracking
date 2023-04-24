@@ -614,24 +614,6 @@ def digest_pair_file(project_name, digest_data, session=None):
                 "Sample_N": dict_tn["N"],
                 "Sample_T": dict_tn["T"]
                 }
-            # logger.debug(f"\n\n{pair_line}\n\n")
             output.append(pair_line)
 
     return output
-
-    # stmt = select(Patient).join(Patient.samples).join(Sample.readsets).join(Readset.run).where(Run.name == run_name)
-    # patients = session.scalars(stmt).unique().all()
-
-    # with open(output_file, "w", encoding="utf-8") as out_pair_file:
-    #     csv_writer = csv.writer(out_pair_file, delimiter=',')
-    #     for patient in patients:
-    #         if len(patient.sample) > 1:
-    #             tumour = []
-    #             normal = []
-    #             for sample in patient.sample:
-    #                 if sample.tumour:
-    #                     tumour.append(sample.name)
-    #                 else:
-    #                     normal.append(sample.name)
-    #             combinations = [(patient.name, x, y) for x in normal for y in tumour]
-    #             csv_writer.writerows(combinations)
