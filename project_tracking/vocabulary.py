@@ -80,8 +80,8 @@ JOB = "job"
 JOB_NAME = "job_name"
 JOB_START = "job_start"
 JOB_STOP = "job_stop"
+JOB_STATUS = "job_status"
 # Following is not coming from JSON
-# JOB_STATUS = "job_status"
 # JOB_TYPE = "job_type" # What do we want for this one?
 
 # metric table

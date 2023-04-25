@@ -273,7 +273,7 @@ class Patient(BaseTable):
     samples: Mapped[list["Sample"]] = relationship(back_populates="patient")
 
     @classmethod
-    def from_name(cls ,name, project, cohort=None, institution=None, session=None):
+    def from_name(cls, name, project, cohort=None, institution=None, session=None):
         """
         get patient if it exist, set it if it does not exist
         """
@@ -472,6 +472,25 @@ class Readset(BaseTable):
     operations: Mapped[list["Operation"]] = relationship(secondary=readset_operation, back_populates="readsets")
     jobs: Mapped[list["Job"]] = relationship(secondary=readset_job, back_populates="readsets")
     metrics: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readsets")
+
+    @classmethod
+    def from_name(cls, name, sample, alias=None):
+        """
+        get readset if it exist, set it if it does not exist
+        """
+        if session is None:
+            session = database.get_session()
+
+        # Name is unique
+        readset = session.scalars(select(cls).where(cls.name == name)).first()
+
+        if not readset:
+            readset = cls(name=name, alias=alias, sample=sample)
+        else:
+            if readset.sample != sample:
+                logger.error(f"readset {readset.name} already attached to sample {sample.readset}")
+
+        return readset
 
 
 class Operation(BaseTable):

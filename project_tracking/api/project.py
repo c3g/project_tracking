@@ -12,8 +12,8 @@ bp = Blueprint('project', __name__, url_prefix='/project')
 
 def unroll(string):
     """
-    string : includes number in the "1,3-7,9" form
-    return:  a list if int of the form [1,3,4,5,6,7,9]
+    string: includes number in the "1,3-7,9" form
+    return: a list if int of the form [1,3,4,5,6,7,9]
     """
 
     elem = [e for e in string.split(',') if e]
@@ -48,10 +48,10 @@ def capitalize(func):
 @capitalize
 def projects(project_name: str = None):
     """
-        return list of all projects the details of the poject with name "project_name"
+    return: list of all projects the details of the poject with name "project_name"
     """
     if project_name is None:
-        return {"Projetc list": [i.name for i in db_action.projects(project_name)]}
+        return {"Project list": [i.name for i in db_action.projects(project_name)]}
     return [i.flat_dict for i in db_action.projects(project_name)]
 
 
@@ -75,7 +75,6 @@ def patients(project_name: str, patient_id: str = None):
             return: a subset of patient who only have Tumor=True samples
         (false, True):
             return: a subset of patient who only have Tumor=false samples
-
     """
 
     query = request.args
@@ -106,7 +105,7 @@ def patients(project_name: str, patient_id: str = None):
 @capitalize
 def samples(project_name: str, sample_id: str = None):
     """
-    sample_id : uses the form "1,3-8,9", if not provides, all sample are returned
+    sample_id: uses the form "1,3-8,9", if not provides, all sample are returned
     return: all or selected sample that are in sample_id and part of project
     """
     if sample_id is not None:
@@ -119,7 +118,7 @@ def samples(project_name: str, sample_id: str = None):
 @capitalize
 def readsets(project_name: str, readset_id: str=None):
     """
-    readset_id : uses the form "1,3-8,9", if not provided, all readsets are returned
+    readset_id: uses the form "1,3-8,9", if not provided, all readsets are returned
     return: selected readsets that are in sample_id and part of project
     """
 
@@ -133,7 +132,7 @@ def readsets(project_name: str, readset_id: str=None):
 @capitalize
 def files(project_name: str, readset_id: str=None):
     """
-    readset_id : uses the form "1,3-8,9", if not provided, all readsets are returned
+    readset_id: uses the form "1,3-8,9", if not provided, all readsets are returned
     return: selected readsets that are in sample_id and part of project
     """
 
@@ -148,7 +147,7 @@ def files(project_name: str, readset_id: str=None):
 @capitalize
 def readsets_from_samples(project_name: str, sample_id: str):
     """
-    sample_id : uses the form "1,3-8,9"
+    sample_id: uses the form "1,3-8,9"
     return: readsets for slected sample_id
     """
 
@@ -200,7 +199,7 @@ def ingest_run_processing(project_name: str):
     """
 
     if request.method == 'GET':
-        return abort(405, "Use post methode to ingest runs")
+        return abort(405, "Use post method to ingest runs")
 
     if request.method == 'POST':
         try:
@@ -231,6 +230,33 @@ def ingest_transfer(project_name: str):
 
     return  [i.flat_dict for i in db_action.ingest_transfer(project_name=project_name, ingest_data=ingest_data)]
 
+@bp.route('/<string:project_name>/ingest_genpipes', methods=['GET', 'POST'])
+@capitalize
+def ingest_genpipes(project_name: str):
+    """
+    POST:  json describing genpipes
+    return: The Operation object and Jobs associated
+    """
+
+    if request.method == 'GET':
+        return abort(405, "Use post method to ingest genpipes analysis")
+
+    if request.method == 'POST':
+        try:
+            ingest_data = request.get_json(force=True)
+        except:
+            flash('Data does not seems to be json')
+            return redirect(request.url)
+
+        if project_name != ingest_data[vc.PROJECT_NAME].upper():
+            return abort(400, "project name in POST {} not Valid, {} requires"
+                         .format(ingest_data[vc.PROJECT_NAME].upper(), project_name))
+
+        output = db_action.ingest_genpipes(project_name=project_name.upper(), ingest_data=ingest_data)
+        operation = output[0].flat_dict
+        jobs = [job.flat_dict for job in output[1]]
+        return [operation, jobs]
+
 
 @bp.route('/<string:project_name>/metrics/<string:metric_id>')
 @bp.route('/<string:project_name>/readsets/<string:readset_id>/metrics')
@@ -244,7 +270,6 @@ def metrics(project_name: str, readset_id: str=None, metric_id: str=None, sample
 
     return: selected metrics
     """
-
 
     if readset_id is not None:
         readset_id = unroll(readset_id)

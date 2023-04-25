@@ -356,7 +356,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                     suffixes = Path(file_json[vb.FILE_NAME]).suffixes
                     file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
                     if ".gz" in suffixes:
-                        file_type = "".join(suffixes)[1:]
+                        file_type = "".join(suffixes[-2:])
                     # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
                     if vb.FILE_EXTRA_METADATA in file_json.keys():
                         file = File(
@@ -617,3 +617,103 @@ def digest_pair_file(project_name, digest_data, session=None):
             output.append(pair_line)
 
     return output
+
+def ingest_genpipes(project_name, ingest_data, session=None):
+    """Ingesting GenPipes run"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    project = projects(project_name=project_name, session=session)[0]
+
+    operation_config = OperationConfig(
+        name=ingest_data[vb.OPERATION_CONFIG_NAME],
+        version=ingest_data[vb.OPERATION_CONFIG_VERSION],
+        md5sum=ingest_data[vb.OPERATION_CONFIG_MD5SUM],
+        data=bytes(ingest_data[vb.OPERATION_CONFIG_DATA], 'utf-8')
+        )
+
+    operation = Operation(
+        platform=ingest_data[vb.OPERATION_PLATFORM],
+        name="genpipes",
+        cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
+        status=StatusEnum("DONE"),
+        project=project,
+        operation_config=operation_config
+        )
+
+    for sample_json in ingest_data[vb.SAMPLE]:
+        sample = session.scalars(
+            select(Sample)
+            .where(Sample.name == sample_json[vb.SAMPLE_NAME])
+            ).unique().first()
+        if not sample:
+            raise Exception(f"No sample named {sample_json[vb.SAMPLE_NAME]}")
+        for readset_json in sample_json[vb.READSET]:
+            readset = session.scalars(
+                select(Readset)
+                .where(Readset.name == readset_json[vb.READSET_NAME])
+                ).unique().first()
+            if not readset:
+                raise Exception(f"No readset named {readset_json[vb.READSET_NAME]}")
+            if readset.sample != sample:
+                raise Exception(f"sample {sample_json[vb.SAMPLE_NAME]} not linked with readset {readset_json[vb.READSET_NAME]}")
+            for job_json in readset_json[vb.JOB]:
+                job = Job(
+                    name=job_json[vb.JOB_NAME],
+                    status=StatusEnum(job_json[vb.JOB_STATUS]),
+                    start=datetime.strptime(job_json[vb.JOB_START], vb.DATE_LONG_FMT),
+                    stop=datetime.strptime(job_json[vb.JOB_STOP], vb.DATE_LONG_FMT),
+                    operation=operation
+                    )
+                for file_json in job_json[vb.FILE]:
+                    suffixes = Path(file_json[vb.FILE_NAME]).suffixes
+                    file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
+                    if ".gz" in suffixes:
+                        file_type = "".join(suffixes[-2:])
+                    # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
+                    if vb.FILE_EXTRA_METADATA in file_json.keys():
+                        file = File(
+                            name=file_json[vb.FILE_NAME],
+                            type=file_type,
+                            extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
+                            readsets=[readset],
+                            jobs=[job]
+                            )
+                    else:
+                        file = File(
+                            name=file_json[vb.FILE_NAME],
+                            type=file_type,
+                            readsets=[readset],
+                            jobs=[job]
+                            )
+                    location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                if vb.METRIC in job_json.keys():
+                    for metric_json in job_json[vb.METRIC]:
+                        Metric(
+                            name=metric_json[vb.METRIC_NAME],
+                            value=metric_json[vb.METRIC_VALUE],
+                            flag=FlagEnum(metric_json[vb.METRIC_FLAG]),
+                            job=job,
+                            readsets=[readset]
+                            )
+
+                session.add(job)
+                session.flush()
+
+    operation_id = operation.id
+    job_ids = [job.id for job in operation.jobs]
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    # operation
+    operation = session.scalars(select(Operation).where(Operation.id == operation_id)).first()
+    # jobs
+    jobs = [session.scalars(select(Job).where(Job.id == job_id)).first() for job_id in job_ids]
+
+    return [operation, jobs]
