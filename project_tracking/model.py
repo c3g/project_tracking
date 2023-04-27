@@ -59,8 +59,10 @@ class StatusEnum(enum.Enum):
     """
     PENDING = "PENDING"
     RUNNING = "RUNNING"
-    DONE = "DONE"
+    DONE = "COMPLETED"
     FAILED = "FAILED"
+    OUT_OF_MEMORY = "OUT_OF_MEMORY"
+    CANCELLED = "CANCELLED"
 
 
 class FlagEnum(enum.Enum):
