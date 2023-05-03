@@ -290,12 +290,12 @@ def ingest_run_processing(project_name, ingest_data, session=None):
     operation = Operation(
         platform=ingest_data[vb.OPERATION_PLATFORM],
         name="run_processing",
-        status=StatusEnum("DONE"),
+        status=StatusEnum("COMPLETED"),
         project=project
         )
     job = Job(
         name="run_processing",
-        status=StatusEnum("DONE"),
+        status=StatusEnum("COMPLETED"),
         start=datetime.now(),
         stop=datetime.now(),
         operation=operation
@@ -417,12 +417,12 @@ def ingest_transfer(project_name, ingest_data, session=None, check_readset_name=
         platform=ingest_data[vb.OPERATION_PLATFORM],
         name="transfer",
         cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
-        status=StatusEnum("DONE"),
+        status=StatusEnum("COMPLETED"),
         project=project
         )
     job = Job(
         name="transfer",
-        status=StatusEnum("DONE"),
+        status=StatusEnum("COMPLETED"),
         start=datetime.now(),
         stop=datetime.now(),
         operation=operation
@@ -639,7 +639,7 @@ def ingest_genpipes(project_name, ingest_data, session=None):
         platform=ingest_data[vb.OPERATION_PLATFORM],
         name="genpipes",
         cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
-        status=StatusEnum("DONE"),
+        status=StatusEnum("COMPLETED"),
         project=project,
         operation_config=operation_config
         )
@@ -661,11 +661,19 @@ def ingest_genpipes(project_name, ingest_data, session=None):
             if readset.sample != sample:
                 raise Exception(f"sample {sample_json[vb.SAMPLE_NAME]} not linked with readset {readset_json[vb.READSET_NAME]}")
             for job_json in readset_json[vb.JOB]:
+                try:
+                    job_start = datetime.strptime(job_json[vb.JOB_START], vb.DATE_LONG_FMT)
+                except TypeError:
+                    job_start = None
+                try:
+                    job_stop = datetime.strptime(job_json[vb.JOB_STOP], vb.DATE_LONG_FMT)
+                except TypeError:
+                    job_stop = None
                 job = Job(
                     name=job_json[vb.JOB_NAME],
                     status=StatusEnum(job_json[vb.JOB_STATUS]),
-                    start=datetime.strptime(job_json[vb.JOB_START], vb.DATE_LONG_FMT),
-                    stop=datetime.strptime(job_json[vb.JOB_STOP], vb.DATE_LONG_FMT),
+                    start=job_start,
+                    stop=job_stop,
                     operation=operation
                     )
                 for file_json in job_json[vb.FILE]:
