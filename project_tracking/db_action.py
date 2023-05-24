@@ -495,11 +495,17 @@ def digest_readset_file(project_name, digest_data, session=None):
     if vb.SAMPLE_NAME in digest_data.keys():
         for sample_name in digest_data[vb.SAMPLE_NAME]:
             sample = session.scalars(select(Sample).where(Sample.name == sample_name)).unique().first()
-            samples.append(sample)
+            if sample:
+                samples.append(sample)
+            else:
+                logger.warning(f"Sample with 'name' {sample_name} doesn't exist on database")
     if vb.SAMPLE_ID in digest_data.keys():
         for sample_id in digest_data[vb.SAMPLE_ID]:
             sample = session.scalars(select(Sample).where(Sample.id == sample_id)).unique().first()
-            samples.append(sample)
+            if sample:
+                samples.append(sample)
+            else:
+                logger.warning(f"Sample with 'id' {sample_id} doesn't exist on database")
     if samples:
         set(samples)
         for sample in samples:
@@ -508,11 +514,17 @@ def digest_readset_file(project_name, digest_data, session=None):
     if vb.READSET_NAME in digest_data.keys():
         for readset_name in digest_data[vb.READSET_NAME]:
             readset = session.scalars(select(Readset).where(Readset.name == readset_name)).unique().first()
-            readsets.append(readset)
+            if readset:
+                readsets.append(readset)
+            else:
+                logger.warning(f"Readset with 'name' {readset_name} doesn't exist on database")
     if vb.READSET_ID in digest_data.keys():
         for readset_id in digest_data[vb.READSET_ID]:
             readset = session.scalars(select(Readset).where(Readset.id == readset_id)).unique().first()
-            readsets.append(readset)
+            if readset:
+                readsets.append(readset)
+            else:
+                logger.warning(f"Readset with 'id' {readset_id} doesn't exist on database")
     if readsets:
         set(readsets)
         for readset in readsets:
@@ -541,7 +553,7 @@ def digest_readset_file(project_name, digest_data, session=None):
                             if location_endpoint == location.endpoint:
                                 bam = location.uri.split("://")[-1]
                         if not bam:
-                            raise ValueError(f"looking for bam file in '{location_endpoint}', file only existe on {[l.endpoint for l in file.locations]} system")
+                            raise ValueError(f"looking for bam file in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
                     else:
                         bam = file.locations[-1].uri.split("://")[-1]
                     fastq1 = ""
