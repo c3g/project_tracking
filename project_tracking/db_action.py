@@ -36,7 +36,7 @@ from .model import (
 logger = logging.getLogger(__name__)
 
 
-def projects(project_name = None, session=None):
+def projects(project_name=None, session=None):
     """
     Fetching all projects in database
     """
@@ -52,9 +52,75 @@ def projects(project_name = None, session=None):
 
     return session.scalars(stmt).unique().all()
 
-def metrics(project_name=None, readset_id=None, metric_id = None, sample_id=None):
+def metrics_deliverable(project_name: str, deliverable: bool, patient_id=None, sample_id=None, readset_id=None, metric_id=None):
     """
-    Fetching all metrics that are part of the project or readset or sample
+    deliverable = True: Returns only patients that have a tumor and a normal sample
+    deliverable = False, Tumor = False: Returns  patients that only have a normal samples
+    """
+
+    session = database.get_session()
+    if isinstance(project_name, str):
+        project_name = [project_name]
+
+    if metric_id and project_name:
+        if isinstance(metric_id, int):
+            metric_id = [metric_id]
+        stmt = (
+            select(Metric)
+            .where(Metric.deliverable == deliverable)
+            .where(Metric.id.in_(metric_id))
+            .join(Metric.readsets)
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+    elif patient_id and project_name:
+        if isinstance(patient_id, int):
+            patient_id = [patient_id]
+        stmt = (
+            select(Metric)
+            .where(Metric.deliverable == deliverable)
+            .join(Metric.readsets)
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .where(Patient.id.in_(patient_id))
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+    elif sample_id and project_name:
+        if isinstance(sample_id, int):
+            sample_id = [sample_id]
+        stmt = (
+            select(Metric)
+            .where(Metric.deliverable == deliverable)
+            .join(Metric.readsets)
+            .join(Readset.sample)
+            .where(Sample.id.in_(sample_id))
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+    elif readset_id and project_name:
+        if isinstance(readset_id, int):
+            readset_id = [readset_id]
+        stmt = (
+            select(Metric)
+            .where(Metric.deliverable == deliverable)
+            .join(Metric.readsets)
+            .where(Readset.id.in_(readset_id))
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+
+    return session.scalars(stmt).unique().all()
+
+
+def metrics(project_name=None, patient_id=None, sample_id=None, readset_id=None, metric_id=None):
+    """
+    Fetching all metrics that are part of the project or patient or sample or readset
     """
     session = database.get_session()
     if isinstance(project_name, str):
@@ -63,39 +129,51 @@ def metrics(project_name=None, readset_id=None, metric_id = None, sample_id=None
     if metric_id and project_name:
         if isinstance(metric_id, int):
             metric_id = [metric_id]
-        stmt = (select(Metric)
-                .where(Metric.id.in_(metric_id))
-                .join(Metric.readsets)
-                .join(Readset.sample)
-                .join(Sample.patient).
-                join(Patient.project).
-                where(Project.name.in_(project_name))
-                )
-    elif readset_id and project_name:
-        if isinstance(readset_id, int):
-            readset_id = [readset_id]
-        stmt = (select(Metric)
-                .join(Metric.readsets)
-                .where(Readset.id.in_(readset_id))
-                .join(Metric.readsets)
-                .join(Readset.sample)
-                .join(Sample.patient).
-                join(Patient.project).
-                where(Project.name.in_(project_name))
-                )
+        stmt = (
+            select(Metric)
+            .where(Metric.id.in_(metric_id))
+            .join(Metric.readsets)
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+    elif patient_id and project_name:
+        if isinstance(patient_id, int):
+            patient_id = [patient_id]
+        stmt = (
+            select(Metric)
+            .join(Metric.readsets)
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .where(Patient.id.in_(patient_id))
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
     elif sample_id and project_name:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
-        stmt = (select(Metric)
-                .join(Metric.readsets)
-                .join(Readset.sample)
-                .where(Sample.id.in_(sample_id))
-                .join(Metric.readsets)
-                .join(Readset.sample)
-                .join(Sample.patient).
-                join(Patient.project).
-                where(Project.name.in_(project_name))
-                )
+        stmt = (
+            select(Metric)
+            .join(Metric.readsets)
+            .join(Readset.sample)
+            .where(Sample.id.in_(sample_id))
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+    elif readset_id and project_name:
+        if isinstance(readset_id, int):
+            readset_id = [readset_id]
+        stmt = (
+            select(Metric)
+            .join(Metric.readsets)
+            .where(Readset.id.in_(readset_id))
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
 
     return session.scalars(stmt).unique().all()
 
@@ -114,16 +192,17 @@ def files(project_name, readset_id, run_processing=True):
     if project_name is  None and readset_id is None:
         stmt = select(File)
     elif project_name and readset_id and run_processing:
-        stmt = (select(File)
-                .join(File.readsets)
-                .where(Readset.id.in_(readset_id))
-                # .join(File.jobs)
-                # .where(Job.name==vb.RUN_PROCESSING)
-                .join(File.jobs)
-                .join(Job.operation)
-                .join(Operation.project)
-                .where(Project.name.in_(project_name))
-                )
+        stmt = (
+            select(File)
+            .join(File.readsets)
+            .where(Readset.id.in_(readset_id))
+            # .join(File.jobs)
+            # .where(Job.name==vb.RUN_PROCESSING)
+            .join(File.jobs)
+            .join(Job.operation)
+            .join(Operation.project)
+            .where(Project.name.in_(project_name))
+            )
 
     return session.scalars(stmt).unique().all()
 
@@ -140,42 +219,45 @@ def readsets(project_name=None, sample_id=None, readset_id=None):
     if project_name is None and sample_id is None and readset_id is None:
         stmt = select(Readset)
     elif project_name and sample_id is None and readset_id is None:
-        stmt = (select(Readset)
-                .join(Readset.sample)
-                .join(Sample.patient).
-                join(Patient.project).
-                where(Project.name.in_(project_name)))
+        stmt = (
+            select(Readset)
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
     elif sample_id and project_name:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
-        stmt = (select(Readset)
-                .join(Readset.sample)
-                .where(Sample.id.in_(sample_id)).where(Project.name.in_(project_name))
-                .join(Readset.sample)
-                .join(Sample.patient).
-                join(Patient.project).
-                where(Project.name.in_(project_name))
-                )
+        stmt = (
+            select(Readset)
+            .join(Readset.sample)
+            .where(Sample.id.in_(sample_id)).where(Project.name.in_(project_name))
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
     elif readset_id and project_name:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
-        stmt = (select(Readset)
-                .where(Readset.id.in_(readset_id))
-                .join(Readset.sample)
-                .join(Sample.patient).
-                join(Patient.project).
-                where(Project.name.in_(project_name))
-                )
+        stmt = (
+            select(Readset)
+            .where(Readset.id.in_(readset_id))
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
 
     return session.scalars(stmt).unique().all()
 
 
-
 def patient_pair(project_name: str, pair: bool, patient_id=None, tumor: bool=True):
     """
-    Pair = True: Returns only patients that have a tumorus and a normal sample
-    Pair = False, Tumor = True: Returns patients that only have a tumorus samples
-    Pair = False, Tumor = False: Returns  patients that only have a Normal samples
+    Pair = True: Returns only patients that have a tumor and a normal sample
+    Pair = False, Tumor = True: Returns patients that only have a tumor samples
+    Pair = False, Tumor = False: Returns  patients that only have a normal samples
     """
 
     session = database.get_session()
@@ -183,20 +265,35 @@ def patient_pair(project_name: str, pair: bool, patient_id=None, tumor: bool=Tru
         project_name = [project_name]
 
     if patient_id is None:
-        stmt1 = (select(Patient).join(Patient.samples).where(Sample.tumour == True)
-                 .where(Project.name.in_(project_name)))
-        stmt2 = (select(Patient).join(Patient.samples).where(Sample.tumour == False)
-                 .where(Project.name.in_(project_name)))
+        stmt1 = (
+            select(Patient)
+            .join(Patient.samples)
+            .where(Sample.tumour is True)
+            .where(Project.name.in_(project_name))
+            )
+        stmt2 = (
+            select(Patient)
+            .join(Patient.samples)
+            .where(Sample.tumour is False)
+            .where(Project.name.in_(project_name))
+            )
     else:
         if isinstance(patient_id, int):
             patient_id = [patient_id]
-        stmt1 = (select(Patient).join(Patient.samples).where(Sample.tumour == True)
-                 .where(Project.name.in_(project_name))
-                 .where(Patient.id.in_(patient_id)))
-        stmt2 = (select(Patient).join(Patient.samples).where(Sample.tumour == False)
-                 .where(Project.name.in_(project_name))
-                .where(Patient.id.in_(patient_id)))
-
+        stmt1 = (
+            select(Patient)
+            .join(Patient.samples)
+            .where(Sample.tumour is True)
+            .where(Project.name.in_(project_name))
+            .where(Patient.id.in_(patient_id))
+            )
+        stmt2 = (
+            select(Patient)
+            .join(Patient.samples)
+            .where(Sample.tumour is False)
+            .where(Project.name.in_(project_name))
+            .where(Patient.id.in_(patient_id))
+            )
 
     s1 = set(session.scalars(stmt1).all())
     s2 = set(session.scalars(stmt2).all())
@@ -208,8 +305,9 @@ def patient_pair(project_name: str, pair: bool, patient_id=None, tumor: bool=Tru
         return s2.difference(s1)
 
 
-def patients(project_name = None, patient_id = None):
-    """Fetchin all patients form projets or selected patient from id
+def patients(project_name=None, patient_id=None):
+    """
+    Fetching all patients from projets or selected patient from id
     """
     session = database.get_session()
     if isinstance(project_name, str):
@@ -228,12 +326,9 @@ def patients(project_name = None, patient_id = None):
     return session.scalars(stmt).unique().all()
 
 
-
-
-def samples(project_name= None, sample_id = None):
-    """Fetchin all projects in database
-    still need to check if sample are part of project when
-     both are provided
+def samples(project_name=None, sample_id=None):
+    """
+    Fetching all projects in database still need to check if sample are part of project when both are provided
     """
     session = database.get_session()
     if isinstance(project_name, str):
@@ -276,6 +371,7 @@ def create_project(project_name, fms_id=None, session=None):
         session.rollback()
 
     return session.scalars(select(Project).where(Project.name == project_name)).one()
+
 
 def ingest_run_processing(project_name, ingest_data, session=None):
     """Ingesting run for MoH"""
@@ -357,12 +453,17 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                     file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
                     if ".gz" in suffixes:
                         file_type = "".join(suffixes[-2:])
+                    if vb.FILE_DELIVERABLE in file_json:
+                        file_deliverable = file_json[vb.FILE_DELIVERABLE]
+                    else:
+                        file_deliverable = False
                     # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
                     if vb.FILE_EXTRA_METADATA in file_json.keys():
                         file = File(
                             name=file_json[vb.FILE_NAME],
                             type=file_type,
                             extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
+                            deliverable=file_deliverable,
                             readsets=[readset],
                             jobs=[job]
                             )
@@ -370,15 +471,21 @@ def ingest_run_processing(project_name, ingest_data, session=None):
                         file = File(
                             name=file_json[vb.FILE_NAME],
                             type=file_type,
+                            deliverable=file_deliverable,
                             readsets=[readset],
                             jobs=[job]
                             )
                     location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
                 for metric_json in readset_json[vb.METRIC]:
+                    if vb.METRIC_DELIVERABLE in metric_json:
+                        metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
+                    else:
+                        metric_deliverable = False
                     Metric(
                         name=metric_json[vb.METRIC_NAME],
                         value=metric_json[vb.METRIC_VALUE],
                         flag=FlagEnum(metric_json[vb.METRIC_FLAG]),
+                        deliverable=metric_deliverable,
                         job=job,
                         readsets=[readset]
                         )
@@ -693,12 +800,17 @@ def ingest_genpipes(project_name, ingest_data, session=None):
                     file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
                     if ".gz" in suffixes:
                         file_type = "".join(suffixes[-2:])
+                    if vb.FILE_DELIVERABLE in file_json:
+                        file_deliverable = file_json[vb.FILE_DELIVERABLE]
+                    else:
+                        file_deliverable = False
                     # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
                     if vb.FILE_EXTRA_METADATA in file_json.keys():
                         file = File(
                             name=file_json[vb.FILE_NAME],
                             type=file_type,
                             extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
+                            deliverable=file_deliverable,
                             readsets=[readset],
                             jobs=[job]
                             )
@@ -706,16 +818,22 @@ def ingest_genpipes(project_name, ingest_data, session=None):
                         file = File(
                             name=file_json[vb.FILE_NAME],
                             type=file_type,
+                            deliverable=file_deliverable,
                             readsets=[readset],
                             jobs=[job]
                             )
                     location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
                 if vb.METRIC in job_json.keys():
                     for metric_json in job_json[vb.METRIC]:
+                        if vb.METRIC_DELIVERABLE in metric_json:
+                            metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
+                        else:
+                            metric_deliverable = False
                         Metric(
                             name=metric_json[vb.METRIC_NAME],
                             value=metric_json[vb.METRIC_VALUE],
                             flag=FlagEnum(metric_json[vb.METRIC_FLAG]),
+                            deliverable=metric_deliverable,
                             job=job,
                             readsets=[readset]
                             )

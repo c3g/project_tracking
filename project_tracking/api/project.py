@@ -65,15 +65,15 @@ def patients(project_name: str, patient_id: str = None):
     return: list all patient or selected patient that are also par of <project>
 
     Query:
-    (pair, tumor):  Default (None, True)
+    (pair, tumor):  Default (None, true)
     The tumor query only have an effect if pair is false
-        (None, True/False):
+        (None, true/false):
             Return: all or selected patients (Default)
-        (true, True/False):
+        (true, true/false):
             Return: a subset of patient who have Tumor=False & Tumor=True samples
-        (false, True):
+        (false, true):
             return: a subset of patient who only have Tumor=True samples
-        (false, True):
+        (false, true):
             return: a subset of patient who only have Tumor=false samples
     """
 
@@ -93,10 +93,21 @@ def patients(project_name: str, patient_id: str = None):
     if patient_id is not None:
         patient_id = unroll(patient_id)
     if pair is not None:
-        return [i.flat_dict for i in db_action.patient_pair(project_name, patient_id=patient_id,
-                                                            pair=pair, tumor=tumor)]
+        return [
+        i.flat_dict for i in db_action.patient_pair(
+            project_name,
+            patient_id=patient_id,
+            pair=pair,
+            tumor=tumor
+            )
+        ]
     else:
-        return [i.flat_dict for i in db_action.patients(project_name, patient_id=patient_id)]
+        return [
+        i.flat_dict for i in db_action.patients(
+            project_name,
+            patient_id=patient_id
+            )
+        ]
 
 
 
@@ -259,25 +270,65 @@ def ingest_genpipes(project_name: str):
 
 
 @bp.route('/<string:project_name>/metrics/<string:metric_id>')
-@bp.route('/<string:project_name>/readsets/<string:readset_id>/metrics')
+@bp.route('/<string:project_name>/patients/<string:patient_id>/metrics')
 @bp.route('/<string:project_name>/samples/<string:sample_id>/metrics')
+@bp.route('/<string:project_name>/readsets/<string:readset_id>/metrics')
 @capitalize
-def metrics(project_name: str, readset_id: str=None, metric_id: str=None, sample_id: str=None):
+def metrics(project_name: str, patient_id: str=None, sample_id: str=None, readset_id: str=None, metric_id: str=None):
     """
-    metric_id : uses the form "1,3-8,9". Select metric by ids
-    redeaset_id : uses the form "1,3-8,9". Select metric by readset ids
-    sample_id : uses the form "1,3-8,9". Select metric by sample ids
-
+    metric_id: uses the form "1,3-8,9". Select metric by ids
+    patient_id: uses the form "1,3-8,9". Select metric by patient ids
+    sample_id: uses the form "1,3-8,9". Select metric by sample ids
+    redeaset_id: uses the form "1,3-8,9". Select metric by readset ids
     return: selected metrics
+
+    Query:
+    (deliverable):  Default (None)
+    The deliverable query allows to get all metrics labelled as deliverable
+        (None):
+            return: all or selected metrics (Default)
+        (true):
+            return: a subset of metrics who have Deliverable=True
+        (false):
+            return: a subset of metrics who have Deliverable=True
     """
 
+    query = request.args
+    # valid query
+    deliverable = None
+    if query.get('deliverable'):
+        if query['deliverable'].lower() in ['true', '1']:
+            deliverable = True
+        elif query['deliverable'].lower() in ['false', '0']:
+            deliverable = False
+
+    if patient_id is not None:
+        patient_id = unroll(patient_id)
+    if sample_id is not None:
+        sample_id = unroll(sample_id)
     if readset_id is not None:
         readset_id = unroll(readset_id)
     if metric_id is not None:
         metric_id = unroll(metric_id)
-    if sample_id is not None:
-        sample_id = unroll(sample_id)
 
-    return [i.flat_dict for i in db_action.metrics(project_name=project_name,
-                                                   readset_id=readset_id,
-                                                   metric_id=metric_id, sample_id=sample_id)]
+    if deliverable is not None:
+        return [
+        i.flat_dict for i in db_action.metrics_deliverable(
+            project_name=project_name,
+            patient_id=patient_id,
+            sample_id=sample_id,
+            readset_id=readset_id,
+            metric_id=metric_id,
+            deliverable=deliverable
+            )
+        ]
+    else:
+        return [
+        i.flat_dict for i in db_action.metrics(
+            project_name=project_name,
+            patient_id=patient_id,
+            sample_id=sample_id,
+            readset_id=readset_id,
+            metric_id=metric_id
+            )
+        ]
