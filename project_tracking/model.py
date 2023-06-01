@@ -476,7 +476,7 @@ class Readset(BaseTable):
     metrics: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readsets")
 
     @classmethod
-    def from_name(cls, name, sample, alias=None):
+    def from_name(cls, name, sample, alias=None, session=None):
         """
         get readset if it exist, set it if it does not exist
         """
