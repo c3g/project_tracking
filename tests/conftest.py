@@ -23,7 +23,7 @@ def pre_filled_model():
     op_c = model.OperationConfig(name=op_config_name, version=op_config_version)
     op_name = 'ingest'
     op = model.Operation(name=op_name,
-                         status=model.StatusEnum.DONE,
+                         status=model.StatusEnum.COMPLETED,
                          operation_config=op_c,
                          project=project)
 
@@ -40,8 +40,8 @@ def pre_filled_model():
     re2_name = 'goble_dable'
     re1 = model.Readset(name=re1_name, sample=sa, experiment=exp, run=ru)
     re2 = model.Readset(name=re2_name, sample=sa, experiment=exp, run=ru)
-    job1 = model.Job(operation=op, status=model.StatusEnum.DONE, readsets=[re1])
-    job2 = model.Job(operation=op, status=model.StatusEnum.DONE, readsets=[re2])
+    job1 = model.Job(operation=op, status=model.StatusEnum.COMPLETED, readsets=[re1])
+    job2 = model.Job(operation=op, status=model.StatusEnum.COMPLETED, readsets=[re2])
     me1_value = 'SHALLOW'
     me2_value = 'PRETTY DEEP'
     metric_name = 'trucmuche'
