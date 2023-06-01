@@ -24,7 +24,7 @@ def test_serialization(not_app_db):
     op_c = model.OperationConfig(name=op_config_name, version=op_config_version)
     project = model.Project(name=project_name)
     op = model.Operation(name=op_name,
-                         status=model.StatusEnum.DONE,
+                         status=model.StatusEnum.COMPLETED,
                          operation_config=op_c,
                          project=project)
 
@@ -34,8 +34,8 @@ def test_serialization(not_app_db):
     ru = model.Run(instrument=instrument, name=ru_name)
     re1 = model.Readset(name=re1_name, sample=sa, experiment=exp, run=ru)
     re2 = model.Readset(name=re2_name, sample=sa, experiment=exp, run=ru)
-    job1 = model.Job(operation=op, status=model.StatusEnum.DONE, readsets=[re1])
-    job2 = model.Job(operation=op, status=model.StatusEnum.DONE, readsets=[re2])
+    job1 = model.Job(operation=op, status=model.StatusEnum.COMPLETED, readsets=[re1])
+    job2 = model.Job(operation=op, status=model.StatusEnum.COMPLETED, readsets=[re2])
     metric1 = model.Metric(value=me1_value, job=job1, name=metric_name, readsets=[re1])
     metric2 = model.Metric(value=me2_value, job=job2, name=metric_name, readsets=[re2])
     file1 = model.File(name='my.fastq', readsets=[re1], jobs=[job1])
