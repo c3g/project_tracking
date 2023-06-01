@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, request, flash, redirect, json, abort
 from .. import db_action
 from .. import vocabulary as vc
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 bp = Blueprint('project', __name__, url_prefix='/project')
 
@@ -139,19 +139,70 @@ def readsets(project_name: str, readset_id: str=None):
     return [i.flat_dict for i in db_action.readsets(project_name, readset_id=readset_id)]
 
 
-@bp.route('/<string:project_name>/readsets/<string:readset_id>/ingestion/files')
+@bp.route('/<string:project_name>/files/<string:file_id>')
+@bp.route('/<string:project_name>/patients/<string:patient_id>/files')
+@bp.route('/<string:project_name>/samples/<string:sample_id>/files')
+@bp.route('/<string:project_name>/readsets/<string:readset_id>/files')
 @capitalize
-def files(project_name: str, readset_id: str=None):
+def files(project_name: str, patient_id: str=None, sample_id: str=None, readset_id: str=None, file_id: str=None):
     """
-    readset_id: uses the form "1,3-8,9", if not provided, all readsets are returned
-    return: selected readsets that are in sample_id and part of project
+    file_id: uses the form "1,3-8,9". Select file by ids
+    patient_id: uses the form "1,3-8,9". Select file by patient ids
+    sample_id: uses the form "1,3-8,9". Select file by sample ids
+    redeaset_id: uses the form "1,3-8,9". Select file by readset ids
+
+    return: selected files
+
+    Query:
+    (deliverable):  Default (None)
+    The deliverable query allows to get all files labelled as deliverable
+        (None):
+            return: all or selected metrics (Default)
+        (true):
+            return: a subset of metrics who have Deliverable=True
+        (false):
+            return: a subset of metrics who have Deliverable=True
     """
 
-    if readset_id is not None:
+    query = request.args
+    # valid query
+    deliverable = None
+    if query.get('deliverable'):
+        if query['deliverable'].lower() in ['true', '1']:
+            deliverable = True
+        elif query['deliverable'].lower() in ['false', '0']:
+            deliverable = False
+
+    if patient_id is not None:
+        patient_id = unroll(patient_id)
+    elif sample_id is not None:
+        sample_id = unroll(sample_id)
+    elif readset_id is not None:
         readset_id = unroll(readset_id)
+    elif file_id is not None:
+        file_id = unroll(file_id)
 
-    return [i.flat_dict for i in db_action.files(project_name, readset_id=readset_id)]
-
+    if deliverable is not None:
+        return [
+        i.flat_dict for i in db_action.files_deliverable(
+            project_name=project_name,
+            patient_id=patient_id,
+            sample_id=sample_id,
+            readset_id=readset_id,
+            file_id=file_id,
+            deliverable=deliverable
+            )
+        ]
+    else:
+        return [
+        i.flat_dict for i in db_action.files(
+            project_name=project_name,
+            patient_id=patient_id,
+            sample_id=sample_id,
+            readset_id=readset_id,
+            file_id=file_id
+            )
+        ]
 
 
 @bp.route('/<string:project_name>/samples/<string:sample_id>/readsets')
@@ -269,6 +320,7 @@ def ingest_genpipes(project_name: str):
         return [operation, jobs]
 
 
+@bp.route('/<string:project_name>/metrics', methods=['POST'])
 @bp.route('/<string:project_name>/metrics/<string:metric_id>')
 @bp.route('/<string:project_name>/patients/<string:patient_id>/metrics')
 @bp.route('/<string:project_name>/samples/<string:sample_id>/metrics')
@@ -280,6 +332,13 @@ def metrics(project_name: str, patient_id: str=None, sample_id: str=None, readse
     patient_id: uses the form "1,3-8,9". Select metric by patient ids
     sample_id: uses the form "1,3-8,9". Select metric by sample ids
     redeaset_id: uses the form "1,3-8,9". Select metric by readset ids
+
+    We also accespt POST data with comma separeted list
+    metric_name = <NAME>,[NAME],[]
+    readset_name = <NAME>,[NAME],[]
+    sample_name = <NAME>,[NAME],[]
+    patient_name = <NAME>,[NAME],[]
+
     return: selected metrics
 
     Query:
@@ -302,13 +361,28 @@ def metrics(project_name: str, patient_id: str=None, sample_id: str=None, readse
         elif query['deliverable'].lower() in ['false', '0']:
             deliverable = False
 
-    if patient_id is not None:
+    if request.method == 'POST':
+        post_data = request.data.decode()
+        post_input = post_data.split('=')
+        if post_input[0] in ["metric_name", "readset_name", "sample_name", "patient_name"]:
+            model_class = post_input[0].split('_')[0]
+            names = post_input[1].split(',')
+            ids = db_action.name_to_id(model_class.capitalize(), names)
+            if post_input[0] == "metric_name":
+                metric_id = ids
+            elif post_input[0] == "readset_name":
+                readset_id = ids
+            elif post_input[0] == "sample_name":
+                sample_id = ids
+            elif post_input[0] == "patient_name":
+                patient_id = ids
+    elif patient_id is not None:
         patient_id = unroll(patient_id)
-    if sample_id is not None:
+    elif sample_id is not None:
         sample_id = unroll(sample_id)
-    if readset_id is not None:
+    elif readset_id is not None:
         readset_id = unroll(readset_id)
-    if metric_id is not None:
+    elif metric_id is not None:
         metric_id = unroll(metric_id)
 
     if deliverable is not None:

@@ -36,6 +36,20 @@ from .model import (
 logger = logging.getLogger(__name__)
 
 
+def name_to_id(model_class, names, session=None):
+    """
+    Fetching all projects in database
+    """
+    if session is None:
+        session = database.get_session()
+    from . import model
+    the_class  = getattr(model, model_class)
+    if isinstance(names, str):
+        names = [names]
+    stmt = (select(the_class.id).where(the_class.name.in_(names)))
+
+    return session.scalars(stmt).unique().all()
+
 def projects(project_name=None, session=None):
     """
     Fetching all projects in database
@@ -114,6 +128,8 @@ def metrics_deliverable(project_name: str, deliverable: bool, patient_id=None, s
             .join(Patient.project)
             .where(Project.name.in_(project_name))
             )
+    else:
+        return ""
 
     return session.scalars(stmt).unique().all()
 
@@ -174,11 +190,80 @@ def metrics(project_name=None, patient_id=None, sample_id=None, readset_id=None,
             .join(Patient.project)
             .where(Project.name.in_(project_name))
             )
+    else:
+        return ""
 
     return session.scalars(stmt).unique().all()
 
 
-def files(project_name, readset_id, run_processing=True):
+def files_deliverable(project_name: str, deliverable: bool, patient_id=None, sample_id=None, readset_id=None, file_id=None):
+    """
+    deliverable = True: Returns only files labelled as deliverable
+    deliverable = False: Returns only files NOT labelled as deliverable
+    """
+
+    session = database.get_session()
+    if isinstance(project_name, str):
+        project_name = [project_name]
+
+    if file_id and project_name:
+        if isinstance(file_id, int):
+            file_id = [file_id]
+        stmt = (
+            select(File)
+            .where(File.deliverable == deliverable)
+            .where(File.id.in_(file_id))
+            .join(File.readsets)
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+    elif patient_id and project_name:
+        if isinstance(patient_id, int):
+            patient_id = [patient_id]
+        stmt = (
+            select(File)
+            .where(File.deliverable == deliverable)
+            .join(File.readsets)
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .where(Patient.id.in_(patient_id))
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+    elif sample_id and project_name:
+        if isinstance(sample_id, int):
+            sample_id = [sample_id]
+        stmt = (
+            select(File)
+            .where(File.deliverable == deliverable)
+            .join(File.readsets)
+            .join(Readset.sample)
+            .where(Sample.id.in_(sample_id))
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+    elif readset_id and project_name:
+        if isinstance(readset_id, int):
+            readset_id = [readset_id]
+        stmt = (
+            select(File)
+            .where(File.deliverable == deliverable)
+            .join(File.readsets)
+            .where(Readset.id.in_(readset_id))
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+    else:
+        return ""
+
+    return session.scalars(stmt).unique().all()
+
+def files(project_name=None, patient_id=None, sample_id=None, readset_id=None, file_id=None):
     """
     Fetching all files that are linked to readset
     """
@@ -186,23 +271,57 @@ def files(project_name, readset_id, run_processing=True):
 
     if isinstance(project_name, str):
         project_name = [project_name]
-    if isinstance(readset_id, str):
-        readset_id = [readset_id]
 
-    if project_name is  None and readset_id is None:
-        stmt = select(File)
-    elif project_name and readset_id and run_processing:
+    if file_id and project_name:
+        if isinstance(file_id, int):
+            metric_id = [metric_id]
+        stmt = (
+            select(File)
+            .where(File.id.in_(file_id))
+            .join(File.readsets)
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+    elif patient_id and project_name:
+        if isinstance(patient_id, int):
+            patient_id = [patient_id]
+        stmt = (
+            select(File)
+            .join(File.readsets)
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .where(Patient.id.in_(patient_id))
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+    elif sample_id and project_name:
+        if isinstance(sample_id, int):
+            sample_id = [sample_id]
+        stmt = (
+            select(File)
+            .join(File.readsets)
+            .join(Readset.sample)
+            .where(Sample.id.in_(sample_id))
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.name.in_(project_name))
+            )
+    elif readset_id and project_name:
+        if isinstance(readset_id, int):
+            readset_id = [readset_id]
         stmt = (
             select(File)
             .join(File.readsets)
             .where(Readset.id.in_(readset_id))
-            # .join(File.jobs)
-            # .where(Job.name==vb.RUN_PROCESSING)
-            .join(File.jobs)
-            .join(Job.operation)
-            .join(Operation.project)
+            .join(Readset.sample)
+            .join(Sample.patient)
+            .join(Patient.project)
             .where(Project.name.in_(project_name))
             )
+    else:
+        return ""
 
     return session.scalars(stmt).unique().all()
 
@@ -268,13 +387,13 @@ def patient_pair(project_name: str, pair: bool, patient_id=None, tumor: bool=Tru
         stmt1 = (
             select(Patient)
             .join(Patient.samples)
-            .where(Sample.tumour is True)
+            .where(Sample.tumour.is_(True))
             .where(Project.name.in_(project_name))
             )
         stmt2 = (
             select(Patient)
             .join(Patient.samples)
-            .where(Sample.tumour is False)
+            .where(Sample.tumour.is_(False))
             .where(Project.name.in_(project_name))
             )
     else:
@@ -283,18 +402,17 @@ def patient_pair(project_name: str, pair: bool, patient_id=None, tumor: bool=Tru
         stmt1 = (
             select(Patient)
             .join(Patient.samples)
-            .where(Sample.tumour is True)
+            .where(Sample.tumour.is_(True))
             .where(Project.name.in_(project_name))
             .where(Patient.id.in_(patient_id))
             )
         stmt2 = (
             select(Patient)
             .join(Patient.samples)
-            .where(Sample.tumour is False)
+            .where(Sample.tumour.is_(False))
             .where(Project.name.in_(project_name))
             .where(Patient.id.in_(patient_id))
             )
-
     s1 = set(session.scalars(stmt1).all())
     s2 = set(session.scalars(stmt2).all())
     if pair:
@@ -699,21 +817,33 @@ def digest_pair_file(project_name, digest_data, session=None):
     if vb.SAMPLE_NAME in digest_data.keys():
         for sample_name in digest_data[vb.SAMPLE_NAME]:
             sample = session.scalars(select(Sample).where(Sample.name == sample_name)).unique().first()
-            samples.append(sample)
+            if sample:
+                samples.append(sample)
+            else:
+                logger.warning(f"Sample with 'name' {sample_name} doesn't exist on database")
     if vb.SAMPLE_ID in digest_data.keys():
         for sample_id in digest_data[vb.SAMPLE_ID]:
             sample = session.scalars(select(Sample).where(Sample.id == sample_id)).unique().first()
-            samples.append(sample)
+            if sample:
+                samples.append(sample)
+            else:
+                logger.warning(f"Sample with 'id' {sample_id} doesn't exist on database")
     if vb.READSET_NAME in digest_data.keys():
         for readset_name in digest_data[vb.READSET_NAME]:
             readset = session.scalars(select(Readset).where(Readset.name == readset_name)).unique().first()
-            samples.append(readset.sample)
-            # readsets.append(readset)
+            if readset:
+                samples.append(readset.sample)
+                # readsets.append(readset)
+            else:
+                logger.warning(f"Readset with 'name' {readset_name} doesn't exist on database")
     if vb.READSET_ID in digest_data.keys():
         for readset_id in digest_data[vb.READSET_ID]:
             readset = session.scalars(select(Readset).where(Readset.id == readset_id)).unique().first()
-            samples.append(readset.sample)
-            # readsets.append(readset)
+            if readset:
+                samples.append(readset.sample)
+                # readsets.append(readset)
+            else:
+                logger.warning(f"Readset with 'id' {readset_id} doesn't exist on database")
     if samples:
         set(samples)
         for sample in samples:
