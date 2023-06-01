@@ -18,7 +18,7 @@
                             "job_name": "trimmomatic",
                             "job_start": "2023-03-15 00:17:24",
                             "job_stop": "2023-03-15 00:26:19",
-                            "job_status": "DONE",
+                            "job_status": "COMPLETED",
                             "file": [
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.pair1.fastq.gz",
@@ -48,7 +48,7 @@
                             "job_name": "kallisto",
                             "job_start": "2023-03-15 14:56:39",
                             "job_stop": "2023-03-15 18:32:07",
-                            "job_status": "DONE",
+                            "job_status": "COMPLETED",
                             "file": [
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_transcripts.tsv",

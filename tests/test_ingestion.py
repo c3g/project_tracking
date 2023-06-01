@@ -49,4 +49,8 @@ def test_create(not_app_db, run_processing_json, transfer_json, genpipes_json):
 
     [genpipes_operation, genpipes_jobs] = db_action.ingest_genpipes(project_name, genpipes_json, not_app_db)
 
+    assert isinstance(genpipes_operation, model.Operation)
+    for job in genpipes_jobs:
+        assert isinstance(job, model.Job)
+
     # assert 1 == 2
