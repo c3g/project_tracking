@@ -274,7 +274,7 @@ def files(project_name=None, patient_id=None, sample_id=None, readset_id=None, f
 
     if file_id and project_name:
         if isinstance(file_id, int):
-            metric_id = [metric_id]
+            file_id = [file_id]
         stmt = (
             select(File)
             .where(File.id.in_(file_id))
