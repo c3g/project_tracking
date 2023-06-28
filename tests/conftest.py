@@ -23,7 +23,7 @@ def pre_filled_model():
     op_c = model.OperationConfig(name=op_config_name, version=op_config_version)
     op_name = 'ingest'
     op = model.Operation(name=op_name,
-                         status=model.StatusEnum.DONE,
+                         status=model.StatusEnum.COMPLETED,
                          operation_config=op_c,
                          project=project)
 
@@ -40,8 +40,8 @@ def pre_filled_model():
     re2_name = 'goble_dable'
     re1 = model.Readset(name=re1_name, sample=sa, experiment=exp, run=ru)
     re2 = model.Readset(name=re2_name, sample=sa, experiment=exp, run=ru)
-    job1 = model.Job(operation=op, status=model.StatusEnum.DONE, readsets=[re1])
-    job2 = model.Job(operation=op, status=model.StatusEnum.DONE, readsets=[re2])
+    job1 = model.Job(operation=op, status=model.StatusEnum.COMPLETED, readsets=[re1])
+    job2 = model.Job(operation=op, status=model.StatusEnum.COMPLETED, readsets=[re2])
     me1_value = 'SHALLOW'
     me2_value = 'PRETTY DEEP'
     metric_name = 'trucmuche'
@@ -113,28 +113,26 @@ def client(app):
 def runner(app):
     return app.test_cli_runner()
 
+@pytest.fixture()
+def run_processing_json():
+    with open(os.path.join(os.path.dirname(__file__), 'data/run_processing.json'), 'r') as file:
+        data = json.load(file)
+    return data
 
 @pytest.fixture()
-def ingestion_csv():
-    data = []
-    with open(os.path.join(os.path.dirname(__file__), 'data/event.csv'), 'r') as fp:
-        csvReader = csv.DictReader(fp)
-
-        for row in csvReader:
-            # Assuming a column named 'No' to
-            # be the primary key
-            data.append(row)
-
-    return json.dumps(data)
-
-@pytest.fixture()
-def ingestion_json():
-    with open(os.path.join(os.path.dirname(__file__), 'data/event.json'), 'r') as file:
+def readset_file_json():
+    with open(os.path.join(os.path.dirname(__file__), 'data/readset_file.json'), 'r') as file:
         data = json.load(file)
     return data
 
 @pytest.fixture()
 def transfer_json():
     with open(os.path.join(os.path.dirname(__file__), 'data/transfer.json'), 'r') as file:
+        data = json.load(file)
+    return data
+
+@pytest.fixture()
+def genpipes_json():
+    with open(os.path.join(os.path.dirname(__file__), 'data/genpipes_rnaseqlight.json'), 'r') as file:
         data = json.load(file)
     return data

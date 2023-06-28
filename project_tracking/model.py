@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     JSON,
     Enum,
+    DateTime,
     select,
     Table,
     LargeBinary
@@ -27,6 +28,8 @@ from sqlalchemy.orm import (
     collections,
     attributes
     )
+
+from sqlalchemy.sql import func
 
 from sqlalchemy_json import mutable_json_type
 
@@ -56,8 +59,10 @@ class StatusEnum(enum.Enum):
     """
     PENDING = "PENDING"
     RUNNING = "RUNNING"
-    DONE = "DONE"
+    COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    OUT_OF_MEMORY = "OUT_OF_MEMORY"
+    CANCELLED = "CANCELLED"
 
 
 class FlagEnum(enum.Enum):
@@ -148,8 +153,10 @@ class BaseTable(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     deprecated: Mapped[bool] = mapped_column(default=False)
     deleted: Mapped[bool] = mapped_column(default=False)
-    creation: Mapped[datetime] = mapped_column(default=datetime.now(), nullable=True)
-    modification: Mapped[datetime] = mapped_column(default=None, nullable=True)
+    creation: Mapped[DateTime] = Column(DateTime(timezone=True), server_default=func.now())
+    # creation: Mapped[datetime] = mapped_column(default=datetime.now(), nullable=True)
+    # modification: Mapped[datetime] = mapped_column(default=None, nullable=True)
+    modification: Mapped[DateTime] = Column(DateTime(timezone=True), onupdate=func.now())
     extra_metadata: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
 
     def __repr__(self):
@@ -268,7 +275,7 @@ class Patient(BaseTable):
     samples: Mapped[list["Sample"]] = relationship(back_populates="patient")
 
     @classmethod
-    def from_name(cls ,name, project, cohort=None, institution=None, session=None):
+    def from_name(cls, name, project, cohort=None, institution=None, session=None):
         """
         get patient if it exist, set it if it does not exist
         """
@@ -467,6 +474,25 @@ class Readset(BaseTable):
     operations: Mapped[list["Operation"]] = relationship(secondary=readset_operation, back_populates="readsets")
     jobs: Mapped[list["Job"]] = relationship(secondary=readset_job, back_populates="readsets")
     metrics: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readsets")
+
+    @classmethod
+    def from_name(cls, name, sample, alias=None, session=None):
+        """
+        get readset if it exist, set it if it does not exist
+        """
+        if session is None:
+            session = database.get_session()
+
+        # Name is unique
+        readset = session.scalars(select(cls).where(cls.name == name)).first()
+
+        if not readset:
+            readset = cls(name=name, alias=alias, sample=sample)
+        else:
+            if readset.sample != sample:
+                logger.error(f"readset {readset.name} already attached to sample {sample.readset}")
+
+        return readset
 
 
 class Operation(BaseTable):

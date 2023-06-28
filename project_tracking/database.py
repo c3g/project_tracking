@@ -86,7 +86,7 @@ def close_db(no_app=False):
         session.remove()
 
 @click.command('init-db')
-@click.option('--db_uri', default=None)
+@click.option('--db-uri', default=None)
 @click.option('--flush', is_flag=True)
 def init_db_command(db_uri=None, flush=False):
     """Create new tables
