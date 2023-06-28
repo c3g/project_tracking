@@ -80,8 +80,8 @@ JOB = "job"
 JOB_NAME = "job_name"
 JOB_START = "job_start"
 JOB_STOP = "job_stop"
+JOB_STATUS = "job_status"
 # Following is not coming from JSON
-# JOB_STATUS = "job_status"
 # JOB_TYPE = "job_type" # What do we want for this one?
 
 # metric table
@@ -89,6 +89,7 @@ METRIC = "metric"
 METRIC_NAME = "metric_name"
 METRIC_VALUE = "metric_value"
 METRIC_FLAG = "metric_flag"
+METRIC_DELIVERABLE = "metric_deliverable"
 # Following is not coming from JSON
 # Defining all metrics in the table?
 # METRIC_RAW_READS_COUNT = "metric_raw_reads_count"

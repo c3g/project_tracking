@@ -17,6 +17,7 @@
                                     "job_name": "picard_sam_to_fastq",
                                     "job_start": "",
                                     "job_stop": "",
+                                    "job_status": "",
                                     "file": [
                                         {
                                             "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/raw_reads/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1.pair1.fastq.gz",
@@ -34,6 +35,7 @@
                                     "job_name": "skewer_trimming",
                                     "job_start": "",
                                     "job_stop": "",
+                                    "job_status": "",
                                     "file": [
                                         {
                                             "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1-trimmed-pair1.fastq.gz",
@@ -61,6 +63,7 @@
                                     "job_name": "bwa_mem_sambamba",
                                     "job_start": "",
                                     "job_stop": "",
+                                    "job_status": "",
                                     "file": [
                                         {
                                             "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1/MoHQ-CM-1-10-3393-1DT.A00266_0642_1.bam",
@@ -72,6 +75,7 @@
                                     "job_name": "sambamba_sort",
                                     "job_start": "",
                                     "job_stop": "",
+                                    "job_status": "",
                                     "file": [
                                         {
                                             "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1/MoHQ-CM-1-10-3393-1DT.A00266_0642_1.sorted.bam",
@@ -87,6 +91,7 @@
                                     "job_name": "sequenza",
                                     "job_start": "",
                                     "job_stop": "",
+                                    "job_status": "",
                                     "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/pairedVariants/MoHQ-CM-1-10/sequenza/rawSequenza",
                                     "file": [
                                         {
@@ -246,6 +251,7 @@
                                     "job_name": "sambamba_merge_sam_files",
                                     "job_start": "",
                                     "job_stop": "",
+                                    "job_status": "",
                                     "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT",
                                     "file": [
                                         {
@@ -257,6 +263,7 @@
                                     "job_name": "gatk_indel_realigner",
                                     "job_start": "",
                                     "job_stop": "",
+                                    "job_status": "",
                                     "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/realign/MoHQ-CM-1-10",
                                     "file": [
                                         {
@@ -463,6 +470,7 @@
                                     "job_name": "sambamba_merge_realigned",
                                     "job_start": "",
                                     "job_stop": "",
+                                    "job_status": "",
                                     "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1",
                                     "file": [
                                         {
@@ -477,6 +485,7 @@
                                     "job_name": "conpair_concordance_contamination",
                                     "job_start": "",
                                     "job_stop": "",
+                                    "job_status": "",
                                     "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1",
                                     "file": [
                                         {
@@ -491,6 +500,8 @@
                                     "job_name": "metrics_dna_picard_metrics",
                                     "job_start": "",
                                     "job_stop": "",
+                                    "job_status": "",
+
                                     "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1",
                                     "file": [
                                         {
@@ -505,6 +516,7 @@
                                     "job_name": "metrics_dna_sample_qualimap",
                                     "job_start": "",
                                     "job_stop": "",
+                                    "job_status": "",
                                     "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1",
                                     "file": [
                                         {
@@ -519,6 +531,7 @@
                                     "job_name": "metrics_dna_fastqc",
                                     "job_start": "",
                                     "job_stop": "",
+                                    "job_status": "",
                                     "bundle_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/alignment/MoHQ-CM-1-10-3393-1DT/MoHQ-CM-1-10-3393-1DT.A00266_0642_1",
                                     "file": [
                                         {

@@ -6,14 +6,14 @@ from flask import Blueprint, jsonify, request, flash, redirect, json, abort
 from .. import db_action
 from .. import vocabulary as vc
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 bp = Blueprint('project', __name__, url_prefix='/project')
 
 def unroll(string):
     """
-    string : includes number in the "1,3-7,9" form
-    return:  a list if int of the form [1,3,4,5,6,7,9]
+    string: includes number in the "1,3-7,9" form
+    return: a list if int of the form [1,3,4,5,6,7,9]
     """
 
     elem = [e for e in string.split(',') if e]
@@ -48,10 +48,10 @@ def capitalize(func):
 @capitalize
 def projects(project_name: str = None):
     """
-        return list of all projects the details of the poject with name "project_name"
+    return: list of all projects the details of the poject with name "project_name"
     """
     if project_name is None:
-        return {"Projetc list": [i.name for i in db_action.projects(project_name)]}
+        return {"Project list": [i.name for i in db_action.projects(project_name)]}
     return [i.flat_dict for i in db_action.projects(project_name)]
 
 
@@ -65,17 +65,16 @@ def patients(project_name: str, patient_id: str = None):
     return: list all patient or selected patient that are also par of <project>
 
     Query:
-    (pair, tumor):  Default (None, True)
+    (pair, tumor):  Default (None, true)
     The tumor query only have an effect if pair is false
-        (None, True/False):
+        (None, true/false):
             Return: all or selected patients (Default)
-        (true, True/False):
+        (true, true/false):
             Return: a subset of patient who have Tumor=False & Tumor=True samples
-        (false, True):
+        (false, true):
             return: a subset of patient who only have Tumor=True samples
-        (false, True):
+        (false, true):
             return: a subset of patient who only have Tumor=false samples
-
     """
 
     query = request.args
@@ -94,10 +93,21 @@ def patients(project_name: str, patient_id: str = None):
     if patient_id is not None:
         patient_id = unroll(patient_id)
     if pair is not None:
-        return [i.flat_dict for i in db_action.patient_pair(project_name, patient_id=patient_id,
-                                                            pair=pair, tumor=tumor)]
+        return [
+        i.flat_dict for i in db_action.patient_pair(
+            project_name,
+            patient_id=patient_id,
+            pair=pair,
+            tumor=tumor
+            )
+        ]
     else:
-        return [i.flat_dict for i in db_action.patients(project_name, patient_id=patient_id)]
+        return [
+        i.flat_dict for i in db_action.patients(
+            project_name,
+            patient_id=patient_id
+            )
+        ]
 
 
 
@@ -106,7 +116,7 @@ def patients(project_name: str, patient_id: str = None):
 @capitalize
 def samples(project_name: str, sample_id: str = None):
     """
-    sample_id : uses the form "1,3-8,9", if not provides, all sample are returned
+    sample_id: uses the form "1,3-8,9", if not provides, all sample are returned
     return: all or selected sample that are in sample_id and part of project
     """
     if sample_id is not None:
@@ -119,7 +129,7 @@ def samples(project_name: str, sample_id: str = None):
 @capitalize
 def readsets(project_name: str, readset_id: str=None):
     """
-    readset_id : uses the form "1,3-8,9", if not provided, all readsets are returned
+    readset_id: uses the form "1,3-8,9", if not provided, all readsets are returned
     return: selected readsets that are in sample_id and part of project
     """
 
@@ -129,26 +139,77 @@ def readsets(project_name: str, readset_id: str=None):
     return [i.flat_dict for i in db_action.readsets(project_name, readset_id=readset_id)]
 
 
-@bp.route('/<string:project_name>/readsets/<string:readset_id>/ingestion/files')
+@bp.route('/<string:project_name>/files/<string:file_id>')
+@bp.route('/<string:project_name>/patients/<string:patient_id>/files')
+@bp.route('/<string:project_name>/samples/<string:sample_id>/files')
+@bp.route('/<string:project_name>/readsets/<string:readset_id>/files')
 @capitalize
-def files(project_name: str, readset_id: str=None):
+def files(project_name: str, patient_id: str=None, sample_id: str=None, readset_id: str=None, file_id: str=None):
     """
-    readset_id : uses the form "1,3-8,9", if not provided, all readsets are returned
-    return: selected readsets that are in sample_id and part of project
+    file_id: uses the form "1,3-8,9". Select file by ids
+    patient_id: uses the form "1,3-8,9". Select file by patient ids
+    sample_id: uses the form "1,3-8,9". Select file by sample ids
+    redeaset_id: uses the form "1,3-8,9". Select file by readset ids
+
+    return: selected files
+
+    Query:
+    (deliverable):  Default (None)
+    The deliverable query allows to get all files labelled as deliverable
+        (None):
+            return: all or selected metrics (Default)
+        (true):
+            return: a subset of metrics who have Deliverable=True
+        (false):
+            return: a subset of metrics who have Deliverable=True
     """
 
-    if readset_id is not None:
+    query = request.args
+    # valid query
+    deliverable = None
+    if query.get('deliverable'):
+        if query['deliverable'].lower() in ['true', '1']:
+            deliverable = True
+        elif query['deliverable'].lower() in ['false', '0']:
+            deliverable = False
+
+    if patient_id is not None:
+        patient_id = unroll(patient_id)
+    elif sample_id is not None:
+        sample_id = unroll(sample_id)
+    elif readset_id is not None:
         readset_id = unroll(readset_id)
+    elif file_id is not None:
+        file_id = unroll(file_id)
 
-    return [i.flat_dict for i in db_action.files(project_name, readset_id=readset_id)]
-
+    if deliverable is not None:
+        return [
+        i.flat_dict for i in db_action.files_deliverable(
+            project_name=project_name,
+            patient_id=patient_id,
+            sample_id=sample_id,
+            readset_id=readset_id,
+            file_id=file_id,
+            deliverable=deliverable
+            )
+        ]
+    else:
+        return [
+        i.flat_dict for i in db_action.files(
+            project_name=project_name,
+            patient_id=patient_id,
+            sample_id=sample_id,
+            readset_id=readset_id,
+            file_id=file_id
+            )
+        ]
 
 
 @bp.route('/<string:project_name>/samples/<string:sample_id>/readsets')
 @capitalize
 def readsets_from_samples(project_name: str, sample_id: str):
     """
-    sample_id : uses the form "1,3-8,9"
+    sample_id: uses the form "1,3-8,9"
     return: readsets for slected sample_id
     """
 
@@ -200,7 +261,7 @@ def ingest_run_processing(project_name: str):
     """
 
     if request.method == 'GET':
-        return abort(405, "Use post methode to ingest runs")
+        return abort(405, "Use post method to ingest runs")
 
     if request.method == 'POST':
         try:
@@ -231,28 +292,117 @@ def ingest_transfer(project_name: str):
 
     return  [i.flat_dict for i in db_action.ingest_transfer(project_name=project_name, ingest_data=ingest_data)]
 
-
-@bp.route('/<string:project_name>/metrics/<string:metric_id>')
-@bp.route('/<string:project_name>/readsets/<string:readset_id>/metrics')
-@bp.route('/<string:project_name>/samples/<string:sample_id>/metrics')
+@bp.route('/<string:project_name>/ingest_genpipes', methods=['GET', 'POST'])
 @capitalize
-def metrics(project_name: str, readset_id: str=None, metric_id: str=None, sample_id: str=None):
+def ingest_genpipes(project_name: str):
     """
-    metric_id : uses the form "1,3-8,9". Select metric by ids
-    redeaset_id : uses the form "1,3-8,9". Select metric by readset ids
-    sample_id : uses the form "1,3-8,9". Select metric by sample ids
+    POST:  json describing genpipes
+    return: The Operation object and Jobs associated
+    """
+
+    if request.method == 'GET':
+        return abort(405, "Use post method to ingest genpipes analysis")
+
+    if request.method == 'POST':
+        try:
+            ingest_data = request.get_json(force=True)
+        except:
+            flash('Data does not seems to be json')
+            return redirect(request.url)
+
+        if project_name != ingest_data[vc.PROJECT_NAME].upper():
+            return abort(400, "project name in POST {} not Valid, {} requires"
+                         .format(ingest_data[vc.PROJECT_NAME].upper(), project_name))
+
+        output = db_action.ingest_genpipes(project_name=project_name.upper(), ingest_data=ingest_data)
+        operation = output[0].flat_dict
+        jobs = [job.flat_dict for job in output[1]]
+        return [operation, jobs]
+
+
+@bp.route('/<string:project_name>/metrics', methods=['POST'])
+@bp.route('/<string:project_name>/metrics/<string:metric_id>')
+@bp.route('/<string:project_name>/patients/<string:patient_id>/metrics')
+@bp.route('/<string:project_name>/samples/<string:sample_id>/metrics')
+@bp.route('/<string:project_name>/readsets/<string:readset_id>/metrics')
+@capitalize
+def metrics(project_name: str, patient_id: str=None, sample_id: str=None, readset_id: str=None, metric_id: str=None):
+    """
+    metric_id: uses the form "1,3-8,9". Select metric by ids
+    patient_id: uses the form "1,3-8,9". Select metric by patient ids
+    sample_id: uses the form "1,3-8,9". Select metric by sample ids
+    redeaset_id: uses the form "1,3-8,9". Select metric by readset ids
+
+    We also accespt POST data with comma separeted list
+    metric_name = <NAME>,[NAME],[]
+    readset_name = <NAME>,[NAME],[]
+    sample_name = <NAME>,[NAME],[]
+    patient_name = <NAME>,[NAME],[]
 
     return: selected metrics
+
+    Query:
+    (deliverable):  Default (None)
+    The deliverable query allows to get all metrics labelled as deliverable
+        (None):
+            return: all or selected metrics (Default)
+        (true):
+            return: a subset of metrics who have Deliverable=True
+        (false):
+            return: a subset of metrics who have Deliverable=True
     """
 
+    query = request.args
+    # valid query
+    deliverable = None
+    if query.get('deliverable'):
+        if query['deliverable'].lower() in ['true', '1']:
+            deliverable = True
+        elif query['deliverable'].lower() in ['false', '0']:
+            deliverable = False
 
-    if readset_id is not None:
-        readset_id = unroll(readset_id)
-    if metric_id is not None:
-        metric_id = unroll(metric_id)
-    if sample_id is not None:
+    if request.method == 'POST':
+        post_data = request.data.decode()
+        post_input = post_data.split('=')
+        if post_input[0] in ["metric_name", "readset_name", "sample_name", "patient_name"]:
+            model_class = post_input[0].split('_')[0]
+            names = post_input[1].split(',')
+            ids = db_action.name_to_id(model_class.capitalize(), names)
+            if post_input[0] == "metric_name":
+                metric_id = ids
+            elif post_input[0] == "readset_name":
+                readset_id = ids
+            elif post_input[0] == "sample_name":
+                sample_id = ids
+            elif post_input[0] == "patient_name":
+                patient_id = ids
+    elif patient_id is not None:
+        patient_id = unroll(patient_id)
+    elif sample_id is not None:
         sample_id = unroll(sample_id)
+    elif readset_id is not None:
+        readset_id = unroll(readset_id)
+    elif metric_id is not None:
+        metric_id = unroll(metric_id)
 
-    return [i.flat_dict for i in db_action.metrics(project_name=project_name,
-                                                   readset_id=readset_id,
-                                                   metric_id=metric_id, sample_id=sample_id)]
+    if deliverable is not None:
+        return [
+        i.flat_dict for i in db_action.metrics_deliverable(
+            project_name=project_name,
+            patient_id=patient_id,
+            sample_id=sample_id,
+            readset_id=readset_id,
+            metric_id=metric_id,
+            deliverable=deliverable
+            )
+        ]
+    else:
+        return [
+        i.flat_dict for i in db_action.metrics(
+            project_name=project_name,
+            patient_id=patient_id,
+            sample_id=sample_id,
+            readset_id=readset_id,
+            metric_id=metric_id
+            )
+        ]

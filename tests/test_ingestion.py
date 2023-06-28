@@ -25,7 +25,7 @@ def test_create_api(client, run_processing_json, app):
         s = database.get_session()
 
 
-def test_create(not_app_db, run_processing_json, transfer_json):
+def test_create(not_app_db, run_processing_json, transfer_json, genpipes_json):
     project_name = run_processing_json[vb.PROJECT_NAME]
     db_action.create_project(project_name, session=not_app_db)
 
@@ -47,7 +47,10 @@ def test_create(not_app_db, run_processing_json, transfer_json):
     assert isinstance(transfer_operation, model.Operation)
     assert isinstance(transfer_job, model.Job)
 
-    # db_action.digest_readset(run_processing_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/readset_file.tsv"), session=not_app_db)
-    # db_action.digest_pair(run_processing_json[vb.RUN_NAME], os.path.join(os.path.dirname(__file__), "data/pair_file.csv"), session=not_app_db)
+    [genpipes_operation, genpipes_jobs] = db_action.ingest_genpipes(project_name, genpipes_json, not_app_db)
+
+    assert isinstance(genpipes_operation, model.Operation)
+    for job in genpipes_jobs:
+        assert isinstance(job, model.Job)
 
     # assert 1 == 2
