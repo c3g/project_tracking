@@ -36,47 +36,77 @@ from .model import (
 logger = logging.getLogger(__name__)
 
 
-def name_to_id(model_class, names, session=None):
+class Error(Exception):
+    """Generic error for db_action"""
+    status_code = 400
+
+    def __init__(self, message, status_code=None, payload=None):
+        super().__init__()
+        self.message = message
+        if status_code is not None:
+            self.status_code = status_code
+        self.payload = payload
+
+    def to_dict(self):
+        rv = dict(self.payload or ())
+        rv['DB_ACTION_ERROR'] = self.message
+        return rv
+
+class DidNotFindError(Error):
+    """DidNotFind"""
+    def __init__(self, message=None, table=None, attribute=None, query=None):
+        super().__init__(message)
+        if message:
+            self.message = message
+        else:
+            self.message = f"{table} with {attribute} {query} doesn't exist on database"
+
+def name_to_id(model_class, name, session=None):
     """
-    Fetching all projects in database
+    Converting a given name into its id
     """
     if session is None:
         session = database.get_session()
     from . import model
     the_class  = getattr(model, model_class)
-    if isinstance(names, str):
-        names = [names]
-    stmt = (select(the_class.id).where(the_class.name.in_(names)))
+    if isinstance(name, str):
+        name = [name]
+    stmt = (select(the_class.id).where(the_class.name.in_(name)))
 
     return session.scalars(stmt).unique().all()
 
-def projects(project_name=None, session=None):
+def projects(project_id=None, session=None):
     """
     Fetching all projects in database
     """
     if session is None:
         session = database.get_session()
 
-    if project_name is None:
-        stmt = (select(Project))
+    if project_id is None:
+        stmt = select(Project)
+    elif project_id:
+        if isinstance(project_id, str):
+            project_id = [project_id]
+        stmt = (
+            select(Project)
+            .where(Project.id.in_(project_id))
+            )
     else:
-        if isinstance(project_name, str):
-            project_name = [project_name]
-        stmt = (select(Project).where(Project.name.in_(project_name)))
+        raise DidNotFindError(f"Requested Project doesn't exist. Please try again with one of the following: {session.scalars(select(Project.name)).unique().all()}")
 
     return session.scalars(stmt).unique().all()
 
-def metrics_deliverable(project_name: str, deliverable: bool, patient_id=None, sample_id=None, readset_id=None, metric_id=None):
+def metrics_deliverable(project_id: str, deliverable: bool, patient_id=None, sample_id=None, readset_id=None, metric_id=None):
     """
     deliverable = True: Returns only patients that have a tumor and a normal sample
     deliverable = False, Tumor = False: Returns  patients that only have a normal samples
     """
 
     session = database.get_session()
-    if isinstance(project_name, str):
-        project_name = [project_name]
+    if isinstance(project_id, str):
+        project_id = [project_id]
 
-    if metric_id and project_name:
+    if metric_id and project_id:
         if isinstance(metric_id, int):
             metric_id = [metric_id]
         stmt = (
@@ -87,9 +117,9 @@ def metrics_deliverable(project_name: str, deliverable: bool, patient_id=None, s
             .join(Readset.sample)
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif patient_id and project_name:
+    elif patient_id and project_id:
         if isinstance(patient_id, int):
             patient_id = [patient_id]
         stmt = (
@@ -100,9 +130,9 @@ def metrics_deliverable(project_name: str, deliverable: bool, patient_id=None, s
             .join(Sample.patient)
             .where(Patient.id.in_(patient_id))
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif sample_id and project_name:
+    elif sample_id and project_id:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
         stmt = (
@@ -113,9 +143,9 @@ def metrics_deliverable(project_name: str, deliverable: bool, patient_id=None, s
             .where(Sample.id.in_(sample_id))
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif readset_id and project_name:
+    elif readset_id and project_id:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
         stmt = (
@@ -126,7 +156,7 @@ def metrics_deliverable(project_name: str, deliverable: bool, patient_id=None, s
             .join(Readset.sample)
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
     else:
         return ""
@@ -134,15 +164,15 @@ def metrics_deliverable(project_name: str, deliverable: bool, patient_id=None, s
     return session.scalars(stmt).unique().all()
 
 
-def metrics(project_name=None, patient_id=None, sample_id=None, readset_id=None, metric_id=None):
+def metrics(project_id=None, patient_id=None, sample_id=None, readset_id=None, metric_id=None):
     """
     Fetching all metrics that are part of the project or patient or sample or readset
     """
     session = database.get_session()
-    if isinstance(project_name, str):
-        project_name = [project_name]
+    if isinstance(project_id, str):
+        project_id = [project_id]
 
-    if metric_id and project_name:
+    if metric_id and project_id:
         if isinstance(metric_id, int):
             metric_id = [metric_id]
         stmt = (
@@ -152,9 +182,9 @@ def metrics(project_name=None, patient_id=None, sample_id=None, readset_id=None,
             .join(Readset.sample)
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif patient_id and project_name:
+    elif patient_id and project_id:
         if isinstance(patient_id, int):
             patient_id = [patient_id]
         stmt = (
@@ -164,9 +194,9 @@ def metrics(project_name=None, patient_id=None, sample_id=None, readset_id=None,
             .join(Sample.patient)
             .where(Patient.id.in_(patient_id))
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif sample_id and project_name:
+    elif sample_id and project_id:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
         stmt = (
@@ -176,9 +206,9 @@ def metrics(project_name=None, patient_id=None, sample_id=None, readset_id=None,
             .where(Sample.id.in_(sample_id))
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif readset_id and project_name:
+    elif readset_id and project_id:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
         stmt = (
@@ -188,7 +218,7 @@ def metrics(project_name=None, patient_id=None, sample_id=None, readset_id=None,
             .join(Readset.sample)
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
     else:
         return ""
@@ -196,17 +226,17 @@ def metrics(project_name=None, patient_id=None, sample_id=None, readset_id=None,
     return session.scalars(stmt).unique().all()
 
 
-def files_deliverable(project_name: str, deliverable: bool, patient_id=None, sample_id=None, readset_id=None, file_id=None):
+def files_deliverable(project_id: str, deliverable: bool, patient_id=None, sample_id=None, readset_id=None, file_id=None):
     """
     deliverable = True: Returns only files labelled as deliverable
     deliverable = False: Returns only files NOT labelled as deliverable
     """
 
     session = database.get_session()
-    if isinstance(project_name, str):
-        project_name = [project_name]
+    if isinstance(project_id, str):
+        project_id = [project_id]
 
-    if file_id and project_name:
+    if file_id and project_id:
         if isinstance(file_id, int):
             file_id = [file_id]
         stmt = (
@@ -217,9 +247,9 @@ def files_deliverable(project_name: str, deliverable: bool, patient_id=None, sam
             .join(Readset.sample)
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif patient_id and project_name:
+    elif patient_id and project_id:
         if isinstance(patient_id, int):
             patient_id = [patient_id]
         stmt = (
@@ -230,9 +260,9 @@ def files_deliverable(project_name: str, deliverable: bool, patient_id=None, sam
             .join(Sample.patient)
             .where(Patient.id.in_(patient_id))
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif sample_id and project_name:
+    elif sample_id and project_id:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
         stmt = (
@@ -243,9 +273,9 @@ def files_deliverable(project_name: str, deliverable: bool, patient_id=None, sam
             .where(Sample.id.in_(sample_id))
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif readset_id and project_name:
+    elif readset_id and project_id:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
         stmt = (
@@ -256,23 +286,23 @@ def files_deliverable(project_name: str, deliverable: bool, patient_id=None, sam
             .join(Readset.sample)
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
     else:
         return ""
 
     return session.scalars(stmt).unique().all()
 
-def files(project_name=None, patient_id=None, sample_id=None, readset_id=None, file_id=None):
+def files(project_id=None, patient_id=None, sample_id=None, readset_id=None, file_id=None):
     """
     Fetching all files that are linked to readset
     """
     session = database.get_session()
 
-    if isinstance(project_name, str):
-        project_name = [project_name]
+    if isinstance(project_id, str):
+        project_id = [project_id]
 
-    if file_id and project_name:
+    if file_id and project_id:
         if isinstance(file_id, int):
             file_id = [file_id]
         stmt = (
@@ -282,9 +312,9 @@ def files(project_name=None, patient_id=None, sample_id=None, readset_id=None, f
             .join(Readset.sample)
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif patient_id and project_name:
+    elif patient_id and project_id:
         if isinstance(patient_id, int):
             patient_id = [patient_id]
         stmt = (
@@ -294,9 +324,9 @@ def files(project_name=None, patient_id=None, sample_id=None, readset_id=None, f
             .join(Sample.patient)
             .where(Patient.id.in_(patient_id))
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif sample_id and project_name:
+    elif sample_id and project_id:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
         stmt = (
@@ -306,9 +336,9 @@ def files(project_name=None, patient_id=None, sample_id=None, readset_id=None, f
             .where(Sample.id.in_(sample_id))
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif readset_id and project_name:
+    elif readset_id and project_id:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
         stmt = (
@@ -318,7 +348,7 @@ def files(project_name=None, patient_id=None, sample_id=None, readset_id=None, f
             .join(Readset.sample)
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
     else:
         return ""
@@ -326,38 +356,38 @@ def files(project_name=None, patient_id=None, sample_id=None, readset_id=None, f
     return session.scalars(stmt).unique().all()
 
 
-def readsets(project_name=None, sample_id=None, readset_id=None):
+def readsets(project_id=None, sample_id=None, readset_id=None):
     """
     Fetching all readsets that are part of the project or sample
     """
     session = database.get_session()
 
-    if isinstance(project_name, str):
-        project_name = [project_name]
+    if isinstance(project_id, str):
+        project_id = [project_id]
 
-    if project_name is None and sample_id is None and readset_id is None:
+    if project_id is None and sample_id is None and readset_id is None:
         stmt = select(Readset)
-    elif project_name and sample_id is None and readset_id is None:
+    elif project_id and sample_id is None and readset_id is None:
         stmt = (
             select(Readset)
             .join(Readset.sample)
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif sample_id and project_name:
+    elif sample_id and project_id:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
         stmt = (
             select(Readset)
             .join(Readset.sample)
-            .where(Sample.id.in_(sample_id)).where(Project.name.in_(project_name))
+            .where(Sample.id.in_(sample_id)).where(Project.id.in_(project_id))
             .join(Readset.sample)
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
-    elif readset_id and project_name:
+    elif readset_id and project_id:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
         stmt = (
@@ -366,13 +396,13 @@ def readsets(project_name=None, sample_id=None, readset_id=None):
             .join(Readset.sample)
             .join(Sample.patient)
             .join(Patient.project)
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
 
     return session.scalars(stmt).unique().all()
 
 
-def patient_pair(project_name: str, pair: bool, patient_id=None, tumor: bool=True):
+def patient_pair(project_id: str, pair: bool, patient_id=None, tumor: bool=True):
     """
     Pair = True: Returns only patients that have a tumor and a normal sample
     Pair = False, Tumor = True: Returns patients that only have a tumor samples
@@ -380,21 +410,21 @@ def patient_pair(project_name: str, pair: bool, patient_id=None, tumor: bool=Tru
     """
 
     session = database.get_session()
-    if isinstance(project_name, str):
-        project_name = [project_name]
+    if isinstance(project_id, str):
+        project_id = [project_id]
 
     if patient_id is None:
         stmt1 = (
             select(Patient)
             .join(Patient.samples)
             .where(Sample.tumour.is_(True))
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
         stmt2 = (
             select(Patient)
             .join(Patient.samples)
             .where(Sample.tumour.is_(False))
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             )
     else:
         if isinstance(patient_id, int):
@@ -403,14 +433,14 @@ def patient_pair(project_name: str, pair: bool, patient_id=None, tumor: bool=Tru
             select(Patient)
             .join(Patient.samples)
             .where(Sample.tumour.is_(True))
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             .where(Patient.id.in_(patient_id))
             )
         stmt2 = (
             select(Patient)
             .join(Patient.samples)
             .where(Sample.tumour.is_(False))
-            .where(Project.name.in_(project_name))
+            .where(Project.id.in_(project_id))
             .where(Patient.id.in_(patient_id))
             )
     s1 = set(session.scalars(stmt1).all())
@@ -423,39 +453,39 @@ def patient_pair(project_name: str, pair: bool, patient_id=None, tumor: bool=Tru
         return s2.difference(s1)
 
 
-def patients(project_name=None, patient_id=None):
+def patients(project_id=None, patient_id=None):
     """
     Fetching all patients from projets or selected patient from id
     """
     session = database.get_session()
-    if isinstance(project_name, str):
-        project_name = [project_name]
+    if isinstance(project_id, str):
+        project_id = [project_id]
 
-    if project_name is None and patient_id is None:
+    if project_id is None and patient_id is None:
         stmt = (select(Patient))
-    elif patient_id is None and project_name:
-        stmt = (select(Patient).join(Patient.project).where(Project.name.in_(project_name)))
+    elif patient_id is None and project_id:
+        stmt = (select(Patient).join(Patient.project).where(Project.id.in_(project_id)))
     else:
         if isinstance(patient_id, int):
             patient_id = [patient_id]
         stmt = (select(Patient).where(Patient.id.in_(patient_id))
-                .where(Project.name.in_(project_name)))
+                .where(Project.id.in_(project_id)))
 
     return session.scalars(stmt).unique().all()
 
 
-def samples(project_name=None, sample_id=None):
+def samples(project_id=None, sample_id=None):
     """
     Fetching all projects in database still need to check if sample are part of project when both are provided
     """
     session = database.get_session()
-    if isinstance(project_name, str):
-        project_name = [project_name]
-    if project_name is None:
+    if isinstance(project_id, str):
+        project_id = [project_id]
+    if project_id is None:
         stmt = (select(Sample))
     elif sample_id is None:
         stmt = (select(Sample).join(Sample.patient).join(Patient.project)
-                .where(Project.name.in_(project_name)))
+                .where(Project.id.in_(project_id)))
     else:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
@@ -463,7 +493,7 @@ def samples(project_name=None, sample_id=None):
                 .where(Sample.id.in_(sample_id))
                 .join(Sample.patient)
                 .join(Patient.project)
-                .where(Project.name.in_(project_name))
+                .where(Project.id.in_(project_id))
                 )
 
     return session.scalars(stmt).unique().all()
@@ -491,7 +521,7 @@ def create_project(project_name, fms_id=None, session=None):
     return session.scalars(select(Project).where(Project.name == project_name)).one()
 
 
-def ingest_run_processing(project_name, ingest_data, session=None):
+def ingest_run_processing(project_id, ingest_data, session=None):
     """Ingesting run for MoH"""
     if not isinstance(ingest_data, dict):
         ingest_data = json.loads(ingest_data)
@@ -499,7 +529,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
     if not session:
         session = database.get_session()
 
-    project = projects(project_name=project_name, session=session)[0]
+    project = projects(project_id=project_id, session=session)[0]
 
     operation = Operation(
         platform=ingest_data[vb.OPERATION_PLATFORM],
@@ -628,7 +658,7 @@ def ingest_run_processing(project_name, ingest_data, session=None):
     return [operation, job]
 
 
-def ingest_transfer(project_name, ingest_data, session=None, check_readset_name=True):
+def ingest_transfer(project_id, ingest_data, session=None, check_readset_name=True):
     """Ingesting transfer"""
     if not isinstance(ingest_data, dict):
         ingest_data = json.loads(ingest_data)
@@ -636,7 +666,7 @@ def ingest_transfer(project_name, ingest_data, session=None, check_readset_name=
     if not session:
         session = database.get_session()
 
-    project = projects(project_name=project_name, session=session)[0]
+    project = projects(project_id=project_id, session=session)[0]
 
     operation = Operation(
         platform=ingest_data[vb.OPERATION_PLATFORM],
@@ -667,7 +697,7 @@ def ingest_transfer(project_name, ingest_data, session=None, check_readset_name=
                     .where(Location.uri == src_uri)
                     ).unique().first()
                 if not file:
-                    raise Exception(f"No file with uri: {src_uri} and readset {readset_name}")
+                    raise DidNotFindError(f"No file with uri: {src_uri} and readset {readset_name}")
             else:
                 file = session.scalars(
                     select(File)
@@ -677,7 +707,7 @@ def ingest_transfer(project_name, ingest_data, session=None, check_readset_name=
                         .where(Location.uri == src_uri)
                 ).unique().first()
                 if not file:
-                    raise Exception(f"No file with uri: {src_uri}")
+                    raise DidNotFindError(f"No file with uri: {src_uri}")
 
             new_location = Location.from_uri(uri=dest_uri, file=file, session=session)
             file.jobs.append(job)
@@ -703,7 +733,7 @@ def ingest_transfer(project_name, ingest_data, session=None, check_readset_name=
     return [operation, job]
 
 
-def digest_readset_file(project_name, digest_data, session=None):
+def digest_readset_file(project_id, digest_data, session=None):
     """Digesting readset file fields for GenPipes"""
     if not session:
         session = database.get_session()
@@ -723,14 +753,15 @@ def digest_readset_file(project_name, digest_data, session=None):
             if sample:
                 samples.append(sample)
             else:
-                logger.warning(f"Sample with 'name' {sample_name} doesn't exist on database")
+                raise DidNotFindError(table="Sample", attribute="name", query=sample_name)
     if vb.SAMPLE_ID in digest_data.keys():
         for sample_id in digest_data[vb.SAMPLE_ID]:
+            # logger.debug(f"\n\n{sample_id}\n\n")
             sample = session.scalars(select(Sample).where(Sample.id == sample_id)).unique().first()
             if sample:
                 samples.append(sample)
             else:
-                logger.warning(f"Sample with 'id' {sample_id} doesn't exist on database")
+                raise DidNotFindError(table="Sample", attribute="id", query=sample_id)
     if samples:
         set(samples)
         for sample in samples:
@@ -742,19 +773,25 @@ def digest_readset_file(project_name, digest_data, session=None):
             if readset:
                 readsets.append(readset)
             else:
-                logger.warning(f"Readset with 'name' {readset_name} doesn't exist on database")
+                raise DidNotFindError(table="Readset", attribute="name", query=readset_name)
     if vb.READSET_ID in digest_data.keys():
         for readset_id in digest_data[vb.READSET_ID]:
             readset = session.scalars(select(Readset).where(Readset.id == readset_id)).unique().first()
             if readset:
                 readsets.append(readset)
             else:
-                logger.warning(f"Readset with 'id' {readset_id} doesn't exist on database")
+                raise DidNotFindError(table="Readset", attribute="id", query=readset_id)
     if readsets:
         set(readsets)
+        readset_files = []
         for readset in readsets:
             bed = ""
-            for file in readset.files:
+            for operation in [operation for operation in readset.operations if operation.name == 'run_processing']:
+                for job in operation.jobs:
+                    for file in job.files:
+                        if file in readset.files:
+                            readset_files.append(file)
+            for file in readset_files:
                 if file.type in ["fastq", "fq", "fq.gz", "fastq.gz"]:
                     bam = ""
                     if file.extra_metadata["read_type"] == "R1":
@@ -772,13 +809,13 @@ def digest_readset_file(project_name, digest_data, session=None):
                         else:
                             fastq1 = file.locations[-1].uri.split("://")[-1]
                 elif file.type == "bam":
-                    bam = ""
+                    # bam = ""
                     if location_endpoint:
                         for location in file.locations:
                             if location_endpoint == location.endpoint:
                                 bam = location.uri.split("://")[-1]
                         if not bam:
-                            raise ValueError(f"looking for bam file in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
+                            raise DidNotFindError(f"looking for bam file for Sample {readset.sample.name} and Readset {readset.name} in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
                     else:
                         bam = file.locations[-1].uri.split("://")[-1]
                     fastq1 = ""
@@ -801,10 +838,9 @@ def digest_readset_file(project_name, digest_data, session=None):
                 "BAM": bam
                 }
             output.append(readset_line)
+    return json.dumps(output)
 
-    return output
-
-def digest_pair_file(project_name, digest_data, session=None):
+def digest_pair_file(project_id, digest_data, session=None):
     """Digesting pair file fields for GenPipes"""
     if not session:
         session = database.get_session()
@@ -817,17 +853,18 @@ def digest_pair_file(project_name, digest_data, session=None):
     if vb.SAMPLE_NAME in digest_data.keys():
         for sample_name in digest_data[vb.SAMPLE_NAME]:
             sample = session.scalars(select(Sample).where(Sample.name == sample_name)).unique().first()
+            # logger.info(f"\n\n{sample}\n\n")
             if sample:
                 samples.append(sample)
             else:
-                logger.warning(f"Sample with 'name' {sample_name} doesn't exist on database")
+                raise DidNotFindError(table="Sample", attribute="name", query=sample_name)
     if vb.SAMPLE_ID in digest_data.keys():
         for sample_id in digest_data[vb.SAMPLE_ID]:
             sample = session.scalars(select(Sample).where(Sample.id == sample_id)).unique().first()
             if sample:
                 samples.append(sample)
             else:
-                logger.warning(f"Sample with 'id' {sample_id} doesn't exist on database")
+                raise DidNotFindError(table="Sample", attribute="id", query=sample_id)
     if vb.READSET_NAME in digest_data.keys():
         for readset_name in digest_data[vb.READSET_NAME]:
             readset = session.scalars(select(Readset).where(Readset.name == readset_name)).unique().first()
@@ -835,7 +872,7 @@ def digest_pair_file(project_name, digest_data, session=None):
                 samples.append(readset.sample)
                 # readsets.append(readset)
             else:
-                logger.warning(f"Readset with 'name' {readset_name} doesn't exist on database")
+                raise DidNotFindError(table="Readset", attribute="name", query=readset_name)
     if vb.READSET_ID in digest_data.keys():
         for readset_id in digest_data[vb.READSET_ID]:
             readset = session.scalars(select(Readset).where(Readset.id == readset_id)).unique().first()
@@ -843,7 +880,7 @@ def digest_pair_file(project_name, digest_data, session=None):
                 samples.append(readset.sample)
                 # readsets.append(readset)
             else:
-                logger.warning(f"Readset with 'id' {readset_id} doesn't exist on database")
+                raise DidNotFindError(table="Readset", attribute="id", query=readset_id)
     if samples:
         set(samples)
         for sample in samples:
@@ -865,9 +902,9 @@ def digest_pair_file(project_name, digest_data, session=None):
                 }
             output.append(pair_line)
 
-    return output
+    return json.dumps(output)
 
-def ingest_genpipes(project_name, ingest_data, session=None):
+def ingest_genpipes(project_id, ingest_data, session=None):
     """Ingesting GenPipes run"""
     if not isinstance(ingest_data, dict):
         ingest_data = json.loads(ingest_data)
@@ -875,7 +912,7 @@ def ingest_genpipes(project_name, ingest_data, session=None):
     if not session:
         session = database.get_session()
 
-    project = projects(project_name=project_name, session=session)[0]
+    project = projects(project_id=project_id, session=session)[0]
 
     operation_config = OperationConfig(
         name=ingest_data[vb.OPERATION_CONFIG_NAME],
@@ -899,16 +936,16 @@ def ingest_genpipes(project_name, ingest_data, session=None):
             .where(Sample.name == sample_json[vb.SAMPLE_NAME])
             ).unique().first()
         if not sample:
-            raise Exception(f"No sample named {sample_json[vb.SAMPLE_NAME]}")
+            raise DidNotFindError(f"No sample named {sample_json[vb.SAMPLE_NAME]}")
         for readset_json in sample_json[vb.READSET]:
             readset = session.scalars(
                 select(Readset)
                 .where(Readset.name == readset_json[vb.READSET_NAME])
                 ).unique().first()
             if not readset:
-                raise Exception(f"No readset named {readset_json[vb.READSET_NAME]}")
+                raise DidNotFindError(f"No readset named {readset_json[vb.READSET_NAME]}")
             if readset.sample != sample:
-                raise Exception(f"sample {sample_json[vb.SAMPLE_NAME]} not linked with readset {readset_json[vb.READSET_NAME]}")
+                raise DidNotFindError(f"sample {sample_json[vb.SAMPLE_NAME]} not linked with readset {readset_json[vb.READSET_NAME]}")
             for job_json in readset_json[vb.JOB]:
                 try:
                     job_start = datetime.strptime(job_json[vb.JOB_START], vb.DATE_LONG_FMT)

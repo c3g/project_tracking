@@ -2,8 +2,9 @@ import logging
 import os
 import datetime
 
-from flask import Flask, request, Response,make_response
+from flask import Flask, request, Response, make_response, json, jsonify
 
+from . import db_action
 from . import api
 from . import database
 
@@ -63,6 +64,11 @@ def create_app(test_config=None):
             request.user_agent,
             )
         return response
+
+    @app.errorhandler(db_action.Error)
+    def handle_exception(e):
+        """"""
+        return jsonify(e.to_dict())
 
     @app.route('/')
     def welcome():

@@ -26,5 +26,3 @@ def create_project(project_name: str):
     """
 
     return db_action.create_project(project_name=project_name.upper()).flat_dict
-
-
