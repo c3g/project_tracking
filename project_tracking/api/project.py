@@ -417,7 +417,7 @@ def ingest_run_processing(project_id: str):
             return redirect(request.url)
 
         project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
-        if project_id != project_id_from_name:
+        if [int(project_id)] != project_id_from_name:
             return abort(
                 400,
                 f"project name in POST {ingest_data[vc.PROJECT_NAME].upper()} not Valid"

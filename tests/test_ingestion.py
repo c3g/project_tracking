@@ -13,11 +13,14 @@ from project_tracking import create_app
 logger = logging.getLogger(__name__)
 
 def test_create_api(client, run_processing_json, app):
-    response = client.get('admin/create_project/MOH-Q')
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    project_id = "1"
+    response = client.get(f'admin/create_project/{project_name}')
     assert response.status_code == 200
-    assert json.loads(response.data)['name'] == 'MOH-Q'
+    assert json.loads(response.data)['name'] == f"{project_name}"
     assert json.loads(response.data)['id'] == 1
-    response = client.post('project/MOH-Q/ingest_run_processing', data=json.dumps(run_processing_json))
+    # project_id = db_action.name_to_id("Project", project_name)
+    response = client.post(f'project/{project_id}/ingest_run_processing', data=json.dumps(run_processing_json))
     assert response.status_code == 200
     assert json.loads(response.data)[0]['name'] == "run_processing"
     assert json.loads(response.data)[0]['id'] == 1
