@@ -920,7 +920,8 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
         name=ingest_data[vb.OPERATION_CONFIG_NAME],
         version=ingest_data[vb.OPERATION_CONFIG_VERSION],
         md5sum=ingest_data[vb.OPERATION_CONFIG_MD5SUM],
-        data=bytes(ingest_data[vb.OPERATION_CONFIG_DATA], 'utf-8')
+        data=bytes(ingest_data[vb.OPERATION_CONFIG_DATA], 'utf-8'),
+        session=session
         )
 
     operation = Operation(
