@@ -433,13 +433,14 @@ def ingest_transfer(project_id: str):
     Add new location to file that has already been moved before
     the db was created
     """
-    try:
-        ingest_data = request.get_json(force=True)
-    except:
-        flash('Data does not seems to be json')
-        return redirect(request.url)
+    if request.method == 'POST':
+        try:
+            ingest_data = request.get_json(force=True)
+        except:
+            flash('Data does not seems to be json')
+            return redirect(request.url)
 
-    return  [i.flat_dict for i in db_action.ingest_transfer(project_id=project_id, ingest_data=ingest_data)]
+        return [i.flat_dict for i in db_action.ingest_transfer(project_id=project_id, ingest_data=ingest_data)]
 
 @bp.route('/<string:project_id>/ingest_genpipes', methods=['GET', 'POST'])
 # @capitalize
@@ -463,13 +464,30 @@ def ingest_genpipes(project_id: str):
             return redirect(request.url)
 
         project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
-        if project_id != project_id_from_name:
+        if [int(project_id)] != project_id_from_name:
             return abort(
                 400,
-                f"project name in POST {ingest_data[vc.PROJECT_NAME].upper()} not Valid, {project_id} requires"
+                f"project name in POST {ingest_data[vc.PROJECT_NAME].upper()} not in the database, {project_id} required"
                 )
 
         output = db_action.ingest_genpipes(project_id=project_id, ingest_data=ingest_data)
         operation = output[0].flat_dict
         jobs = [job.flat_dict for job in output[1]]
         return [operation, jobs]
+
+@bp.route('/<string:project_id>/digest_unanalyzed', methods=['POST'])
+def digest_unanalyzed(project_id: str):
+    """
+    POST: list of Readset/Sample Name or id
+    return: Readsets or Samples unanalyzed
+    """
+    logger.debug(f"\n\n{project_id}\n\n")
+    if request.method == 'POST':
+        try:
+            ingest_data = request.get_json(force=True)
+        except:
+            flash('Data does not seems to be json')
+            return redirect(request.url)
+
+        return db_action.digest_unanalyzed(project_id=project_id, digest_data=ingest_data)
+        # return [i.flat_dict for i in db_action.digest_unanalyzed(project_id=project_id, digest_data=ingest_data)]
