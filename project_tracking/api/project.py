@@ -29,43 +29,40 @@ def unroll(string):
 
     return unroll_list
 
-def capitalize(func):
+def standardize_project(func):
     """
-    Capitalize project_name
+    Standardize project used by the client: allowing ID and name to be used
     """
     @functools.wraps(func)
-    def wrap(*args, project_name = None, **kwargs):
-        if isinstance(project_name, str):
-            project_name = project_name.upper()
-            if project_name not in [p.name for p in db_action.projects(project_name)]:
-                return abort(
-                    404,
-                    f"Project {project_name} not found"
-                    )
-        return func(*args, project_name=project_name, **kwargs)
+    def wrap(*args, project=None, **kwargs):
+        project_dict = {
+            "id": None,
+            "name": None
+        }
+        if project is None:
+            pass
+        elif project.isdigit():
+            project_dict["id"] = project
+        else:
+            project_dict["name"] = project.upper()
+            project_dict["id"] = db_action.name_to_id("Project", project_dict["name"])
+
+        return func(*args, project=project_dict, **kwargs)
     return wrap
 
 
 @bp.route('/')
-@bp.route('/<string:project_id>')
-# @capitalize
-def projects(project_id: str = None):
+@bp.route('/<string:project>')
+@standardize_project
+def projects(project: str = None):
     """
-    patient_id: uses the form "/project/1"
-    patient_name: uses the form "/project/'?name=<project_name>'"
+    project: uses the form "/project/1" for project ID and "/project/name" for project name
     return: list of all the details of the poject with name "project_name" or ID "project_id"
     """
-    query = request.args
-    # valid query
-    name = None
-    if query.get('name'):
-        name = query['name']
-    if name:
-        project_id = db_action.name_to_id("Project", name)
 
-    if project_id is None:
-        return {"Project list": [f"id: {i.id}, name: {i.name}" for i in db_action.projects(project_id)]}
-    return [i.flat_dict for i in db_action.projects(project_id)]
+    if project["id"] is None:
+        return {"Project list": [f"id: {project.id}, name: {project.name}" for project in db_action.projects(project["id"])]}
+    return [i.flat_dict for i in db_action.projects(project["id"])]
 
 
 
@@ -255,7 +252,7 @@ def files(project_id: str, patient_id: str=None, sample_id: str=None, readset_id
 @bp.route('/<string:project_id>/patients/<string:patient_id>/metrics')
 @bp.route('/<string:project_id>/samples/<string:sample_id>/metrics')
 @bp.route('/<string:project_id>/readsets/<string:readset_id>/metrics')
-@capitalize
+# @capitalize
 def metrics(project_id: str, patient_id: str=None, sample_id: str=None, readset_id: str=None, metric_id: str=None):
     """
     metric_id: uses the form "1,3-8,9". Select metric by ids

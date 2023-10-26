@@ -92,9 +92,16 @@ def projects(project_id=None, session=None):
             .where(Project.id.in_(project_id))
             )
     else:
-        raise DidNotFindError(f"Requested Project doesn't exist. Please try again with one of the following: {session.scalars(select(Project.name)).unique().all()}")
+        all_available = [f"id: {project.id}, name: {project.name}" for project in session.scalars(select(Project)).unique().all()]
+        raise DidNotFindError(f"Requested Project doesn't exist. Please try again with one of the following: {all_available}")
 
-    return session.scalars(stmt).unique().all()
+    ret = session.scalars(stmt).unique().all()
+
+    if not ret:
+        all_available = [f"id: {project.id}, name: {project.name}" for project in session.scalars(select(Project)).unique().all()]
+        raise DidNotFindError(f"Requested Project doesn't exist. Please try again with one of the following: {all_available}")
+
+    return ret
 
 def metrics_deliverable(project_id: str, deliverable: bool, patient_id=None, sample_id=None, readset_id=None, metric_id=None):
     """
