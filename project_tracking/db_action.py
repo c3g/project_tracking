@@ -91,17 +91,8 @@ def projects(project_id=None, session=None):
             select(Project)
             .where(Project.id.in_(project_id))
             )
-    else:
-        all_available = [f"id: {project.id}, name: {project.name}" for project in session.scalars(select(Project)).unique().all()]
-        raise DidNotFindError(f"Requested Project doesn't exist. Please try again with one of the following: {all_available}")
 
-    ret = session.scalars(stmt).unique().all()
-
-    if not ret:
-        all_available = [f"id: {project.id}, name: {project.name}" for project in session.scalars(select(Project)).unique().all()]
-        raise DidNotFindError(f"Requested Project doesn't exist. Please try again with one of the following: {all_available}")
-
-    return ret
+    return session.scalars(stmt).unique().all()
 
 def metrics_deliverable(project_id: str, deliverable: bool, patient_id=None, sample_id=None, readset_id=None, metric_id=None):
     """
@@ -469,14 +460,22 @@ def patients(project_id=None, patient_id=None):
         project_id = [project_id]
 
     if project_id is None and patient_id is None:
-        stmt = (select(Patient))
+        stmt = select(Patient)
     elif patient_id is None and project_id:
-        stmt = (select(Patient).join(Patient.project).where(Project.id.in_(project_id)))
+        stmt = (
+            select(Patient)
+            .join(Patient.project)
+            .where(Project.id.in_(project_id))
+            )
     else:
         if isinstance(patient_id, int):
             patient_id = [patient_id]
-        stmt = (select(Patient).where(Patient.id.in_(patient_id))
-                .where(Project.id.in_(project_id)))
+        stmt = (
+            select(Patient)
+            .where(Patient.id.in_(patient_id))
+            .join(Patient.project)
+            .where(Project.id.in_(project_id))
+            )
 
     return session.scalars(stmt).unique().all()
 
@@ -488,20 +487,26 @@ def samples(project_id=None, sample_id=None):
     session = database.get_session()
     if isinstance(project_id, str):
         project_id = [project_id]
+
     if project_id is None:
         stmt = (select(Sample))
     elif sample_id is None:
-        stmt = (select(Sample).join(Sample.patient).join(Patient.project)
-                .where(Project.id.in_(project_id)))
+        stmt = (
+            select(Sample)
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.id.in_(project_id))
+            )
     else:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
-        stmt = (select(Sample)
-                .where(Sample.id.in_(sample_id))
-                .join(Sample.patient)
-                .join(Patient.project)
-                .where(Project.id.in_(project_id))
-                )
+        stmt = (
+            select(Sample)
+            .where(Sample.id.in_(sample_id))
+            .join(Sample.patient)
+            .join(Patient.project)
+            .where(Project.id.in_(project_id))
+            )
 
     return session.scalars(stmt).unique().all()
 
@@ -750,11 +755,14 @@ def digest_readset_file(project_id: str, digest_data, session=None):
     samples = []
     readsets = []
     output = []
+    errors = {
+        "DB_ACTION_WARNING": []
+        }
+
+    location_endpoint = None
 
     if vb.LOCATION_ENDPOINT in digest_data.keys():
         location_endpoint = digest_data[vb.LOCATION_ENDPOINT]
-    else:
-        location_endpoint = None
 
     if vb.SAMPLE_NAME in digest_data.keys():
         for sample_name in digest_data[vb.SAMPLE_NAME]:
@@ -792,9 +800,13 @@ def digest_readset_file(project_id: str, digest_data, session=None):
                 raise DidNotFindError(table="Readset", attribute="id", query=readset_id)
     if readsets:
         set(readsets)
-        readset_files = []
         for readset in readsets:
-            bed = ""
+            readset_files = []
+            logger.debug(f"\n\n{readset}\n\n")
+            bed = None
+            fastq1 = None
+            fastq2 = None
+            bam = None
             for operation in [operation for operation in readset.operations if operation.name == 'run_processing']:
                 for job in operation.jobs:
                     for file in job.files:
@@ -802,33 +814,27 @@ def digest_readset_file(project_id: str, digest_data, session=None):
                             readset_files.append(file)
             for file in readset_files:
                 if file.type in ["fastq", "fq", "fq.gz", "fastq.gz"]:
-                    bam = ""
                     if file.extra_metadata["read_type"] == "R1":
                         if location_endpoint:
                             for location in file.locations:
                                 if location_endpoint == location.endpoint:
                                     fastq1 = location.uri.split("://")[-1]
-                        else:
-                            fastq1 = file.locations[-1].uri.split("://")[-1]
+                            if not fastq1:
+                                errors["DB_ACTION_WARNING"].append(f"Looking for fastq R1 file for Sample {readset.sample.name} and Readset {readset.name} in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
                     elif file.extra_metadata["read_type"] == "R2":
                         if location_endpoint:
                             for location in file.locations:
                                 if location_endpoint == location.endpoint:
-                                    fastq1 = location.uri.split("://")[-1]
-                        else:
-                            fastq1 = file.locations[-1].uri.split("://")[-1]
+                                    fastq2 = location.uri.split("://")[-1]
+                            if not fastq2:
+                                errors["DB_ACTION_WARNING"].append(f"Looking for fastq R2 file for Sample {readset.sample.name} and Readset {readset.name} in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
                 elif file.type == "bam":
-                    # bam = ""
                     if location_endpoint:
                         for location in file.locations:
                             if location_endpoint == location.endpoint:
                                 bam = location.uri.split("://")[-1]
                         if not bam:
-                            raise DidNotFindError(f"looking for bam file for Sample {readset.sample.name} and Readset {readset.name} in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
-                    else:
-                        bam = file.locations[-1].uri.split("://")[-1]
-                    fastq1 = ""
-                    fastq2 = ""
+                            errors["DB_ACTION_WARNING"].append(f"Looking for bam file for Sample {readset.sample.name} and Readset {readset.name} in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
                 if file.type == "bed":
                     bed = file.name
             readset_line = {
@@ -847,7 +853,11 @@ def digest_readset_file(project_id: str, digest_data, session=None):
                 "BAM": bam
                 }
             output.append(readset_line)
-    return json.dumps(output)
+    if errors["DB_ACTION_WARNING"]:
+        ret = errors
+    else:
+        ret = output
+    return json.dumps(ret)
 
 def digest_pair_file(project_id: str, digest_data, session=None):
     """Digesting pair file fields for GenPipes"""
