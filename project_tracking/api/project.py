@@ -452,10 +452,11 @@ def ingest_run_processing(project_id: str):
         if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
             return project_id
 
-        project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
 
-        if project_id != project_id_from_name:
-            return {"DB_ACTION_WARNING": f"Requested Project {project_id_from_name} in the input json is not matching the Project in the route {project_id}"}
+        if ingest_data[vc.PROJECT_NAME]:
+            project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
+            if project_id != project_id_from_name:
+                return {"DB_ACTION_WARNING": f"Requested Project {project_id_from_name} in the input json is not matching the Project in the route {project_id}"}
 
         return [i.flat_dict for i in db_action.ingest_run_processing(project_id=project_id, ingest_data=ingest_data)]
 
@@ -504,10 +505,11 @@ def ingest_genpipes(project_id: str):
         if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
             return project_id
 
-        project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
 
-        if project_id != project_id_from_name:
-            return {"DB_ACTION_WARNING": f"Requested Project {project_id_from_name} in the input json is not matching the Project in the route {project_id}"}
+        if ingest_data[vc.PROJECT_NAME]:
+            project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
+            if project_id != project_id_from_name:
+                return {"DB_ACTION_WARNING": f"Requested Project {project_id_from_name} in the input json is not matching the Project in the route {project_id}"}
 
         output = db_action.ingest_genpipes(project_id=project_id, ingest_data=ingest_data)
         operation = output[0].flat_dict
