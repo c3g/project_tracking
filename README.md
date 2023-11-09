@@ -19,7 +19,7 @@ python -m venv venv
 source ./venv/bin/activate
 pip install --upgrade pip
 pip install -e  .
-# Seting the db url is optiopnal, the default will be in the app installation folder
+# Setting the db url is optional, the default will be in the app installation folder
 export C3G_SQLALCHEMY_DATABASE_URI="sqlite:////tmp/my_test_db.sql"
 # initialyse the db
 flask --app project_tracking init-db
@@ -45,7 +45,7 @@ DOC:
 
 
 
-Once the server is running, you can still initialise the database, you can even flush it clear of any entry with 
+Once the server is running, you can still initialise the database, you can even flush it clear of any entry with:
 
 ```bash
 # WARNING this will erase all entry to you Database!

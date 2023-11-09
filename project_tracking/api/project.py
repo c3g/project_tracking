@@ -29,49 +29,56 @@ def unroll(string):
 
     return unroll_list
 
-def capitalize(func):
+def convcheck_project(func):
     """
-    Capitalize project_name
+    Converting project name to project id and checking if project found
     """
     @functools.wraps(func)
-    def wrap(*args, project_name = None, **kwargs):
-        if isinstance(project_name, str):
-            project_name = project_name.upper()
-            if project_name not in [p.name for p in db_action.projects(project_name)]:
-                return abort(
-                    404,
-                    f"Project {project_name} not found"
-                    )
-        return func(*args, project_name=project_name, **kwargs)
+    def wrap(*args, project=None, **kwargs):
+        if project is None:
+            project_id = None
+        elif project.isdigit():
+            project_id = project
+            if not db_action.projects(project_id):
+                all_available = [f"id: {project.id}, name: {project.name}" for project in db_action.projects()]
+                project_id = {"DB_ACTION_WARNING": f"Requested Project '{project}' doesn't exist. Please try again with one of the following: {all_available}"}
+        else:
+            project_id = db_action.name_to_id("Project", project.upper())
+            if not project_id:
+                all_available = [f"id: {project.id}, name: {project.name}" for project in db_action.projects()]
+                project_id = {"DB_ACTION_WARNING": f"Requested Project '{project}' doesn't exist. Please try again with one of the following: {all_available}"}
+
+        return func(*args, project_id=project_id, **kwargs)
     return wrap
+
+def sanity_check(item, action_output):
+    if not action_output:
+        ret = {"DB_ACTION_WARNING": f"Requested {item} doesn't exist."}
+    else:
+        ret = [i.flat_dict for i in action_output]
+    return ret
 
 
 @bp.route('/')
-@bp.route('/<string:project_id>')
-# @capitalize
+@bp.route('/<string:project>')
+@convcheck_project
 def projects(project_id: str = None):
     """
-    patient_id: uses the form "/project/1"
-    patient_name: uses the form "/project/'?name=<project_name>'"
+    project: uses the form "/project/1" for project ID and "/project/name" for project name
     return: list of all the details of the poject with name "project_name" or ID "project_id"
     """
-    query = request.args
-    # valid query
-    name = None
-    if query.get('name'):
-        name = query['name']
-    if name:
-        project_id = db_action.name_to_id("Project", name)
 
     if project_id is None:
-        return {"Project list": [f"id: {i.id}, name: {i.name}" for i in db_action.projects(project_id)]}
+        return {"Project list": [f"id: {project.id}, name: {project.name}" for project in db_action.projects(project_id)]}
+    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+        return project_id
+
     return [i.flat_dict for i in db_action.projects(project_id)]
 
 
-
-@bp.route('/<string:project_id>/patients')
-@bp.route('/<string:project_id>/patients/<string:patient_id>')
-# @capitalize
+@bp.route('/<string:project>/patients')
+@bp.route('/<string:project>/patients/<string:patient_id>')
+@convcheck_project
 def patients(project_id: str, patient_id: str = None):
     """
     patient_id: uses the form "1,3-8,9"
@@ -113,29 +120,28 @@ def patients(project_id: str, patient_id: str = None):
         for patient_name in name.split(","):
             patient_id.extend(db_action.name_to_id("Patient", patient_name))
 
+    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+        return project_id
+
     # pair being either True or False
     if pair is not None:
-        return [
-        i.flat_dict for i in db_action.patient_pair(
+        action_output = db_action.patient_pair(
             project_id,
             patient_id=patient_id,
             pair=pair,
             tumor=tumor
             )
-        ]
     else:
-        return [
-        i.flat_dict for i in db_action.patients(
+        action_output = db_action.patients(
             project_id,
             patient_id=patient_id
             )
-        ]
+    return sanity_check("Patient", action_output)
 
 
-
-@bp.route('/<string:project_id>/samples')
-@bp.route('/<string:project_id>/samples/<string:sample_id>')
-# @capitalize
+@bp.route('/<string:project>/samples')
+@bp.route('/<string:project>/samples/<string:sample_id>')
+@convcheck_project
 def samples(project_id: str, sample_id: str = None):
     """
     sample_id: uses the form "1,3-8,9", if not provides, all sample are returned
@@ -156,11 +162,16 @@ def samples(project_id: str, sample_id: str = None):
         for sample_name in name.split(","):
             sample_id.extend(db_action.name_to_id("Sample", sample_name))
 
-    return [i.flat_dict for i in db_action.samples(project_id, sample_id=sample_id)]
+    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+        return project_id
 
-@bp.route('/<string:project_id>/readsets')
-@bp.route('/<string:project_id>/readsets/<string:readset_id>')
-# @capitalize
+    action_output = db_action.samples(project_id, sample_id=sample_id)
+
+    return sanity_check("Sample", action_output)
+
+@bp.route('/<string:project>/readsets')
+@bp.route('/<string:project>/readsets/<string:readset_id>')
+@convcheck_project
 def readsets(project_id: str, readset_id: str=None):
     """
     readset_id: uses the form "1,3-8,9", if not provided, all readsets are returned
@@ -181,14 +192,19 @@ def readsets(project_id: str, readset_id: str=None):
         for readset_name in name.split(","):
             readset_id.extend(db_action.name_to_id("Readset", readset_name))
 
-    return [i.flat_dict for i in db_action.readsets(project_id, readset_id=readset_id)]
+    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+        return project_id
+
+    action_output = db_action.readsets(project_id, readset_id=readset_id)
+
+    return sanity_check("Readset", action_output)
 
 
-@bp.route('/<string:project_id>/files/<string:file_id>')
-@bp.route('/<string:project_id>/patients/<string:patient_id>/files')
-@bp.route('/<string:project_id>/samples/<string:sample_id>/files')
-@bp.route('/<string:project_id>/readsets/<string:readset_id>/files')
-# @capitalize
+@bp.route('/<string:project>/files/<string:file_id>')
+@bp.route('/<string:project>/patients/<string:patient_id>/files')
+@bp.route('/<string:project>/samples/<string:sample_id>/files')
+@bp.route('/<string:project>/readsets/<string:readset_id>/files')
+@convcheck_project
 def files(project_id: str, patient_id: str=None, sample_id: str=None, readset_id: str=None, file_id: str=None):
     """
     file_id: uses the form "1,3-8,9". Select file by ids
@@ -228,8 +244,7 @@ def files(project_id: str, patient_id: str=None, sample_id: str=None, readset_id
         file_id = unroll(file_id)
 
     if deliverable is not None:
-        return [
-        i.flat_dict for i in db_action.files_deliverable(
+        action_output = db_action.files_deliverable(
             project_id=project_id,
             patient_id=patient_id,
             sample_id=sample_id,
@@ -237,25 +252,28 @@ def files(project_id: str, patient_id: str=None, sample_id: str=None, readset_id
             file_id=file_id,
             deliverable=deliverable
             )
-        ]
     else:
-        return [
-        i.flat_dict for i in db_action.files(
+        action_output = db_action.files(
             project_id=project_id,
             patient_id=patient_id,
             sample_id=sample_id,
             readset_id=readset_id,
             file_id=file_id
             )
-        ]
+
+    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+        return project_id
+
+    return sanity_check("File", action_output)
 
 
-@bp.route('/<string:project_id>/metrics', methods=['POST'])
-@bp.route('/<string:project_id>/metrics/<string:metric_id>')
-@bp.route('/<string:project_id>/patients/<string:patient_id>/metrics')
-@bp.route('/<string:project_id>/samples/<string:sample_id>/metrics')
-@bp.route('/<string:project_id>/readsets/<string:readset_id>/metrics')
-@capitalize
+
+@bp.route('/<string:project>/metrics', methods=['POST'])
+@bp.route('/<string:project>/metrics/<string:metric_id>')
+@bp.route('/<string:project>/patients/<string:patient_id>/metrics')
+@bp.route('/<string:project>/samples/<string:sample_id>/metrics')
+@bp.route('/<string:project>/readsets/<string:readset_id>/metrics')
+@convcheck_project
 def metrics(project_id: str, patient_id: str=None, sample_id: str=None, readset_id: str=None, metric_id: str=None):
     """
     metric_id: uses the form "1,3-8,9". Select metric by ids
@@ -316,8 +334,7 @@ def metrics(project_id: str, patient_id: str=None, sample_id: str=None, readset_
         metric_id = unroll(metric_id)
 
     if deliverable is not None:
-        return [
-        i.flat_dict for i in db_action.metrics_deliverable(
+        action_output = db_action.metrics_deliverable(
             project_id=project_id,
             patient_id=patient_id,
             sample_id=sample_id,
@@ -325,24 +342,26 @@ def metrics(project_id: str, patient_id: str=None, sample_id: str=None, readset_
             metric_id=metric_id,
             deliverable=deliverable
             )
-        ]
     else:
-        return [
-        i.flat_dict for i in db_action.metrics(
+        action_output = db_action.metrics(
             project_id=project_id,
             patient_id=patient_id,
             sample_id=sample_id,
             readset_id=readset_id,
             metric_id=metric_id
             )
-        ]
 
-@bp.route('/<string:project_id>/samples/<string:sample_id>/readsets')
-# @capitalize
+    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+        return project_id
+
+    return sanity_check("Metric", action_output)
+
+@bp.route('/<string:project>/samples/<string:sample_id>/readsets')
+@convcheck_project
 def readsets_from_samples(project_id: str, sample_id: str):
     """
     sample_id: uses the form "1,3-8,9"
-    return: readsets for slected sample_id
+    return: readsets for selected sample_id
     """
 
     query = request.args
@@ -358,11 +377,16 @@ def readsets_from_samples(project_id: str, sample_id: str):
         for sample_name in name.split(","):
             sample_id.extend(db_action.name_to_id("Sample", sample_name))
 
-    return [i.flat_dict for i in db_action.readsets(project_id, sample_id)]
+    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+        return project_id
+
+    action_output = db_action.readsets(project_id, sample_id)
+
+    return sanity_check("Metric", action_output)
 
 
-@bp.route('/<string:project_id>/digest_readset_file', methods=['POST'])
-# @capitalize
+@bp.route('/<string:project>/digest_readset_file', methods=['POST'])
+@convcheck_project
 def digest_readset_file(project_id: str):
     """
     POST: list of Readset/Sample Name or id
@@ -376,10 +400,14 @@ def digest_readset_file(project_id: str):
             flash('Data does not seems to be json')
             return redirect(request.url)
 
+        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+            return project_id
+
         return db_action.digest_readset_file(project_id=project_id, digest_data=ingest_data)
 
-@bp.route('/<string:project_id>/digest_pair_file', methods=['POST'])
-# @capitalize
+
+@bp.route('/<string:project>/digest_pair_file', methods=['POST'])
+@convcheck_project
 def digest_pair_file(project_id: str):
     """
     POST: list of Readset/Sample Name or id
@@ -393,16 +421,21 @@ def digest_pair_file(project_id: str):
             flash('Data does not seems to be json')
             return redirect(request.url)
 
+        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+            return project_id
+
         return db_action.digest_pair_file(project_id=project_id, digest_data=ingest_data)
 
-@bp.route('/<string:project_id>/ingest_run_processing', methods=['GET', 'POST'])
-# @capitalize
+
+@bp.route('/<string:project>/ingest_run_processing', methods=['GET', 'POST'])
+@convcheck_project
 def ingest_run_processing(project_id: str):
     """
-    POST:  json describing run processing
+    POST: json describing run processing
     return: The Operation object
     """
 
+    # Is this if required?
     if request.method == 'GET':
         return abort(
             405,
@@ -416,39 +449,46 @@ def ingest_run_processing(project_id: str):
             flash('Data does not seems to be json')
             return redirect(request.url)
 
-        project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
-        if [int(project_id)] != project_id_from_name:
-            return abort(
-                400,
-                f"project name in POST {ingest_data[vc.PROJECT_NAME].upper()} not Valid"
-                )
+        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+            return project_id
+
+
+        if ingest_data[vc.PROJECT_NAME]:
+            project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
+            if project_id != project_id_from_name:
+                return {"DB_ACTION_WARNING": f"Requested Project {project_id_from_name} in the input json is not matching the Project in the route {project_id}"}
 
         return [i.flat_dict for i in db_action.ingest_run_processing(project_id=project_id, ingest_data=ingest_data)]
 
 
-@bp.route('/<string:project_id>/ingest_transfer', methods=['POST'])
-# @capitalize
+@bp.route('/<string:project>/ingest_transfer', methods=['POST'])
+@convcheck_project
 def ingest_transfer(project_id: str):
     """
-    Add new location to file that has already been moved before
-    the db was created
+    POST: json describing a transfer
+    return: The Operation object
     """
-    try:
-        ingest_data = request.get_json(force=True)
-    except:
-        flash('Data does not seems to be json')
-        return redirect(request.url)
+    if request.method == 'POST':
+        try:
+            ingest_data = request.get_json(force=True)
+        except:
+            flash('Data does not seems to be json')
+            return redirect(request.url)
 
-    return  [i.flat_dict for i in db_action.ingest_transfer(project_id=project_id, ingest_data=ingest_data)]
+        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+            return project_id
 
-@bp.route('/<string:project_id>/ingest_genpipes', methods=['GET', 'POST'])
-# @capitalize
+        return [i.flat_dict for i in db_action.ingest_transfer(project_id=project_id, ingest_data=ingest_data)]
+
+@bp.route('/<string:project>/ingest_genpipes', methods=['GET', 'POST'])
+@convcheck_project
 def ingest_genpipes(project_id: str):
     """
-    POST:  json describing genpipes
+    POST: json describing genpipes
     return: The Operation object and Jobs associated
     """
 
+    # Is this if required?
     if request.method == 'GET':
         return abort(
             405,
@@ -462,14 +502,35 @@ def ingest_genpipes(project_id: str):
             flash('Data does not seems to be json')
             return redirect(request.url)
 
-        project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
-        if project_id != project_id_from_name:
-            return abort(
-                400,
-                f"project name in POST {ingest_data[vc.PROJECT_NAME].upper()} not Valid, {project_id} requires"
-                )
+        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+            return project_id
+
+
+        if ingest_data[vc.PROJECT_NAME]:
+            project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
+            if project_id != project_id_from_name:
+                return {"DB_ACTION_WARNING": f"Requested Project {project_id_from_name} in the input json is not matching the Project in the route {project_id}"}
 
         output = db_action.ingest_genpipes(project_id=project_id, ingest_data=ingest_data)
         operation = output[0].flat_dict
         jobs = [job.flat_dict for job in output[1]]
         return [operation, jobs]
+
+@bp.route('/<string:project>/digest_unanalyzed', methods=['POST'])
+@convcheck_project
+def digest_unanalyzed(project_id: str):
+    """
+    POST: list of Readset/Sample Name or id
+    return: Readsets or Samples unanalyzed
+    """
+    if request.method == 'POST':
+        try:
+            ingest_data = request.get_json(force=True)
+        except:
+            flash('Data does not seems to be json')
+            return redirect(request.url)
+
+        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+            return project_id
+
+        return db_action.digest_unanalyzed(project_id=project_id, digest_data=ingest_data)

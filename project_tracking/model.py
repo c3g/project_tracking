@@ -556,6 +556,29 @@ class OperationConfig(BaseTable):
         """
         pass
 
+    @classmethod
+    def from_attributes(cls, name=None, version=None, md5sum=None, data=None, session=None):
+        """
+        get operation_config if it exist, set it if it does not exist
+        """
+        if not session:
+            session = database.get_session()
+        operation_config = session.scalars(
+            select(cls)
+                .where(cls.name == name)
+                .where(cls.version == version)
+                .where(cls.md5sum == md5sum)
+                .where(cls.data == data)
+        ).first()
+        if not operation_config:
+            operation_config = cls(
+                name=name,
+                version=version,
+                md5sum=md5sum,
+                data=data
+            )
+        return operation_config
+
 
 class Job(BaseTable):
     """
