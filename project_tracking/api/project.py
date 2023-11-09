@@ -454,7 +454,7 @@ def ingest_run_processing(project_id: str):
 
 
         if ingest_data[vc.PROJECT_NAME]:
-            project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
+            project_id_from_name = str(db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())[0])
             if project_id != project_id_from_name:
                 return {"DB_ACTION_WARNING": f"Requested Project {project_id_from_name} in the input json is not matching the Project in the route {project_id}"}
 
@@ -507,7 +507,7 @@ def ingest_genpipes(project_id: str):
 
 
         if ingest_data[vc.PROJECT_NAME]:
-            project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
+            project_id_from_name = str(db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())[0])
             if project_id != project_id_from_name:
                 return {"DB_ACTION_WARNING": f"Requested Project {project_id_from_name} in the input json is not matching the Project in the route {project_id}"}
 
