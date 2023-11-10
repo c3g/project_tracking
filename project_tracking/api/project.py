@@ -43,7 +43,7 @@ def convcheck_project(func):
                 all_available = [f"id: {project.id}, name: {project.name}" for project in db_action.projects()]
                 project_id = {"DB_ACTION_WARNING": f"Requested Project '{project}' doesn't exist. Please try again with one of the following: {all_available}"}
         else:
-            project_id = db_action.name_to_id("Project", project.upper())
+            project_id = str(db_action.name_to_id("Project", project.upper())[0])
             if not project_id:
                 all_available = [f"id: {project.id}, name: {project.name}" for project in db_action.projects()]
                 project_id = {"DB_ACTION_WARNING": f"Requested Project '{project}' doesn't exist. Please try again with one of the following: {all_available}"}
@@ -454,7 +454,7 @@ def ingest_run_processing(project_id: str):
 
 
         if ingest_data[vc.PROJECT_NAME]:
-            project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
+            project_id_from_name = str(db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())[0])
             if project_id != project_id_from_name:
                 return {"DB_ACTION_WARNING": f"Requested Project {project_id_from_name} in the input json is not matching the Project in the route {project_id}"}
 
@@ -507,7 +507,7 @@ def ingest_genpipes(project_id: str):
 
 
         if ingest_data[vc.PROJECT_NAME]:
-            project_id_from_name = db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())
+            project_id_from_name = str(db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())[0])
             if project_id != project_id_from_name:
                 return {"DB_ACTION_WARNING": f"Requested Project {project_id_from_name} in the input json is not matching the Project in the route {project_id}"}
 
