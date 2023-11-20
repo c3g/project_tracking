@@ -28,7 +28,7 @@ def pre_filled_model():
                          project=project)
 
     sequencing_technology = 'Fancy Buzzword'
-    exp = model.Experiment(sequencing_technology=sequencing_technology)
+    exp = model.Experiment(nucleic_acid_type=model.NucleicAcidTypeEnum.DNA)
     pa_name = "P_O"
     pa = model.Patient(name=pa_name, project=project)
     sa_name = 'gros_bobo'

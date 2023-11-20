@@ -8,7 +8,6 @@ def test_serialization(not_app_db):
     op_config_version = 0.1
     op_config_name = 'generic_index'
     op_name = 'ingest'
-    sequencing_technology = 'Fancy Buzzword'
     pa_name = "P_O"
     sa_name = 'gros_bobo'
     ru_name = "cure the Conglomerat old director's partner 01"
@@ -28,7 +27,7 @@ def test_serialization(not_app_db):
                          operation_config=op_c,
                          project=project)
 
-    exp = model.Experiment(sequencing_technology=sequencing_technology)
+    exp = model.Experiment(nucleic_acid_type=model.NucleicAcidTypeEnum.DNA)
     pa = model.Patient(name=pa_name, project=project)
     sa = model.Sample(name=sa_name, patient=pa)
     ru = model.Run(instrument=instrument, name=ru_name)
