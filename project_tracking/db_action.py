@@ -939,6 +939,7 @@ def digest_pair_file(project_id: str, digest_data, session=None):
 
     pair_dict = {}
     samples = []
+    patients = []
     # readsets = []
     output = []
 
