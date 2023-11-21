@@ -81,8 +81,8 @@ def projects(project_id: str = None):
 @convcheck_project
 def patients(project_id: str, patient_id: str = None):
     """
-    patient_id: uses the form "1,3-8,9"
-    return: list all patient or selected patient that are also par of <project>
+    patient_id: uses the form "1,3-8,9", if not provided all patients are returned
+    return: list all patients or selected patients, belonging to <project>
 
     Query:
     (pair, tumor):  Default (None, true)
@@ -144,8 +144,8 @@ def patients(project_id: str, patient_id: str = None):
 @convcheck_project
 def samples(project_id: str, sample_id: str = None):
     """
-    sample_id: uses the form "1,3-8,9", if not provides, all sample are returned
-    return: all or selected sample that are in sample_id and part of project
+    sample_id: uses the form "1,3-8,9", if not provided all samples are returned
+    return: list all patients or selected samples, belonging to <project>
     """
 
     query = request.args
@@ -174,8 +174,8 @@ def samples(project_id: str, sample_id: str = None):
 @convcheck_project
 def readsets(project_id: str, readset_id: str=None):
     """
-    readset_id: uses the form "1,3-8,9", if not provided, all readsets are returned
-    return: selected readsets that are in sample_id and part of project
+    readset_id: uses the form "1,3-8,9", if not provided all readsets are returned
+    return: list all patients or selected readsets, belonging to <project>
     """
 
     query = request.args
@@ -212,7 +212,7 @@ def files(project_id: str, patient_id: str=None, sample_id: str=None, readset_id
     sample_id: uses the form "1,3-8,9". Select file by sample ids
     redeaset_id: uses the form "1,3-8,9". Select file by readset ids
 
-    return: selected files
+    return: selected files, belonging to <project>
 
     Query:
     (deliverable):  Default (None)
@@ -281,13 +281,13 @@ def metrics(project_id: str, patient_id: str=None, sample_id: str=None, readset_
     sample_id: uses the form "1,3-8,9". Select metric by sample ids
     redeaset_id: uses the form "1,3-8,9". Select metric by readset ids
 
-    We also accespt POST data with comma separeted list
+    We also accept POST data with comma separeted list
     metric_name = <NAME> [,NAME] [...]
     readset_name = <NAME> [,NAME] [...]
     sample_name = <NAME> [,NAME] [...]
     patient_name = <NAME> [,NAME] [...]
 
-    return: selected metrics
+    return: selected metrics, belonging to <project>
 
     Query:
     (deliverable):  Default (None)
@@ -361,7 +361,7 @@ def metrics(project_id: str, patient_id: str=None, sample_id: str=None, readset_
 def readsets_from_samples(project_id: str, sample_id: str):
     """
     sample_id: uses the form "1,3-8,9"
-    return: readsets for selected sample_id
+    return: selected readsets belonging to <sample_id>
     """
 
     query = request.args
@@ -382,14 +382,14 @@ def readsets_from_samples(project_id: str, sample_id: str):
 
     action_output = db_action.readsets(project_id, sample_id)
 
-    return sanity_check("Metric", action_output)
+    return sanity_check("Readset", action_output)
 
 
 @bp.route('/<string:project>/digest_readset_file', methods=['POST'])
 @convcheck_project
 def digest_readset_file(project_id: str):
     """
-    POST: list of Readset/Sample Name or id
+    POST: json holding the list of Patient/Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type
     return: all information to create a "Genpipes readset file"
     """
 
@@ -410,7 +410,7 @@ def digest_readset_file(project_id: str):
 @convcheck_project
 def digest_pair_file(project_id: str):
     """
-    POST: list of Readset/Sample Name or id
+    POST: json holding the list of Patient/Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type
     return: all information to create a "Genpipes pair file"
     """
 
@@ -484,7 +484,7 @@ def ingest_transfer(project_id: str):
 @convcheck_project
 def ingest_genpipes(project_id: str):
     """
-    POST: json describing genpipes
+    POST: json describing genpipes analysis
     return: The Operation object and Jobs associated
     """
 
@@ -520,8 +520,8 @@ def ingest_genpipes(project_id: str):
 @convcheck_project
 def digest_unanalyzed(project_id: str):
     """
-    POST: list of Readset/Sample Name or id
-    return: Readsets or Samples unanalyzed
+    POST: json holding the list of Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type
+    return: Samples/Readsets unanalyzed with location endpoint + experiment nucleic_acid_type
     """
     if request.method == 'POST':
         try:

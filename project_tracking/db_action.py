@@ -1236,6 +1236,7 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
 
     output = {
         "location_endpoint": location_endpoint,
+        "experiment_nucleic_acid_type": experiment_nucleic_acid_type,
         key: session.scalars(stmt).unique().all()
     }
 
