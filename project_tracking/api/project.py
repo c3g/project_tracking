@@ -95,7 +95,7 @@ def patients(project_id: str, patient_id: str = None):
             Return: a subset of patient who have Tumor=False & Tumor=True samples
         (false, true):
             return: a subset of patient who only have Tumor=True samples
-        (false, true):
+        (false, false):
             return: a subset of patient who only have Tumor=false samples
     """
 

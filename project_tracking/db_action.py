@@ -792,7 +792,7 @@ def digest_readset_file(project_id: str, digest_data, session=None):
             if patient:
                 patients.append(patient)
             else:
-                raise DidNotFindError(table="Patient", attribute="name", query=patient_name)
+                raise DidNotFindError(f"'Patient' with 'name' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if vb.PATIENT_ID in digest_data.keys():
         for patient_id in digest_data[vb.PATIENT_ID]:
             # logger.debug(f"\n\n{patient_id}\n\n")
@@ -807,7 +807,7 @@ def digest_readset_file(project_id: str, digest_data, session=None):
             if patient:
                 patients.append(patient)
             else:
-                raise DidNotFindError(table="Patient", attribute="id", query=patient_id)
+                raise DidNotFindError(f"'Patient' with 'id' '{patient_id}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if patients:
         set(patients)
         for patient in patients:
@@ -827,7 +827,7 @@ def digest_readset_file(project_id: str, digest_data, session=None):
             if sample:
                 samples.append(sample)
             else:
-                raise DidNotFindError(table="Sample", attribute="name", query=sample_name)
+                raise DidNotFindError(f"'Sample' with 'name' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if vb.SAMPLE_ID in digest_data.keys():
         for sample_id in digest_data[vb.SAMPLE_ID]:
             # logger.debug(f"\n\n{sample_id}\n\n")
@@ -841,7 +841,7 @@ def digest_readset_file(project_id: str, digest_data, session=None):
             if sample:
                 samples.append(sample)
             else:
-                raise DidNotFindError(table="Sample", attribute="id", query=sample_id)
+                raise DidNotFindError(f"'Sample' with 'id' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if samples:
         set(samples)
         for sample in samples:
@@ -859,7 +859,7 @@ def digest_readset_file(project_id: str, digest_data, session=None):
             if readset:
                 readsets.append(readset)
             else:
-                raise DidNotFindError(table="Readset", attribute="name", query=readset_name)
+                raise DidNotFindError(f"'Readset' with 'name' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if vb.READSET_ID in digest_data.keys():
         for readset_id in digest_data[vb.READSET_ID]:
             readset = session.scalars(
@@ -871,7 +871,7 @@ def digest_readset_file(project_id: str, digest_data, session=None):
             if readset:
                 readsets.append(readset)
             else:
-                raise DidNotFindError(table="Readset", attribute="id", query=readset_id)
+                raise DidNotFindError(f"'Readset' with 'id' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if readsets:
         set(readsets)
         for readset in readsets:
