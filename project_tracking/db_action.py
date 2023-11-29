@@ -651,10 +651,14 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                         metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
                     else:
                         metric_deliverable = False
+                    if vb.METRIC_FLAG in metric_json:
+                        metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG])
+                    else:
+                        metric_flag = None
                     Metric(
                         name=metric_json[vb.METRIC_NAME],
                         value=metric_json[vb.METRIC_VALUE],
-                        flag=FlagEnum(metric_json[vb.METRIC_FLAG]),
+                        flag=metric_flag,
                         deliverable=metric_deliverable,
                         job=job,
                         readsets=[readset]
@@ -1150,10 +1154,14 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
                             metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
                         else:
                             metric_deliverable = False
+                        if vb.METRIC_FLAG in metric_json:
+                            metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG])
+                        else:
+                            metric_flag = None
                         Metric(
                             name=metric_json[vb.METRIC_NAME],
                             value=metric_json[vb.METRIC_VALUE],
-                            flag=FlagEnum(metric_json[vb.METRIC_FLAG]),
+                            flag=metric_flag,
                             deliverable=metric_deliverable,
                             job=job,
                             readsets=[readset]
