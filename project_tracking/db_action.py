@@ -1113,63 +1113,64 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
                     job_stop = datetime.strptime(job_json[vb.JOB_STOP], vb.DATE_LONG_FMT)
                 except TypeError:
                     job_stop = None
+                # Check if job_status exists otherwise skip it
                 if job_json[vb.JOB_STATUS]:
-                    job_status = StatusEnum(job_json[vb.JOB_STATUS])
+                    job = Job(
+                        name=job_json[vb.JOB_NAME],
+                        status=StatusEnum(job_json[vb.JOB_STATUS]),
+                        start=job_start,
+                        stop=job_stop,
+                        operation=operation
+                        )
+                    for file_json in job_json[vb.FILE]:
+                        suffixes = Path(file_json[vb.FILE_NAME]).suffixes
+                        file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
+                        if ".gz" in suffixes:
+                            file_type = "".join(suffixes[-2:])
+                        if vb.FILE_DELIVERABLE in file_json:
+                            file_deliverable = file_json[vb.FILE_DELIVERABLE]
+                        else:
+                            file_deliverable = False
+                        # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
+                        if vb.FILE_EXTRA_METADATA in file_json.keys():
+                            file = File(
+                                name=file_json[vb.FILE_NAME],
+                                type=file_type,
+                                extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
+                                deliverable=file_deliverable,
+                                readsets=[readset],
+                                jobs=[job]
+                                )
+                        else:
+                            file = File(
+                                name=file_json[vb.FILE_NAME],
+                                type=file_type,
+                                deliverable=file_deliverable,
+                                readsets=[readset],
+                                jobs=[job]
+                                )
+                        location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                    if vb.METRIC in job_json.keys():
+                        for metric_json in job_json[vb.METRIC]:
+                            if vb.METRIC_DELIVERABLE in metric_json:
+                                metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
+                            else:
+                                metric_deliverable = False
+                            if vb.METRIC_FLAG in metric_json:
+                                metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG])
+                            else:
+                                metric_flag = None
+                            Metric(
+                                name=metric_json[vb.METRIC_NAME],
+                                value=metric_json[vb.METRIC_VALUE],
+                                flag=metric_flag,
+                                deliverable=metric_deliverable,
+                                job=job,
+                                readsets=[readset]
+                                )
+                # If job status is null then skip it as we don't want to ingest data not generated
                 else:
-                    job_status = None
-                job = Job(
-                    name=job_json[vb.JOB_NAME],
-                    status=job_status,
-                    start=job_start,
-                    stop=job_stop,
-                    operation=operation
-                    )
-                for file_json in job_json[vb.FILE]:
-                    suffixes = Path(file_json[vb.FILE_NAME]).suffixes
-                    file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
-                    if ".gz" in suffixes:
-                        file_type = "".join(suffixes[-2:])
-                    if vb.FILE_DELIVERABLE in file_json:
-                        file_deliverable = file_json[vb.FILE_DELIVERABLE]
-                    else:
-                        file_deliverable = False
-                    # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
-                    if vb.FILE_EXTRA_METADATA in file_json.keys():
-                        file = File(
-                            name=file_json[vb.FILE_NAME],
-                            type=file_type,
-                            extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
-                            deliverable=file_deliverable,
-                            readsets=[readset],
-                            jobs=[job]
-                            )
-                    else:
-                        file = File(
-                            name=file_json[vb.FILE_NAME],
-                            type=file_type,
-                            deliverable=file_deliverable,
-                            readsets=[readset],
-                            jobs=[job]
-                            )
-                    location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
-                if vb.METRIC in job_json.keys():
-                    for metric_json in job_json[vb.METRIC]:
-                        if vb.METRIC_DELIVERABLE in metric_json:
-                            metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
-                        else:
-                            metric_deliverable = False
-                        if vb.METRIC_FLAG in metric_json:
-                            metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG])
-                        else:
-                            metric_flag = None
-                        Metric(
-                            name=metric_json[vb.METRIC_NAME],
-                            value=metric_json[vb.METRIC_VALUE],
-                            flag=metric_flag,
-                            deliverable=metric_deliverable,
-                            job=job,
-                            readsets=[readset]
-                            )
+                    pass
 
                 session.add(job)
                 session.flush()
