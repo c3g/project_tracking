@@ -1113,9 +1113,13 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
                     job_stop = datetime.strptime(job_json[vb.JOB_STOP], vb.DATE_LONG_FMT)
                 except TypeError:
                     job_stop = None
+                if job_json[vb.JOB_STATUS]:
+                    job_status = StatusEnum(job_json[vb.JOB_STATUS])
+                else:
+                    job_status = None
                 job = Job(
                     name=job_json[vb.JOB_NAME],
-                    status=StatusEnum(job_json[vb.JOB_STATUS]),
+                    status=job_status,
                     start=job_start,
                     stop=job_stop,
                     operation=operation
