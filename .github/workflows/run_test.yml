@@ -70,7 +70,7 @@ jobs:
           username: ${{ env.REGISTRY_USER }}
           password: ${{ env.REGISTRY_PASSWORD }}
           registry: ${{ env.IMAGE_REGISTRY }}
-          image: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}
+          image: ${{ env.IMAGE }}
           tags: ${{ env.RELEASE_VERSION }} latest_release
     - name: Print image url
       run: echo "Image pushed to ${{ steps.push-to-repo.outputs.registry-paths }}"
