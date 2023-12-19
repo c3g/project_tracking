@@ -1,4 +1,5 @@
-FROM fedora:36
+FROM fedora:39
+MAINTAINER P-O Quirion po.quirion@mcgill.ca 
 ENV APP=project_tracking
 
 RUN mkdir /app /sqlite
