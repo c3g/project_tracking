@@ -62,7 +62,7 @@ jobs:
       uses: redhat-actions/buildah-build@v2
       with:
         image: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}
-        tag: ${{ env.RELEASE_VERSION }} latest_release
+        tags: ${{ env.RELEASE_VERSION }} latest_release
         containerfiles: ./Containerfile
     - name: Push to repo
       uses: redhat-actions/push-to-registry@v2
@@ -71,7 +71,7 @@ jobs:
           password: ${{ env.REGISTRY_PASSWORD }}
           registry: ${{ env.IMAGE_REGISTRY }}
           image: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}
-          tag: ${{ env.RELEASE_VERSION }} latest_release
+          tags: ${{ env.RELEASE_VERSION }} latest_release
     - name: Print image url
       run: echo "Image pushed to ${{ steps.push-to-repo.outputs.registry-paths }}"
       
