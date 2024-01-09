@@ -2,7 +2,7 @@ import logging
 import os
 import datetime
 
-from flask import Flask, request, Response, make_response, json, jsonify
+from flask import Flask, request, Response, make_response, json, jsonify, render_template
 
 from . import db_action
 from . import api
@@ -11,7 +11,7 @@ from . import database
 
 def create_app(test_config=None):
     # create and configure the app
-    app = Flask(__name__, instance_relative_config=True,static_folder=None)
+    app = Flask(__name__, instance_relative_config=True)
     app.url_map.strict_slashes = False
 
     if app.config['DEBUG']:
@@ -75,7 +75,15 @@ def create_app(test_config=None):
         """
         Welcome page
         """
-        return 'Welcome to the TechDev tracking API!\n'
+        # return 'Welcome to the TechDev tracking API!\n'
+        return render_template('welcome.html')
+
+    @app.route('/about')
+    def about():
+        """
+        About page
+        """
+        return render_template('about.html')
 
     # Loadding the api, look at the api/__init__.py file to see
     # what is being registered

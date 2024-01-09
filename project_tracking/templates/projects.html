@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <button type="button" class="btn btn-link">
+    <a class="btn btn-light" href="{{ url_for('project.projects')}}" role="button">
+    <h1>{% block title %} Projects {% endblock %}</h1>
+    </a>
+    </button>
+    {# {{ projects }} #}
+    {% if 'DB_ACTION_WARNING' in projects %}
+        <h2>{{ projects['DB_ACTION_WARNING'] }}</h2>
+    {% elif 'Project list' in projects %}
+        <h2> All projects in the database: </h2>
+        {% for project in projects['Project list'] %}
+            <li><a href="{{ url_for('project.projects', project=project['id'])}}">{{ project['name'] }}</a></li>
+        {% endfor %}
+    {% else %}
+          <table id="data" class="table table-striped">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Alias</th>
+                <th>Creation</th>
+                <th>Patients</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for project in projects %}
+            <tr>
+              <td>{{ project.name }}</td>
+              <td>{{ project.alias }}</td>
+              <td>{{ project.creation }}</td>
+              <td><a href="{{ url_for('project.patients', project=project.id)}}">Patients</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+    {% endif %}
+{% endblock %}

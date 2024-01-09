@@ -1,7 +1,7 @@
 import logging
 import functools
 
-from flask import Blueprint, jsonify, request, flash, redirect, json, abort
+from flask import Blueprint, jsonify, request, flash, redirect, json, abort, render_template
 
 from .. import db_action
 from .. import vocabulary as vc
@@ -40,12 +40,12 @@ def convcheck_project(func):
         elif project.isdigit():
             project_id = project
             if not db_action.projects(project_id):
-                all_available = [f"id: {project.id}, name: {project.name}" for project in db_action.projects()]
+                all_available = [{"id": project.id, "name": project.name} for project in db_action.projects()]
                 project_id = {"DB_ACTION_WARNING": f"Requested Project '{project}' doesn't exist. Please try again with one of the following: {all_available}"}
         else:
             project_id = str(db_action.name_to_id("Project", project.upper())[0])
             if not project_id:
-                all_available = [f"id: {project.id}, name: {project.name}" for project in db_action.projects()]
+                all_available = [{"id": project.id, "name": project.name} for project in db_action.projects()]
                 project_id = {"DB_ACTION_WARNING": f"Requested Project '{project}' doesn't exist. Please try again with one of the following: {all_available}"}
 
         return func(*args, project_id=project_id, **kwargs)
@@ -68,13 +68,26 @@ def projects(project_id: str = None):
         project: uses the form "/project/1" for project ID and "/project/name" for project name
     return: list of all the details of the poject with name "project_name" or ID "project_id"
     """
+    # Test is accessed via web browser
+    web = "Sec-Fetch-Mode" in request.headers
 
     if project_id is None:
-        return {"Project list": [f"id: {project.id}, name: {project.name}" for project in db_action.projects(project_id)]}
+        all_projects = {"Project list": [{"id": project.id, "name": project.name} for project in db_action.projects(project_id)]}
+        if web:
+            return render_template('projects.html', projects=all_projects)
+        return all_projects
+    # When project_id doesn't exist
     if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+        if web:
+            return render_template('projects.html', projects=project_id)
         return project_id
 
-    return [i.flat_dict for i in db_action.projects(project_id)]
+    action_output = db_action.projects(project_id)
+    if web:
+        return render_template('projects.html', projects=action_output)
+
+    return sanity_check("Project", action_output)
+    # return [i.flat_dict for i in action_output]
 
 
 @bp.route('/<string:project>/patients')
@@ -98,6 +111,8 @@ def patients(project_id: str, patient_id: str = None):
         (false, false):
             return: a subset of patient who only have Tumor=false samples
     """
+    # Test is accessed via web browser
+    web = "Sec-Fetch-Mode" in request.headers
 
     query = request.args
     # valid query
@@ -123,6 +138,8 @@ def patients(project_id: str, patient_id: str = None):
             patient_id.extend(db_action.name_to_id("Patient", patient_name))
 
     if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+        if web:
+            return render_template('patients.html', project_id=project_id, patients=project_id)
         return project_id
 
     # pair being either True or False
@@ -138,6 +155,9 @@ def patients(project_id: str, patient_id: str = None):
             project_id,
             patient_id=patient_id
             )
+    if web:
+        return render_template('patients.html', project_id=project_id, patients=action_output)
+
     return sanity_check("Patient", action_output)
 
 
