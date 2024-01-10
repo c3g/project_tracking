@@ -30,7 +30,7 @@ classifiers = [
 ]
 dependencies = [
     "flask>=2.2.2",
-    "sqlalchemy>=2.0.0b3",
+    "sqlalchemy>=2.0.25",
     "gunicorn>=20.1.0",
     "sqlalchemy-json>=0.5.0"
 ]
