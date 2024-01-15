@@ -3,9 +3,9 @@ name: Tests suite
 on:
     pull_request:
         types: [opened, synchronize, reopened]
-        branches: ['main' 'dev']
+        branches: ['main', 'dev']
     push:
-        tags: '[0-9]+.[0-9]+.[0-9]+
+        tags: '[0-9]+.[0-9]+.[0-9]+'
 
 env:
     REGISTRY_USER: c3genomics+github_pusher
