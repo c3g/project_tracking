@@ -1,9 +1,9 @@
 ---
 name: Release
 on:
-release:
-    types:
-      - published
+    release:
+        types: [published]
+
 env:
   REGISTRY_USER: c3genomics+github_pusher
   IMAGE_REGISTRY: quay.io
