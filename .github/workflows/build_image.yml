@@ -1,5 +1,5 @@
 ---
-name: Tests suite
+name: Release
 on:
 release:
     types:
