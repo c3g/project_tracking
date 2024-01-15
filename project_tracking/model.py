@@ -35,6 +35,12 @@ from sqlalchemy_json import mutable_json_type
 
 from . import database
 
+class NucleicAcidTypeEnum(enum.Enum):
+    """nucleic_acid_type enum"""
+    DNA = "DNA"
+    RNA = "RNA"
+
+
 class LaneEnum(enum.Enum):
     """
     lane enum
@@ -43,6 +49,10 @@ class LaneEnum(enum.Enum):
     TWO = "2"
     THREE = "3"
     FOUR = "4"
+    FIVE = "5"
+    SIX = "6"
+    SEVEN = "7"
+    EIGHT = "8"
 
 
 class SequencingTypeEnum(enum.Enum):
@@ -90,6 +100,7 @@ class Base(DeclarativeBase):
     # this is needed for the enum to work properly right now
     # see https://github.com/sqlalchemy/sqlalchemy/discussions/8856
     type_annotation_map = {
+        NucleicAcidTypeEnum: Enum(NucleicAcidTypeEnum),
         LaneEnum: Enum(LaneEnum),
         SequencingTypeEnum: Enum(SequencingTypeEnum),
         StatusEnum: Enum(StatusEnum),
@@ -346,6 +357,7 @@ class Experiment(BaseTable):
         id integer [PK]
         sequencing_technology text
         type text
+        nucleic_acid_type nucleic_acid_type
         library_kit text
         kit_expiration_date text
         deprecated boolean
@@ -358,13 +370,22 @@ class Experiment(BaseTable):
 
     sequencing_technology: Mapped[str] = mapped_column(default=None, nullable=True)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
+    nucleic_acid_type: Mapped[NucleicAcidTypeEnum] = mapped_column(default=None, nullable=False)
     library_kit: Mapped[str] = mapped_column(default=None, nullable=True)
     kit_expiration_date: Mapped[datetime] = mapped_column(default=None, nullable=True)
 
     readsets: Mapped[list["Readset"]] = relationship(back_populates="experiment")
 
     @classmethod
-    def from_attributes(cls, sequencing_technology=None, type=None, library_kit=None, kit_expiration_date=None, session=None):
+    def from_attributes(
+        cls,
+        nucleic_acid_type,
+        sequencing_technology=None,
+        type=None,
+        library_kit=None,
+        kit_expiration_date=None,
+        session=None
+        ):
         """
         get experiment if it exist, set it if it does not exist
         """
@@ -374,6 +395,7 @@ class Experiment(BaseTable):
             select(cls)
                 .where(cls.sequencing_technology == sequencing_technology)
                 .where(cls.type == type)
+                .where(cls.nucleic_acid_type == nucleic_acid_type)
                 .where(cls.library_kit == library_kit)
                 .where(cls.kit_expiration_date == kit_expiration_date)
         ).first()
@@ -381,6 +403,7 @@ class Experiment(BaseTable):
             experiment = cls(
                 sequencing_technology=sequencing_technology,
                 type=type,
+                nucleic_acid_type=nucleic_acid_type,
                 library_kit=library_kit,
                 kit_expiration_date=kit_expiration_date
             )

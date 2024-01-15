@@ -53,13 +53,22 @@ class Error(Exception):
         return rv
 
 class DidNotFindError(Error):
-    """DidNotFind"""
+    """DidNotFindError"""
     def __init__(self, message=None, table=None, attribute=None, query=None):
         super().__init__(message)
         if message:
             self.message = message
         else:
-            self.message = f"{table} with {attribute} {query} doesn't exist on database"
+            self.message = f"'{table}' with '{attribute}' '{query}' doesn't exist on database"
+
+class RequestError(Error):
+    """RequestError"""
+    def __init__(self, message=None, argument=None):
+        super().__init__(message)
+        if message:
+            self.message = message
+        else:
+            self.message = f"For current request '{argument}' is required"
 
 def name_to_id(model_class, name, session=None):
     """
@@ -590,6 +599,7 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                 experiment = Experiment.from_attributes(
                     sequencing_technology=readset_json[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY],
                     type=readset_json[vb.EXPERIMENT_TYPE],
+                    nucleic_acid_type=readset_json[vb.EXPERIMENT_NUCLEIC_ACID_TYPE],
                     library_kit=readset_json[vb.EXPERIMENT_LIBRARY_KIT],
                     kit_expiration_date=kit_expiration_date,
                     session=session
@@ -641,10 +651,14 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                         metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
                     else:
                         metric_deliverable = False
+                    if vb.METRIC_FLAG in metric_json:
+                        metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG])
+                    else:
+                        metric_flag = None
                     Metric(
                         name=metric_json[vb.METRIC_NAME],
                         value=metric_json[vb.METRIC_VALUE],
-                        flag=FlagEnum(metric_json[vb.METRIC_FLAG]),
+                        flag=metric_flag,
                         deliverable=metric_deliverable,
                         job=job,
                         readsets=[readset]
@@ -752,6 +766,7 @@ def digest_readset_file(project_id: str, digest_data, session=None):
     if not session:
         session = database.get_session()
 
+    patients = []
     samples = []
     readsets = []
     output = []
@@ -760,49 +775,111 @@ def digest_readset_file(project_id: str, digest_data, session=None):
         }
 
     location_endpoint = None
-
     if vb.LOCATION_ENDPOINT in digest_data.keys():
         location_endpoint = digest_data[vb.LOCATION_ENDPOINT]
 
+    if vb.EXPERIMENT_NUCLEIC_ACID_TYPE in digest_data.keys():
+        nucleic_acid_type = digest_data[vb.EXPERIMENT_NUCLEIC_ACID_TYPE]
+    else:
+        raise RequestError(argument="experiment_nucleic_acid_type")
+
+    if vb.PATIENT_NAME in digest_data.keys():
+        for patient_name in digest_data[vb.PATIENT_NAME]:
+            patient = session.scalars(
+                select(Patient)
+                .where(Patient.name == patient_name)
+                .join(Patient.samples)
+                .join(Sample.readsets)
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
+            if patient:
+                patients.append(patient)
+            else:
+                raise DidNotFindError(f"'Patient' with 'name' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+    if vb.PATIENT_ID in digest_data.keys():
+        for patient_id in digest_data[vb.PATIENT_ID]:
+            # logger.debug(f"\n\n{patient_id}\n\n")
+            patient = session.scalars(
+                select(Patient)
+                .where(Patient.id == patient_id)
+                .join(Patient.samples)
+                .join(Sample.readsets)
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
+            if patient:
+                patients.append(patient)
+            else:
+                raise DidNotFindError(f"'Patient' with 'id' '{patient_id}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+    if patients:
+        set(patients)
+        for patient in patients:
+            for sample in patient.samples:
+                for readset in sample.readsets:
+                    readsets.append(readset)
+
     if vb.SAMPLE_NAME in digest_data.keys():
         for sample_name in digest_data[vb.SAMPLE_NAME]:
-            sample = session.scalars(select(Sample).where(Sample.name == sample_name)).unique().first()
+            sample = session.scalars(
+                select(Sample)
+                .where(Sample.name == sample_name)
+                .join(Sample.readsets)
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
             if sample:
                 samples.append(sample)
             else:
-                raise DidNotFindError(table="Sample", attribute="name", query=sample_name)
+                raise DidNotFindError(f"'Sample' with 'name' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if vb.SAMPLE_ID in digest_data.keys():
         for sample_id in digest_data[vb.SAMPLE_ID]:
             # logger.debug(f"\n\n{sample_id}\n\n")
-            sample = session.scalars(select(Sample).where(Sample.id == sample_id)).unique().first()
+            sample = session.scalars(
+                select(Sample)
+                .where(Sample.id == sample_id)
+                .join(Sample.readsets)
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
             if sample:
                 samples.append(sample)
             else:
-                raise DidNotFindError(table="Sample", attribute="id", query=sample_id)
+                raise DidNotFindError(f"'Sample' with 'id' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if samples:
         set(samples)
         for sample in samples:
             for readset in sample.readsets:
                 readsets.append(readset)
+
     if vb.READSET_NAME in digest_data.keys():
         for readset_name in digest_data[vb.READSET_NAME]:
-            readset = session.scalars(select(Readset).where(Readset.name == readset_name)).unique().first()
+            readset = session.scalars(
+                select(Readset)
+                .where(Readset.name == readset_name)
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
             if readset:
                 readsets.append(readset)
             else:
-                raise DidNotFindError(table="Readset", attribute="name", query=readset_name)
+                raise DidNotFindError(f"'Readset' with 'name' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if vb.READSET_ID in digest_data.keys():
         for readset_id in digest_data[vb.READSET_ID]:
-            readset = session.scalars(select(Readset).where(Readset.id == readset_id)).unique().first()
+            readset = session.scalars(
+                select(Readset)
+                .where(Readset.id == readset_id)
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
             if readset:
                 readsets.append(readset)
             else:
-                raise DidNotFindError(table="Readset", attribute="id", query=readset_id)
+                raise DidNotFindError(f"'Readset' with 'id' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if readsets:
         set(readsets)
         for readset in readsets:
             readset_files = []
-            logger.debug(f"\n\n{readset}\n\n")
             bed = None
             fastq1 = None
             fastq2 = None
@@ -866,38 +943,97 @@ def digest_pair_file(project_id: str, digest_data, session=None):
 
     pair_dict = {}
     samples = []
+    patients = []
     # readsets = []
     output = []
 
+    if vb.EXPERIMENT_NUCLEIC_ACID_TYPE in digest_data.keys():
+        nucleic_acid_type = digest_data[vb.EXPERIMENT_NUCLEIC_ACID_TYPE]
+    else:
+        raise RequestError(argument="experiment_nucleic_acid_type")
+
+    if vb.PATIENT_NAME in digest_data.keys():
+        for patient_name in digest_data[vb.PATIENT_NAME]:
+            patient = session.scalars(
+                select(Patient)
+                .where(Patient.name == patient_name)
+                .join(Patient.samples)
+                .join(Sample.readsets)
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
+            if patient:
+                patients.append(patient)
+            else:
+                raise DidNotFindError(table="Patient", attribute="name", query=patient_name)
+    if vb.PATIENT_ID in digest_data.keys():
+        for patient_id in digest_data[vb.PATIENT_ID]:
+            patient = session.scalars(
+                select(Patient)
+                .where(Patient.id == patient_id)
+                .join(Patient.samples)
+                .join(Sample.readsets)
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
+            if patient:
+                patients.append(patient)
+            else:
+                raise DidNotFindError(table="Patient", attribute="id", query=patient_id)
+    if patients:
+        set(patients)
+        for patient in patients:
+            for sample in patient.samples:
+                samples.append(sample)
+
     if vb.SAMPLE_NAME in digest_data.keys():
         for sample_name in digest_data[vb.SAMPLE_NAME]:
-            sample = session.scalars(select(Sample).where(Sample.name == sample_name)).unique().first()
-            # logger.info(f"\n\n{sample}\n\n")
+            sample = session.scalars(
+                select(Sample)
+                .where(Sample.name == sample_name)
+                .join(Sample.readsets)
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
             if sample:
                 samples.append(sample)
             else:
                 raise DidNotFindError(table="Sample", attribute="name", query=sample_name)
     if vb.SAMPLE_ID in digest_data.keys():
         for sample_id in digest_data[vb.SAMPLE_ID]:
-            sample = session.scalars(select(Sample).where(Sample.id == sample_id)).unique().first()
+            sample = session.scalars(
+                select(Sample)
+                .where(Sample.id == sample_id)
+                .join(Sample.readsets)
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
             if sample:
                 samples.append(sample)
             else:
                 raise DidNotFindError(table="Sample", attribute="id", query=sample_id)
     if vb.READSET_NAME in digest_data.keys():
         for readset_name in digest_data[vb.READSET_NAME]:
-            readset = session.scalars(select(Readset).where(Readset.name == readset_name)).unique().first()
+            readset = session.scalars(
+                select(Readset)
+                .where(Readset.name == readset_name)
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
             if readset:
                 samples.append(readset.sample)
-                # readsets.append(readset)
             else:
                 raise DidNotFindError(table="Readset", attribute="name", query=readset_name)
     if vb.READSET_ID in digest_data.keys():
         for readset_id in digest_data[vb.READSET_ID]:
-            readset = session.scalars(select(Readset).where(Readset.id == readset_id)).unique().first()
+            readset = session.scalars(
+                select(Readset)
+                .where(Readset.id == readset_id)
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
             if readset:
                 samples.append(readset.sample)
-                # readsets.append(readset)
             else:
                 raise DidNotFindError(table="Readset", attribute="id", query=readset_id)
     if samples:
@@ -977,55 +1113,64 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
                     job_stop = datetime.strptime(job_json[vb.JOB_STOP], vb.DATE_LONG_FMT)
                 except TypeError:
                     job_stop = None
-                job = Job(
-                    name=job_json[vb.JOB_NAME],
-                    status=StatusEnum(job_json[vb.JOB_STATUS]),
-                    start=job_start,
-                    stop=job_stop,
-                    operation=operation
-                    )
-                for file_json in job_json[vb.FILE]:
-                    suffixes = Path(file_json[vb.FILE_NAME]).suffixes
-                    file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
-                    if ".gz" in suffixes:
-                        file_type = "".join(suffixes[-2:])
-                    if vb.FILE_DELIVERABLE in file_json:
-                        file_deliverable = file_json[vb.FILE_DELIVERABLE]
-                    else:
-                        file_deliverable = False
-                    # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
-                    if vb.FILE_EXTRA_METADATA in file_json.keys():
-                        file = File(
-                            name=file_json[vb.FILE_NAME],
-                            type=file_type,
-                            extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
-                            deliverable=file_deliverable,
-                            readsets=[readset],
-                            jobs=[job]
-                            )
-                    else:
-                        file = File(
-                            name=file_json[vb.FILE_NAME],
-                            type=file_type,
-                            deliverable=file_deliverable,
-                            readsets=[readset],
-                            jobs=[job]
-                            )
-                    location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
-                if vb.METRIC in job_json.keys():
-                    for metric_json in job_json[vb.METRIC]:
-                        if vb.METRIC_DELIVERABLE in metric_json:
-                            metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
+                # Check if job_status exists otherwise skip it
+                if job_json[vb.JOB_STATUS]:
+                    job = Job(
+                        name=job_json[vb.JOB_NAME],
+                        status=StatusEnum(job_json[vb.JOB_STATUS]),
+                        start=job_start,
+                        stop=job_stop,
+                        operation=operation
+                        )
+                    for file_json in job_json[vb.FILE]:
+                        suffixes = Path(file_json[vb.FILE_NAME]).suffixes
+                        file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
+                        if ".gz" in suffixes:
+                            file_type = "".join(suffixes[-2:])
+                        if vb.FILE_DELIVERABLE in file_json:
+                            file_deliverable = file_json[vb.FILE_DELIVERABLE]
                         else:
-                            metric_deliverable = False
-                        Metric(
-                            name=metric_json[vb.METRIC_NAME],
-                            value=metric_json[vb.METRIC_VALUE],
-                            flag=FlagEnum(metric_json[vb.METRIC_FLAG]),
-                            deliverable=metric_deliverable,
-                            job=job,
-                            readsets=[readset]
-                            )
+                            file_deliverable = False
+                        # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
+                        if vb.FILE_EXTRA_METADATA in file_json.keys():
+                            file = File(
+                                name=file_json[vb.FILE_NAME],
+                                type=file_type,
+                                extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
+                                deliverable=file_deliverable,
+                                readsets=[readset],
+                                jobs=[job]
+                                )
+                        else:
+                            file = File(
+                                name=file_json[vb.FILE_NAME],
+                                type=file_type,
+                                deliverable=file_deliverable,
+                                readsets=[readset],
+                                jobs=[job]
+                                )
+                        location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                    if vb.METRIC in job_json.keys():
+                        for metric_json in job_json[vb.METRIC]:
+                            if vb.METRIC_DELIVERABLE in metric_json:
+                                metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
+                            else:
+                                metric_deliverable = False
+                            if vb.METRIC_FLAG in metric_json:
+                                metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG])
+                            else:
+                                metric_flag = None
+                            Metric(
+                                name=metric_json[vb.METRIC_NAME],
+                                value=metric_json[vb.METRIC_VALUE],
+                                flag=metric_flag,
+                                deliverable=metric_deliverable,
+                                job=job,
+                                readsets=[readset]
+                                )
+                # If job status is null then skip it as we don't want to ingest data not generated
+                else:
+                    pass
 
                 session.add(job)
                 session.flush()
@@ -1066,7 +1211,7 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
     run_name = digest_data["run_name"]
     if run_name:
         run_id = name_to_id("Run", run_name)[0]
-    experiment_sequencing_technology = digest_data["experiment_sequencing_technology"]
+    experiment_nucleic_acid_type = digest_data["experiment_nucleic_acid_type"]
     location_endpoint = digest_data["location_endpoint"]
 
     if sample_name_flag:
@@ -1096,17 +1241,16 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
             stmt.where(Run.id == run_id)
             .join(Readset.run)
             )
-    if experiment_sequencing_technology:
+    if experiment_nucleic_acid_type:
         stmt = (
-            stmt.where(Experiment.sequencing_technology == experiment_sequencing_technology)
+            stmt.where(Experiment.nucleic_acid_type == experiment_nucleic_acid_type)
             .join(Readset.experiment)
             )
 
-    # logger.debug(f"\n\n{stmt}\n\n")
     output = {
         "location_endpoint": location_endpoint,
+        "experiment_nucleic_acid_type": experiment_nucleic_acid_type,
         key: session.scalars(stmt).unique().all()
     }
-    # logger.debug(f"\n\n{session.scalars(stmt).unique().all()}\n\n")
 
     return json.dumps(output)

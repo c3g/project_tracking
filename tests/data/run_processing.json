@@ -21,6 +21,7 @@
                         {
                             "experiment_sequencing_technology": null,
                             "experiment_type": "PCR-free",
+                            "experiment_nucleic_acid_type": "DNA",
                             "experiment_library_kit": null,
                             "experiment_kit_expiration_date": null,
                             "readset_name": "MoHQ-JG-9-23-15000863775-19933DT.A01433_0157_1",
@@ -73,6 +74,7 @@
                         {
                             "experiment_sequencing_technology": null,
                             "experiment_type": "PCR-free",
+                            "experiment_nucleic_acid_type": "DNA",
                             "experiment_library_kit": null,
                             "experiment_kit_expiration_date": null,
                             "readset_name": "MoHQ-JG-9-23-15000936286-19866DN.A01433_0157_2",
@@ -133,6 +135,7 @@
                         {
                             "experiment_sequencing_technology": null,
                             "experiment_type": "RNASeq",
+                            "experiment_nucleic_acid_type": "RNA",
                             "experiment_library_kit": null,
                             "experiment_kit_expiration_date": null,
                             "readset_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_3",
@@ -191,6 +194,7 @@
                         {
                             "experiment_sequencing_technology": null,
                             "experiment_type": "PCR-free",
+                            "experiment_nucleic_acid_type": "DNA",
                             "experiment_library_kit": null,
                             "experiment_kit_expiration_date": null,
                             "readset_name": "MoHQ-CM-1-3-15000863775-19933DT.A01433_0157_1",
@@ -243,6 +247,7 @@
                         {
                             "experiment_sequencing_technology": null,
                             "experiment_type": "PCR-free",
+                            "experiment_nucleic_acid_type": "DNA",
                             "experiment_library_kit": null,
                             "experiment_kit_expiration_date": null,
                             "readset_name": "MoHQ-CM-1-3-15000936286-19866DN.A01433_0157_2",

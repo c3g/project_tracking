@@ -10,6 +10,7 @@ PROJECT_NAME = "project_name"
 
 # patient table
 PATIENT = "patient"
+PATIENT_ID = "patient_id"
 PATIENT_FMS_ID = "patient_fms_id"
 PATIENT_NAME = "patient_name"
 PATIENT_COHORT = "patient_cohort"
@@ -25,6 +26,7 @@ SAMPLE_TUMOUR = "sample_tumour"
 # experiment table
 EXPERIMENT_SEQUENCING_TECHNOLOGY = "experiment_sequencing_technology"
 EXPERIMENT_TYPE = "experiment_type"
+EXPERIMENT_NUCLEIC_ACID_TYPE = "experiment_nucleic_acid_type"
 EXPERIMENT_LIBRARY_KIT = "experiment_library_kit"
 EXPERIMENT_KIT_EXPIRATION_DATE = "experiment_kit_expiration_date"
 EXPERIMENT_TYPE_LIST = ["PCR-FREE", "RNASEQ"]
