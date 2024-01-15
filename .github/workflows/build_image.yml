@@ -3,8 +3,7 @@ name: Tests suite
 on:
 release:
     types:
-      - [released]
-
+      - released
 env:
   REGISTRY_USER: c3genomics+github_pusher
   IMAGE_REGISTRY: quay.io
@@ -22,10 +21,10 @@ jobs:
       run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
     - name: pull release
       run: |
-        # pull taged images and set to latest release
-      podman pull ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.RELEASE_VERSION }}
-      podman tag ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.RELEASE_VERSION }} \
-      ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.LATEST_RELEASE }}
+            # pull taged images and set to latest release
+            podman pull ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.RELEASE_VERSION }}
+            podman tag ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.RELEASE_VERSION }} \
+                ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.LATEST_RELEASE }}
     - name: Push to repo
       uses: redhat-actions/push-to-registry@v2
       with:
@@ -36,4 +35,4 @@ jobs:
           tags: ${{ env.LATEST_RELEASE }}
     - name: Print image url
       run: echo "Image pushed to ${{ steps.push-to-repo.outputs.registry-paths }}"
-      
+
