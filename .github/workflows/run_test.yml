@@ -6,7 +6,6 @@ on:
         branches: ['main', 'dev']
     push:
         tags: '[0-9]+.[0-9]+.[0-9]+'
-    push:
         branches: ['main', 'dev']
 
 env:
