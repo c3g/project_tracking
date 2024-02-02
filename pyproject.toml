@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
@@ -12,6 +12,12 @@ testpaths = [
 [tool.coverage]
 run.branch = true
 run.source = ["project_tracking"]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "project_tracking/_version.py"
 
 [project]
 name = "project_tracking"

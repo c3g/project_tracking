@@ -5,34 +5,33 @@ on:
         types: [published]
 
 env:
-  REGISTRY_USER: c3genomics+github_pusher
-  IMAGE_REGISTRY: quay.io
-  REGISTRY_PASSWORD: ${{ secrets.QUAY_ROBOT_TOKEN }}
-  IMAGE: c3genomics/project_tracking
-  LATEST_RELEASE: latest_release
+    REGISTRY_USER: c3genomics+github_pusher
+    IMAGE_REGISTRY: quay.io
+    REGISTRY_PASSWORD: ${{ secrets.QUAY_ROBOT_TOKEN }}
+    IMAGE: c3genomics/project_tracking
+    LATEST_RELEASE: latest_release
 
 jobs:
-  build:
-    name: Release image
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - name: set tag
-      run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-    - name: pull release
-      run: |
-            # pull taged images and set to latest release
-            podman pull ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.RELEASE_VERSION }}
-            podman tag ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.RELEASE_VERSION }} \
-                ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.LATEST_RELEASE }}
-    - name: Push to repo
-      uses: redhat-actions/push-to-registry@v2
-      with:
-          username: ${{ env.REGISTRY_USER }}
-          password: ${{ env.REGISTRY_PASSWORD }}
-          registry: ${{ env.IMAGE_REGISTRY }}
-          image: ${{ env.IMAGE }}
-          tags: ${{ env.LATEST_RELEASE }}
-    - name: Print image url
-      run: echo "Image pushed to ${{ steps.push-to-repo.outputs.registry-paths }}"
-
+    build:
+        name: Release image
+        runs-on: ubuntu-latest
+        steps:
+        - uses: actions/checkout@v4
+        - name: set tag
+          run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+        - name: pull release
+          run: |
+                # pull taged images and set to latest release
+                podman pull ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.RELEASE_VERSION }}
+                podman tag ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.RELEASE_VERSION }} \
+                    ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.LATEST_RELEASE }}
+        - name: Push to repo
+          uses: redhat-actions/push-to-registry@v3
+          with:
+              username: ${{ env.REGISTRY_USER }}
+              password: ${{ env.REGISTRY_PASSWORD }}
+              registry: ${{ env.IMAGE_REGISTRY }}
+              image: ${{ env.IMAGE }}
+              tags: ${{ env.LATEST_RELEASE }}
+        - name: Print image url
+          run: echo "Image pushed to ${{ steps.push-to-repo.outputs.registry-paths }}"

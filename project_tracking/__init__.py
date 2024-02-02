@@ -8,6 +8,26 @@ from . import db_action
 from . import api
 from . import database
 
+# Define the variable '__version__':
+try:
+    # If setuptools_scm is installed (e.g. in a development environment with
+    # an editable install), then use it to determine the version dynamically.
+    from setuptools_scm import get_version
+
+    # This will fail with LookupError if the package is not installed in
+    # editable mode or if Git is not installed.
+    __version__ = get_version(root="..", relative_to=__file__)
+except (ImportError, LookupError):
+    # As a fallback, use the version that is hard-coded in the file.
+    try:
+        from hatch_vcs_footgun_example._version import __version__  # noqa: F401
+    except ModuleNotFoundError:
+        # The user is probably trying to run this without having installed
+        # the package, so complain.
+        raise RuntimeError(
+            "Hatch VCS Footgun Example is not correctly installed. "
+            "Please install it with pip."
+        )
 
 def create_app(test_config=None):
     # create and configure the app
@@ -76,6 +96,13 @@ def create_app(test_config=None):
         Welcome page
         """
         return 'Welcome to the TechDev tracking API!\n'
+
+    @app.route('/version')
+    def version():
+        """
+        Version page
+        """
+        return f'project_tracking version {__version__}\n'
 
     # Loadding the api, look at the api/__init__.py file to see
     # what is being registered
