@@ -390,7 +390,7 @@ def readsets_from_samples(project_id: str, sample_id: str):
     return sanity_check("Readset", action_output)
 
 
-@bp.route('/<string:project>/digest_readset_file', methods=['GET', 'POST'])
+@bp.route('/<string:project>/digest_readset_file', methods=['POST'])
 @convcheck_project
 def digest_readset_file(project_id: str):
     """
@@ -411,7 +411,7 @@ def digest_readset_file(project_id: str):
         return db_action.digest_readset_file(project_id=project_id, digest_data=ingest_data)
 
 
-@bp.route('/<string:project>/digest_pair_file', methods=['GET', 'POST'])
+@bp.route('/<string:project>/digest_pair_file', methods=['POST'])
 @convcheck_project
 def digest_pair_file(project_id: str):
     """
@@ -432,7 +432,7 @@ def digest_pair_file(project_id: str):
         return db_action.digest_pair_file(project_id=project_id, digest_data=ingest_data)
 
 
-@bp.route('/<string:project>/ingest_run_processing', methods=['GET', 'POST'])
+@bp.route('/<string:project>/ingest_run_processing', methods=['POST'])
 @convcheck_project
 def ingest_run_processing(project_id: str):
     """
@@ -459,7 +459,7 @@ def ingest_run_processing(project_id: str):
         return [i.flat_dict for i in db_action.ingest_run_processing(project_id=project_id, ingest_data=ingest_data)]
 
 
-@bp.route('/<string:project>/ingest_transfer', methods=['GET', 'POST'])
+@bp.route('/<string:project>/ingest_transfer', methods=['POST'])
 @convcheck_project
 def ingest_transfer(project_id: str):
     """
@@ -478,7 +478,7 @@ def ingest_transfer(project_id: str):
 
         return [i.flat_dict for i in db_action.ingest_transfer(project_id=project_id, ingest_data=ingest_data)]
 
-@bp.route('/<string:project>/ingest_genpipes', methods=['GET', 'POST'])
+@bp.route('/<string:project>/ingest_genpipes', methods=['POST'])
 @convcheck_project
 def ingest_genpipes(project_id: str):
     """
@@ -507,7 +507,7 @@ def ingest_genpipes(project_id: str):
         jobs = [job.flat_dict for job in output[1]]
         return [operation, jobs]
 
-@bp.route('/<string:project>/digest_unanalyzed', methods=['GET', 'POST'])
+@bp.route('/<string:project>/digest_unanalyzed', methods=['POST'])
 @convcheck_project
 def digest_unanalyzed(project_id: str):
     """
