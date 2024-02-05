@@ -26,7 +26,7 @@ jobs:
             podman tag ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.RELEASE_VERSION }} \
                 ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE }}:${{ env.LATEST_RELEASE }}
     - name: Push to repo
-      uses: redhat-actions/push-to-registry@v3
+      uses: redhat-actions/push-to-registry@v2
       with:
           username: ${{ env.REGISTRY_USER }}
           password: ${{ env.REGISTRY_PASSWORD }}
