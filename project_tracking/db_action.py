@@ -79,13 +79,22 @@ class UniqueConstraintError(Error):
         else:
             self.message = f"'{entity}' with '{attribute}' '{value}' already exists in the database and '{attribute}' has to be unique"
 
-def unique_constraint_error(json_format, ingest_data):
+def unique_constraint_error(session, json_format, ingest_data):
+    """
+    When unique constraint errors, checks which entity is causing the error and returns it/them
+    """
     ret = []
     if json_format == "run_processing":
         for patient_json in ingest_data[vb.PATIENT]:
             for sample_json in patient_json[vb.SAMPLE]:
                 for readset_json in sample_json[vb.READSET]:
-                    ret.append(f"'Readset' with 'name' '{readset_json[vb.READSET_NAME]}' already exists in the database and 'name' has to be unique")
+                    readset_name = readset_json[vb.READSET_NAME]
+                    stmt = (
+                        select(Readset)
+                        .where(Readset.name.is_(readset_name))
+                        )
+                    if session.scalars(stmt).unique().all():
+                        ret.append(f"'Readset' with 'name' '{readset_name}' already exists in the database and 'name' has to be unique")
     return ret
 
 
@@ -687,7 +696,7 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                 session.flush()
             except exc.IntegrityError as error:
                 session.rollback()
-                message = unique_constraint_error("run_processing", ingest_data)
+                message = unique_constraint_error(session, "run_processing", ingest_data)
                 raise UniqueConstraintError(message=message) from error
 
     operation_id = operation.id
