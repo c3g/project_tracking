@@ -79,6 +79,16 @@ class UniqueConstraintError(Error):
         else:
             self.message = f"'{entity}' with '{attribute}' '{value}' already exists in the database and '{attribute}' has to be unique"
 
+def unique_constraint_error(json_format, ingest_data):
+    ret = []
+    if json_format == "run_processing":
+        for patient_json in ingest_data[vb.PATIENT]:
+            for sample_json in patient_json[vb.SAMPLE]:
+                for readset_json in sample_json[vb.READSET]:
+                    ret.append(f"'Readset' with 'name' '{readset_json[vb.READSET_NAME]}' already exists in the database and 'name' has to be unique")
+    return ret
+
+
 def name_to_id(model_class, name, session=None):
     """
     Converting a given name into its id
@@ -559,8 +569,6 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
     if not session:
         session = database.get_session()
 
-    dontcommit = False
-
     project = projects(project_id=project_id, session=session)[0]
 
     operation = Operation(
@@ -615,10 +623,8 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                     kit_expiration_date=kit_expiration_date,
                     session=session
                     )
-                # Let this fails if readset already exists.
-                readset_name = readset_json[vb.READSET_NAME]
                 readset = Readset(
-                    name=readset_name,
+                    name=readset_json[vb.READSET_NAME],
                     lane=LaneEnum(readset_json[vb.READSET_LANE]),
                     adapter1=readset_json[vb.READSET_ADAPTER1],
                     adapter2=readset_json[vb.READSET_ADAPTER2],
@@ -630,13 +636,6 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                     operations=[operation],
                     jobs=[job]
                     )
-                stmt = (
-                    select(Readset)
-                    .where(Readset.name.is_(readset_name))
-                    )
-                if session.scalars(stmt).unique().all():
-                    dontcommit = True
-                    raise UniqueConstraintError(entity="Readset", attribute="name", value=readset_name)
                 for file_json in readset_json[vb.FILE]:
                     suffixes = Path(file_json[vb.FILE_NAME]).suffixes
                     file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
@@ -684,14 +683,18 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                         )
 
             session.add(readset)
-            session.flush()
+            try:
+                session.flush()
+            except exc.IntegrityError as error:
+                session.rollback()
+                message = unique_constraint_error("run_processing", ingest_data)
+                raise UniqueConstraintError(message=message) from error
 
     operation_id = operation.id
     job_id = job.id
 
     try:
-        if not dontcommit:
-            session.commit()
+        session.commit()
     except exc.SQLAlchemyError as error:
         logger.error("Error: %s", error)
         session.rollback()
