@@ -59,7 +59,7 @@ class DidNotFindError(Error):
         if message:
             self.message = message
         else:
-            self.message = f"'{table}' with '{attribute}' '{query}' doesn't exist on database"
+            self.message = f"'{table}' with '{attribute}' '{query}' doesn't exist in the database"
 
 class RequestError(Error):
     """RequestError"""
@@ -69,6 +69,15 @@ class RequestError(Error):
             self.message = message
         else:
             self.message = f"For current request '{argument}' is required"
+
+class UniqueConstraintError(Error):
+    """UniqueConstraintError"""
+    def __init__(self, message=None, entity=None, attribute=None, value=None):
+        super().__init__(message)
+        if message:
+            self.message = message
+        else:
+            self.message = f"'{entity}' with '{attribute}' '{value}' already exists in the database and '{attribute}' has to be unique"
 
 def name_to_id(model_class, name, session=None):
     """
@@ -550,6 +559,8 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
     if not session:
         session = database.get_session()
 
+    dontcommit = False
+
     project = projects(project_id=project_id, session=session)[0]
 
     operation = Operation(
@@ -605,8 +616,9 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                     session=session
                     )
                 # Let this fails if readset already exists.
+                readset_name = readset_json[vb.READSET_NAME]
                 readset = Readset(
-                    name=readset_json[vb.READSET_NAME],
+                    name=readset_name,
                     lane=LaneEnum(readset_json[vb.READSET_LANE]),
                     adapter1=readset_json[vb.READSET_ADAPTER1],
                     adapter2=readset_json[vb.READSET_ADAPTER2],
@@ -618,6 +630,13 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                     operations=[operation],
                     jobs=[job]
                     )
+                stmt = (
+                    select(Readset)
+                    .where(Readset.name.is_(readset_name))
+                    )
+                if session.scalars(stmt).unique().all():
+                    dontcommit = True
+                    raise UniqueConstraintError(entity="Readset", attribute="name", value=readset_name)
                 for file_json in readset_json[vb.FILE]:
                     suffixes = Path(file_json[vb.FILE_NAME]).suffixes
                     file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
@@ -671,7 +690,8 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
     job_id = job.id
 
     try:
-        session.commit()
+        if not dontcommit:
+            session.commit()
     except exc.SQLAlchemyError as error:
         logger.error("Error: %s", error)
         session.rollback()
