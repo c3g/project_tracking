@@ -91,7 +91,7 @@ def unique_constraint_error(session, json_format, ingest_data):
                     readset_name = readset_json[vb.READSET_NAME]
                     stmt = (
                         select(Readset)
-                        .where(Readset.name.is_(readset_name))
+                        .where(Readset.name == readset_name)
                         )
                     if session.scalars(stmt).unique().all():
                         ret.append(f"'Readset' with 'name' '{readset_name}' already exists in the database and 'name' has to be unique")
