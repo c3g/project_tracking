@@ -1242,15 +1242,18 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
     run_id = digest_data["run_id"]
     run_name = digest_data["run_name"]
     if run_name:
-        run_id = name_to_id("Run", run_name)[0]
+        try:
+            run_id = name_to_id("Run", run_name)[0]
+        except:
+            raise DidNotFindError(f"'Run' with 'name' '{run_name}' doesn't exist on database")
     experiment_nucleic_acid_type = digest_data["experiment_nucleic_acid_type"]
     location_endpoint = digest_data["location_endpoint"]
 
     if sample_name_flag:
-        stmt = select(Sample.name)
+        stmt = select(Sample.name).join(Sample.readsets)
         key = "sample_name"
     elif sample_id_flag:
-        stmt = select(Sample.id)
+        stmt = select(Sample.id).join(Sample.readsets)
         key = "sample_id"
     elif readset_name_flag:
         stmt = select(Readset.name)
@@ -1260,9 +1263,8 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
         key = "readset_id"
 
     stmt = (
-        stmt.join(Sample.readsets)
-        .join(Readset.operations)
-        .where(Operation.name.ilike(f"%genpipes%"))
+        stmt.join(Readset.operations)
+        .where(Operation.name.notilike("%genpipes%"))
         .join(Sample.patient)
         .join(Patient.project)
         .where(Project.id.in_(project_id))
@@ -1274,6 +1276,7 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
             .join(Readset.run)
             )
     if experiment_nucleic_acid_type:
+        logger.debug(f"run_name: {run_name}")
         stmt = (
             stmt.where(Experiment.nucleic_acid_type == experiment_nucleic_acid_type)
             .join(Readset.experiment)
