@@ -28,8 +28,8 @@ def test_serialization(not_app_db):
                          project=project)
 
     exp = model.Experiment(nucleic_acid_type=model.NucleicAcidTypeEnum.DNA)
-    pa = model.Patient(name=pa_name, project=project)
-    sa = model.Sample(name=sa_name, patient=pa)
+    pa = model.Organism(name=pa_name, project=project)
+    sa = model.Sample(name=sa_name, organism=pa)
     ru = model.Run(instrument=instrument, name=ru_name)
     re1 = model.Readset(name=re1_name, sample=sa, experiment=exp, run=ru)
     re2 = model.Readset(name=re2_name, sample=sa, experiment=exp, run=ru)

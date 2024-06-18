@@ -1,3 +1,3 @@
-from . import admin, project
+from . import admin, project, modification
 
-blueprints = (admin.bp, project.bp)
+blueprints = (admin.bp, project.bp, modification.bp)

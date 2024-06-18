@@ -82,6 +82,8 @@ class FlagEnum(enum.Enum):
     PASS = "PASS"
     WARNING = "WARNING"
     FAILED = "FAILED"
+    MISSING = "MISSING"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
 class AggregateEnum(enum.Enum):
@@ -158,6 +160,8 @@ class BaseTable(Base):
         creation timestamp
         modification timestamp
         extra_metadata json
+        ext_id integer
+        ext_src text
     """
     __abstract__ = True
 
@@ -165,10 +169,10 @@ class BaseTable(Base):
     deprecated: Mapped[bool] = mapped_column(default=False)
     deleted: Mapped[bool] = mapped_column(default=False)
     creation: Mapped[DateTime] = Column(DateTime(timezone=True), server_default=func.now())
-    # creation: Mapped[datetime] = mapped_column(default=datetime.now(), nullable=True)
-    # modification: Mapped[datetime] = mapped_column(default=None, nullable=True)
     modification: Mapped[DateTime] = Column(DateTime(timezone=True), onupdate=func.now())
     extra_metadata: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
+    ext_id: Mapped[int] = mapped_column(default=None, nullable=True)
+    ext_src: Mapped[str] = mapped_column(default=None, nullable=True)
 
     def __repr__(self):
         """
@@ -238,7 +242,6 @@ class Project(BaseTable):
     """
     Project:
         id integer [PK]
-        fms_id integer
         name text (unique)
         alias json
         deprecated boolean
@@ -249,20 +252,18 @@ class Project(BaseTable):
     """
     __tablename__ = "project"
 
-    fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
     alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
 
-    patients: Mapped[list["Patient"]] = relationship(back_populates="project")
-    operations: Mapped[list["Operation"]] = relationship(back_populates="project")
+    organisms: Mapped[list["Organism"]] = relationship(back_populates="project", cascade="all, delete")
+    operations: Mapped[list["Operation"]] = relationship(back_populates="project", cascade="all, delete")
 
 
-class Patient(BaseTable):
+class Organism(BaseTable):
     """
-    Patient:
+    Organism:
         id integer [PK]
         project_id integer [ref: > project.id]
-        fms_id integer
         name text (unique)
         alias json
         cohort text
@@ -273,44 +274,42 @@ class Patient(BaseTable):
         modification timestamp
         extra_metadata json
     """
-    __tablename__ = "patient"
+    __tablename__ = "organism"
 
     project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
-    fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
     alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
     cohort: Mapped[str] = mapped_column(default=None, nullable=True)
     institution: Mapped[str] = mapped_column(default=None, nullable=True)
 
-    project: Mapped["Project"] = relationship(back_populates="patients")
-    samples: Mapped[list["Sample"]] = relationship(back_populates="patient")
+    project: Mapped["Project"] = relationship(back_populates="organisms")
+    samples: Mapped[list["Sample"]] = relationship(back_populates="organism", cascade="all, delete")
 
     @classmethod
     def from_name(cls, name, project, cohort=None, institution=None, session=None):
         """
-        get patient if it exist, set it if it does not exist
+        get organism if it exist, set it if it does not exist
         """
         if session is None:
             session = database.get_session()
 
         # Name is unique
-        patient = session.scalars(select(cls).where(cls.name == name)).first()
+        organism = session.scalars(select(cls).where(cls.name == name)).first()
 
-        if not patient:
-            patient = cls(name=name, cohort=cohort, institution=institution, project=project)
+        if not organism:
+            organism = cls(name=name, cohort=cohort, institution=institution, project=project)
         else:
-            if patient.project != project:
-                logger.error(f"patient {patient.name} already in project {patient.project}")
+            if organism.project != project:
+                logger.error(f"organism {organism.name} already in project {organism.project}")
 
-        return patient
+        return organism
 
 
 class Sample(BaseTable):
     """
     Sample:
         id integer [PK]
-        patient_id integer [ref: > patient.id]
-        fms_id integer
+        organism_id integer [ref: > organism.id]
         name text (unique)
         alias json
         tumour boolean
@@ -322,17 +321,16 @@ class Sample(BaseTable):
     """
     __tablename__ = "sample"
 
-    patient_id: Mapped[int] = mapped_column(ForeignKey("patient.id"), default=None)
-    fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
+    organism_id: Mapped[int] = mapped_column(ForeignKey("organism.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
     alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
     tumour: Mapped[bool] = mapped_column(default=False)
 
-    patient: Mapped["Patient"] = relationship(back_populates="samples")
-    readsets: Mapped[list["Readset"]] = relationship(back_populates="sample")
+    organism: Mapped["Organism"] = relationship(back_populates="samples")
+    readsets: Mapped[list["Readset"]] = relationship(back_populates="sample", cascade="all, delete")
 
     @classmethod
-    def from_name(cls, name, patient, tumour=None, session=None):
+    def from_name(cls, name, organism, tumour=None, session=None):
         """
         get sample if it exist, set it if it does not exist
         """
@@ -343,10 +341,10 @@ class Sample(BaseTable):
         sample = session.scalars(select(cls).where(cls.name == name)).first()
 
         if not sample:
-            sample = cls(name=name, patient=patient, tumour=tumour)
+            sample = cls(name=name, organism=organism, tumour=tumour)
         else:
-            if sample.patient != patient:
-                logger.error(f"sample {sample.patient} already attatched to project {patient.name}")
+            if sample.organism != organism:
+                logger.error(f"sample {sample.organism} already attatched to project {organism.name}")
 
         return sample
 
@@ -374,7 +372,7 @@ class Experiment(BaseTable):
     library_kit: Mapped[str] = mapped_column(default=None, nullable=True)
     kit_expiration_date: Mapped[datetime] = mapped_column(default=None, nullable=True)
 
-    readsets: Mapped[list["Readset"]] = relationship(back_populates="experiment")
+    readsets: Mapped[list["Readset"]] = relationship(back_populates="experiment", cascade="all, delete")
 
     @classmethod
     def from_attributes(
@@ -412,9 +410,8 @@ class Experiment(BaseTable):
 
 class Run(BaseTable):
     """
-    Patient:
+    Organism:
         id integer [PK]
-        fms_id text
         name text
         instrument text
         date timestamp
@@ -426,15 +423,14 @@ class Run(BaseTable):
     """
     __tablename__ = "run"
 
-    fms_id: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     instrument: Mapped[str] = mapped_column(default=None, nullable=True)
     date: Mapped[datetime] = mapped_column(default=None, nullable=True)
 
-    readsets: Mapped[list["Readset"]] = relationship(back_populates="run")
+    readsets: Mapped[list["Readset"]] = relationship(back_populates="run", cascade="all, delete")
 
     @classmethod
-    def from_attributes(cls, fms_id=None, name=None, instrument=None, date=None, session=None):
+    def from_attributes(cls, ext_id=None, ext_src=None, name=None, instrument=None, date=None, session=None):
         """
         get run if it exist, set it if it does not exist
         """
@@ -442,14 +438,16 @@ class Run(BaseTable):
             session = database.get_session()
         run = session.scalars(
             select(cls)
-                .where(cls.fms_id == fms_id)
+                .where(cls.ext_id == ext_id)
+                .where(cls.ext_src == ext_src)
                 .where(cls.name == name)
                 .where(cls.instrument == instrument)
                 .where(cls.date == date)
         ).first()
         if not run:
             run = cls(
-                fms_id=fms_id,
+                ext_id=ext_id,
+                ext_src=ext_src,
                 name=name,
                 instrument=instrument,
                 date=date
@@ -470,7 +468,6 @@ class Readset(BaseTable):
         adapter1 text
         adapter2 text
         sequencing_type sequencing_type
-        quality_offset text
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -488,7 +485,6 @@ class Readset(BaseTable):
     adapter1: Mapped[str] = mapped_column(default=None, nullable=True)
     adapter2: Mapped[str] = mapped_column(default=None, nullable=True)
     sequencing_type: Mapped[SequencingTypeEnum] = mapped_column(default=None, nullable=True)
-    quality_offset: Mapped[str] = mapped_column(default=None, nullable=True)
 
     sample: Mapped["Sample"] = relationship(back_populates="readsets")
     experiment: Mapped["Experiment"] = relationship(back_populates="readsets")
@@ -544,7 +540,7 @@ class Operation(BaseTable):
 
     operation_config: Mapped["OperationConfig"] = relationship(back_populates="operations")
     project: Mapped["Project"] = relationship(back_populates="operations")
-    jobs: Mapped[list["Job"]] = relationship(back_populates="operation")
+    jobs: Mapped[list["Job"]] = relationship(back_populates="operation", cascade="all, delete")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operations")
 
 
@@ -570,7 +566,7 @@ class OperationConfig(BaseTable):
     md5sum: Mapped[str] = mapped_column(unique=True, default=None, nullable=True)
     data: Mapped[bytes] = mapped_column(LargeBinary, default=None, nullable=True)
 
-    operations: Mapped[list["Operation"]] = relationship(back_populates="operation_config")
+    operations: Mapped[list["Operation"]] = relationship(back_populates="operation_config", cascade="all, delete")
 
     @classmethod
     def config_data(cls, data):
@@ -630,7 +626,7 @@ class Job(BaseTable):
     type: Mapped[str] = mapped_column(default=None, nullable=True)
 
     operation: Mapped["Operation"] = relationship(back_populates="jobs")
-    metrics: Mapped[list["Metric"]] = relationship(back_populates="job")
+    metrics: Mapped[list["Metric"]] = relationship(back_populates="job", cascade="all, delete")
     files: Mapped[list["File"]] = relationship(secondary=job_file,back_populates="jobs")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="jobs")
 
@@ -725,6 +721,6 @@ class File(BaseTable):
     md5sum: Mapped[str] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
 
-    locations: Mapped[list["Location"]] = relationship(back_populates="file")
+    locations: Mapped[list["Location"]] = relationship(back_populates="file", cascade="all, delete")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="files")
     jobs: Mapped[list["Job"]] = relationship(secondary=job_file, back_populates="files")

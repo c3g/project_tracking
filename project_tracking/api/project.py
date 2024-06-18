@@ -43,10 +43,13 @@ def convcheck_project(func):
                 all_available = [f"id: {project.id}, name: {project.name}" for project in db_action.projects()]
                 project_id = {"DB_ACTION_WARNING": f"Requested Project '{project}' doesn't exist. Please try again with one of the following: {all_available}"}
         else:
-            project_id = str(db_action.name_to_id("Project", project.upper())[0])
+            project_id = db_action.name_to_id("Project", project.upper())
             if not project_id:
                 all_available = [f"id: {project.id}, name: {project.name}" for project in db_action.projects()]
                 project_id = {"DB_ACTION_WARNING": f"Requested Project '{project}' doesn't exist. Please try again with one of the following: {all_available}"}
+            else:
+                # Converting list of 1 project to string
+                project_id = "".join(map(str, project_id))
 
         return func(*args, project_id=project_id, **kwargs)
     return wrap
@@ -77,26 +80,26 @@ def projects(project_id: str = None):
     return [i.flat_dict for i in db_action.projects(project_id)]
 
 
-@bp.route('/<string:project>/patients')
-@bp.route('/<string:project>/patients/<string:patient_id>')
+@bp.route('/<string:project>/organisms')
+@bp.route('/<string:project>/organisms/<string:organism_id>')
 @convcheck_project
-def patients(project_id: str, patient_id: str = None):
+def organisms(project_id: str, organism_id: str = None):
     """
     GET:
-        patient_id: uses the form "1,3-8,9", if not provided all patients are returned
-    return: list all patients or selected patients, belonging to <project>
+        organism_id: uses the form "1,3-8,9", if not provided all organisms are returned
+    return: list all organisms or selected organisms, belonging to <project>
 
     Query:
     (pair, tumor):  Default (None, true)
     The tumor query only have an effect if pair is false
         (None, true/false):
-            Return: all or selected patients (Default)
+            Return: all or selected organisms (Default)
         (true, true/false):
-            Return: a subset of patient who have Tumor=False & Tumor=True samples
+            Return: a subset of organism who have Tumor=False & Tumor=True samples
         (false, true):
-            return: a subset of patient who only have Tumor=True samples
+            return: a subset of organism who only have Tumor=True samples
         (false, false):
-            return: a subset of patient who only have Tumor=false samples
+            return: a subset of organism who only have Tumor=false samples
     """
 
     query = request.args
@@ -112,33 +115,33 @@ def patients(project_id: str, patient_id: str = None):
             if query.get('tumor','').lower() in ['false', '0']:
                 tumor=False
 
-    if patient_id is not None:
-        patient_id = unroll(patient_id)
+    if organism_id is not None:
+        organism_id = unroll(organism_id)
 
     if query.get('name'):
         name = query['name']
     if name:
-        patient_id = []
-        for patient_name in name.split(","):
-            patient_id.extend(db_action.name_to_id("Patient", patient_name))
+        organism_id = []
+        for organism_name in name.split(","):
+            organism_id.extend(db_action.name_to_id("Organism", organism_name))
 
     if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
         return project_id
 
     # pair being either True or False
     if pair is not None:
-        action_output = db_action.patient_pair(
+        action_output = db_action.organism_pair(
             project_id,
-            patient_id=patient_id,
+            organism_id=organism_id,
             pair=pair,
             tumor=tumor
             )
     else:
-        action_output = db_action.patients(
+        action_output = db_action.organisms(
             project_id,
-            patient_id=patient_id
+            organism_id=organism_id
             )
-    return sanity_check("Patient", action_output)
+    return sanity_check("Organism", action_output)
 
 
 @bp.route('/<string:project>/samples')
@@ -148,7 +151,7 @@ def samples(project_id: str, sample_id: str = None):
     """
     GET:
         sample_id: uses the form "1,3-8,9", if not provided all samples are returned
-    return: list all patients or selected samples, belonging to <project>
+    return: list all organisms or selected samples, belonging to <project>
     """
 
     query = request.args
@@ -179,7 +182,7 @@ def readsets(project_id: str, readset_id: str=None):
     """
     GET:
         readset_id: uses the form "1,3-8,9", if not provided all readsets are returned
-    return: list all patients or selected readsets, belonging to <project>
+    return: list all organisms or selected readsets, belonging to <project>
     """
 
     query = request.args
@@ -205,15 +208,15 @@ def readsets(project_id: str, readset_id: str=None):
 
 
 @bp.route('/<string:project>/files/<string:file_id>')
-@bp.route('/<string:project>/patients/<string:patient_id>/files')
+@bp.route('/<string:project>/organisms/<string:organism_id>/files')
 @bp.route('/<string:project>/samples/<string:sample_id>/files')
 @bp.route('/<string:project>/readsets/<string:readset_id>/files')
 @convcheck_project
-def files(project_id: str, patient_id: str=None, sample_id: str=None, readset_id: str=None, file_id: str=None):
+def files(project_id: str, organism_id: str=None, sample_id: str=None, readset_id: str=None, file_id: str=None):
     """
     GET:
         file_id: uses the form "1,3-8,9". Select file by ids
-        patient_id: uses the form "1,3-8,9". Select file by patient ids
+        organism_id: uses the form "1,3-8,9". Select file by organism ids
         sample_id: uses the form "1,3-8,9". Select file by sample ids
         redeaset_id: uses the form "1,3-8,9". Select file by readset ids
     return: selected files, belonging to <project>
@@ -238,8 +241,8 @@ def files(project_id: str, patient_id: str=None, sample_id: str=None, readset_id
         elif query['deliverable'].lower() in ['false', '0']:
             deliverable = False
 
-    if patient_id is not None:
-        patient_id = unroll(patient_id)
+    if organism_id is not None:
+        organism_id = unroll(organism_id)
     elif sample_id is not None:
         sample_id = unroll(sample_id)
     elif readset_id is not None:
@@ -250,7 +253,7 @@ def files(project_id: str, patient_id: str=None, sample_id: str=None, readset_id
     if deliverable is not None:
         action_output = db_action.files_deliverable(
             project_id=project_id,
-            patient_id=patient_id,
+            organism_id=organism_id,
             sample_id=sample_id,
             readset_id=readset_id,
             file_id=file_id,
@@ -259,7 +262,7 @@ def files(project_id: str, patient_id: str=None, sample_id: str=None, readset_id
     else:
         action_output = db_action.files(
             project_id=project_id,
-            patient_id=patient_id,
+            organism_id=organism_id,
             sample_id=sample_id,
             readset_id=readset_id,
             file_id=file_id
@@ -274,15 +277,15 @@ def files(project_id: str, patient_id: str=None, sample_id: str=None, readset_id
 
 @bp.route('/<string:project>/metrics', methods=['GET', 'POST'])
 @bp.route('/<string:project>/metrics/<string:metric_id>')
-@bp.route('/<string:project>/patients/<string:patient_id>/metrics')
+@bp.route('/<string:project>/organisms/<string:organism_id>/metrics')
 @bp.route('/<string:project>/samples/<string:sample_id>/metrics')
 @bp.route('/<string:project>/readsets/<string:readset_id>/metrics')
 @convcheck_project
-def metrics(project_id: str, patient_id: str=None, sample_id: str=None, readset_id: str=None, metric_id: str=None):
+def metrics(project_id: str, organism_id: str=None, sample_id: str=None, readset_id: str=None, metric_id: str=None):
     """
     GET:
         metric_id: uses the form "1,3-8,9". Select metric by ids
-        patient_id: uses the form "1,3-8,9". Select metric by patient ids
+        organism_id: uses the form "1,3-8,9". Select metric by organism ids
         sample_id: uses the form "1,3-8,9". Select metric by sample ids
         redeaset_id: uses the form "1,3-8,9". Select metric by readset ids
     return: selected metrics, belonging to <project>
@@ -291,7 +294,7 @@ def metrics(project_id: str, patient_id: str=None, sample_id: str=None, readset_
     metric_name = <NAME> [,NAME] [...]
     readset_name = <NAME> [,NAME] [...]
     sample_name = <NAME> [,NAME] [...]
-    patient_name = <NAME> [,NAME] [...]
+    organism_name = <NAME> [,NAME] [...]
 
     Query:
     (deliverable):  Default (None)
@@ -316,7 +319,7 @@ def metrics(project_id: str, patient_id: str=None, sample_id: str=None, readset_
     if request.method == 'POST':
         post_data = request.data.decode()
         post_input = post_data.split('=')
-        if post_input[0] in ["metric_name", "readset_name", "sample_name", "patient_name"]:
+        if post_input[0] in ["metric_name", "readset_name", "sample_name", "organism_name"]:
             model_class = post_input[0].split('_')[0]
             names = post_input[1].split(',')
             ids = db_action.name_to_id(model_class.capitalize(), names)
@@ -326,10 +329,10 @@ def metrics(project_id: str, patient_id: str=None, sample_id: str=None, readset_
                 readset_id = ids
             elif post_input[0] == "sample_name":
                 sample_id = ids
-            elif post_input[0] == "patient_name":
-                patient_id = ids
-    elif patient_id is not None:
-        patient_id = unroll(patient_id)
+            elif post_input[0] == "organism_name":
+                organism_id = ids
+    elif organism_id is not None:
+        organism_id = unroll(organism_id)
     elif sample_id is not None:
         sample_id = unroll(sample_id)
     elif readset_id is not None:
@@ -340,7 +343,7 @@ def metrics(project_id: str, patient_id: str=None, sample_id: str=None, readset_
     if deliverable is not None:
         action_output = db_action.metrics_deliverable(
             project_id=project_id,
-            patient_id=patient_id,
+            organism_id=organism_id,
             sample_id=sample_id,
             readset_id=readset_id,
             metric_id=metric_id,
@@ -349,7 +352,7 @@ def metrics(project_id: str, patient_id: str=None, sample_id: str=None, readset_
     else:
         action_output = db_action.metrics(
             project_id=project_id,
-            patient_id=patient_id,
+            organism_id=organism_id,
             sample_id=sample_id,
             readset_id=readset_id,
             metric_id=metric_id
@@ -394,7 +397,7 @@ def readsets_from_samples(project_id: str, sample_id: str):
 @convcheck_project
 def digest_readset_file(project_id: str):
     """
-    POST: json holding the list of Patient/Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type
+    POST: json holding the list of Organism/Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type
     return: all information to create a "Genpipes readset file"
     """
 
@@ -415,7 +418,7 @@ def digest_readset_file(project_id: str):
 @convcheck_project
 def digest_pair_file(project_id: str):
     """
-    POST: json holding the list of Patient/Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type
+    POST: json holding the list of Organism/Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type
     return: all information to create a "Genpipes pair file"
     """
 
@@ -450,13 +453,12 @@ def ingest_run_processing(project_id: str):
         if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
             return project_id
 
+        out = db_action.ingest_run_processing(project_id=project_id, ingest_data=ingest_data)
+        logger.debug(f"ingest_run_processing: {out}")
+        out["DB_ACTION_OUTPUT"] = [i.flat_dict for i in out["DB_ACTION_OUTPUT"]]
 
-        if ingest_data[vc.PROJECT_NAME]:
-            project_id_from_name = str(db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())[0])
-            if project_id != project_id_from_name:
-                return {"DB_ACTION_WARNING": f"Requested Project {project_id_from_name} in the input json is not matching the Project in the route {project_id}"}
-
-        return [i.flat_dict for i in db_action.ingest_run_processing(project_id=project_id, ingest_data=ingest_data)]
+        return out
+        # return [i.flat_dict for i in db_action.ingest_run_processing(project_id=project_id, ingest_data=ingest_data)]
 
 
 @bp.route('/<string:project>/ingest_transfer', methods=['POST'])
@@ -476,7 +478,12 @@ def ingest_transfer(project_id: str):
         if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
             return project_id
 
-        return [i.flat_dict for i in db_action.ingest_transfer(project_id=project_id, ingest_data=ingest_data)]
+        out = db_action.ingest_transfer(project_id=project_id, ingest_data=ingest_data)
+        out["DB_ACTION_OUTPUT"] = [i.flat_dict for i in out["DB_ACTION_OUTPUT"]]
+
+        return out
+        # return [i.flat_dict for i in db_action.ingest_transfer(project_id=project_id, ingest_data=ingest_data)]
+
 
 @bp.route('/<string:project>/ingest_genpipes', methods=['POST'])
 @convcheck_project
@@ -496,16 +503,12 @@ def ingest_genpipes(project_id: str):
         if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
             return project_id
 
+        out = db_action.ingest_genpipes(project_id=project_id, ingest_data=ingest_data)
+        out["DB_ACTION_OUTPUT"] = [i.flat_dict for i in out["DB_ACTION_OUTPUT"]]
 
-        if ingest_data[vc.PROJECT_NAME]:
-            project_id_from_name = str(db_action.name_to_id("Project", ingest_data[vc.PROJECT_NAME].upper())[0])
-            if project_id != project_id_from_name:
-                return {"DB_ACTION_WARNING": f"Requested Project {project_id_from_name} in the input json is not matching the Project in the route {project_id}"}
+        return out
 
-        output = db_action.ingest_genpipes(project_id=project_id, ingest_data=ingest_data)
-        operation = output[0].flat_dict
-        jobs = [job.flat_dict for job in output[1]]
-        return [operation, jobs]
+        # return [i.flat_dict for i in db_action.ingest_genpipes(project_id=project_id, ingest_data=ingest_data)]
 
 @bp.route('/<string:project>/digest_unanalyzed', methods=['POST'])
 @convcheck_project
@@ -525,3 +528,23 @@ def digest_unanalyzed(project_id: str):
             return project_id
 
         return db_action.digest_unanalyzed(project_id=project_id, digest_data=ingest_data)
+
+
+@bp.route('/<string:project>/digest_delivery', methods=['POST'])
+@convcheck_project
+def digest_delivery(project_id: str):
+    """
+    POST: json holding the list of Organism/Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type (optional)
+    return: Samples/Readsets unanalyzed with location endpoint + experiment nucleic_acid_type
+    """
+    if request.method == 'POST':
+        try:
+            ingest_data = request.get_json(force=True)
+        except:
+            flash('Data does not seems to be json')
+            return redirect(request.url)
+
+        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+            return project_id
+
+        return db_action.digest_delivery(project_id=project_id, digest_data=ingest_data)
