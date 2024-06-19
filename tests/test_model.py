@@ -13,7 +13,7 @@ def test_add_model(not_app_db, pre_filled_model):
         db.commit()
 
     assert not_app_db.query(model.Project).one().name == entry_dict["project_name"]
-    assert not_app_db.query(model.Organism).one().name == entry_dict["pa_name"]
+    assert not_app_db.query(model.Specimen).one().name == entry_dict["pa_name"]
     assert not_app_db.query(model.Operation).one().name == entry_dict["op_name"]
     m1 = not_app_db.query(model.Metric).first()
     r1 = m1.readsets[0]

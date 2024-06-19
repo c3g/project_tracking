@@ -62,6 +62,13 @@ class SequencingTypeEnum(enum.Enum):
     SINGLE_END = "SINGLE_END"
     PAIRED_END = "PAIRED_END"
 
+class StateTypeEnum(enum.Enum):
+    """
+    state enum
+    """
+    VALID = "VALID"
+    ON_HOLD = "ON_HOLD"
+
 
 class StatusEnum(enum.Enum):
     """
@@ -468,6 +475,7 @@ class Readset(BaseTable):
         adapter1 text
         adapter2 text
         sequencing_type sequencing_type
+        state state
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -485,6 +493,7 @@ class Readset(BaseTable):
     adapter1: Mapped[str] = mapped_column(default=None, nullable=True)
     adapter2: Mapped[str] = mapped_column(default=None, nullable=True)
     sequencing_type: Mapped[SequencingTypeEnum] = mapped_column(default=None, nullable=True)
+    state: Mapped[StateTypeEnum] = mapped_column(default=None, nullable=True)
 
     sample: Mapped["Sample"] = relationship(back_populates="readsets")
     experiment: Mapped["Experiment"] = relationship(back_populates="readsets")
@@ -519,6 +528,7 @@ class Operation(BaseTable):
     Operation:
         id integer [PK]
         operation_config_id integer [ref: > operation_config.id]
+        reference_id integer [ref: > operation_config.id]
         platform text
         cmd_line text
         name text
@@ -533,15 +543,43 @@ class Operation(BaseTable):
 
     project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
     operation_config_id: Mapped[int] = mapped_column(ForeignKey("operation_config.id"), default=None, nullable=True)
+    reference_id: Mapped[int] = mapped_column(ForeignKey("reference.id"), default=None, nullable=True)
     platform: Mapped[str] = mapped_column(default=None, nullable=True)
     cmd_line: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     status: Mapped[StatusEnum] = mapped_column(default=StatusEnum.PENDING)
 
     operation_config: Mapped["OperationConfig"] = relationship(back_populates="operations")
+    reference: Mapped["Reference"] = relationship(back_populates="operations")
     project: Mapped["Project"] = relationship(back_populates="operations")
     jobs: Mapped[list["Job"]] = relationship(back_populates="operation", cascade="all, delete")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operations")
+
+class Reference(BaseTable):
+    """
+    Reference:
+        name text // scientific name
+        alias text
+        assembly text
+        version test
+        taxon_id text
+        source text
+        deprecated boolean
+        deleted boolean
+        creation timestamp
+        modification timestamp
+        extra_metadata json
+    """
+    __tablename__ = "reference"
+
+    name: Mapped[str] = mapped_column(default=None, nullable=True)
+    alias: Mapped[str] = mapped_column(default=None, nullable=True)
+    assembly: Mapped[str] = mapped_column(default=None, nullable=True)
+    version: Mapped[str] = mapped_column(default=None, nullable=True)
+    taxon_id: Mapped[str] = mapped_column(default=None, nullable=True)
+    source: Mapped[str] = mapped_column(default=None, nullable=True)
+
+    operations: Mapped[list["Operation"]] = relationship(back_populates="reference", cascade="all, delete")
 
 
 class OperationConfig(BaseTable):
