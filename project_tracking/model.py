@@ -255,13 +255,13 @@ class Project(BaseTable):
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
     alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
 
-    organisms: Mapped[list["Organism"]] = relationship(back_populates="project", cascade="all, delete")
+    specimens: Mapped[list["Specimen"]] = relationship(back_populates="project", cascade="all, delete")
     operations: Mapped[list["Operation"]] = relationship(back_populates="project", cascade="all, delete")
 
 
-class Organism(BaseTable):
+class Specimen(BaseTable):
     """
-    Organism:
+    Specimen:
         id integer [PK]
         project_id integer [ref: > project.id]
         name text (unique)
@@ -274,7 +274,7 @@ class Organism(BaseTable):
         modification timestamp
         extra_metadata json
     """
-    __tablename__ = "organism"
+    __tablename__ = "specimen"
 
     project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
@@ -282,34 +282,34 @@ class Organism(BaseTable):
     cohort: Mapped[str] = mapped_column(default=None, nullable=True)
     institution: Mapped[str] = mapped_column(default=None, nullable=True)
 
-    project: Mapped["Project"] = relationship(back_populates="organisms")
-    samples: Mapped[list["Sample"]] = relationship(back_populates="organism", cascade="all, delete")
+    project: Mapped["Project"] = relationship(back_populates="specimens")
+    samples: Mapped[list["Sample"]] = relationship(back_populates="specimen", cascade="all, delete")
 
     @classmethod
     def from_name(cls, name, project, cohort=None, institution=None, session=None):
         """
-        get organism if it exist, set it if it does not exist
+        get specimen if it exist, set it if it does not exist
         """
         if session is None:
             session = database.get_session()
 
         # Name is unique
-        organism = session.scalars(select(cls).where(cls.name == name)).first()
+        specimen = session.scalars(select(cls).where(cls.name == name)).first()
 
-        if not organism:
-            organism = cls(name=name, cohort=cohort, institution=institution, project=project)
+        if not specimen:
+            specimen = cls(name=name, cohort=cohort, institution=institution, project=project)
         else:
-            if organism.project != project:
-                logger.error(f"organism {organism.name} already in project {organism.project}")
+            if specimen.project != project:
+                logger.error(f"specimen {specimen.name} already in project {specimen.project}")
 
-        return organism
+        return specimen
 
 
 class Sample(BaseTable):
     """
     Sample:
         id integer [PK]
-        organism_id integer [ref: > organism.id]
+        specimen_id integer [ref: > specimen.id]
         name text (unique)
         alias json
         tumour boolean
@@ -321,16 +321,16 @@ class Sample(BaseTable):
     """
     __tablename__ = "sample"
 
-    organism_id: Mapped[int] = mapped_column(ForeignKey("organism.id"), default=None)
+    specimen_id: Mapped[int] = mapped_column(ForeignKey("specimen.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
     alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
     tumour: Mapped[bool] = mapped_column(default=False)
 
-    organism: Mapped["Organism"] = relationship(back_populates="samples")
+    specimen: Mapped["Specimen"] = relationship(back_populates="samples")
     readsets: Mapped[list["Readset"]] = relationship(back_populates="sample", cascade="all, delete")
 
     @classmethod
-    def from_name(cls, name, organism, tumour=None, session=None):
+    def from_name(cls, name, specimen, tumour=None, session=None):
         """
         get sample if it exist, set it if it does not exist
         """
@@ -341,10 +341,10 @@ class Sample(BaseTable):
         sample = session.scalars(select(cls).where(cls.name == name)).first()
 
         if not sample:
-            sample = cls(name=name, organism=organism, tumour=tumour)
+            sample = cls(name=name, specimen=specimen, tumour=tumour)
         else:
-            if sample.organism != organism:
-                logger.error(f"sample {sample.organism} already attatched to project {organism.name}")
+            if sample.specimen != specimen:
+                logger.error(f"sample {sample.specimen} already attatched to project {specimen.name}")
 
         return sample
 
@@ -410,7 +410,7 @@ class Experiment(BaseTable):
 
 class Run(BaseTable):
     """
-    Organism:
+    Specimen:
         id integer [PK]
         name text
         instrument text

@@ -21,7 +21,7 @@ from .model import (
     AggregateEnum,
     readset_file,
     Project,
-    Organism,
+    Specimen,
     Sample,
     Experiment,
     Run,
@@ -86,8 +86,8 @@ def unique_constraint_error(session, json_format, ingest_data):
     """
     ret = []
     if json_format == "run_processing":
-        for organism_json in ingest_data[vb.ORGANISM]:
-            for sample_json in organism_json[vb.SAMPLE]:
+        for specimen_json in ingest_data[vb.SPECIMEN]:
+            for sample_json in specimen_json[vb.SAMPLE]:
                 for readset_json in sample_json[vb.READSET]:
                     readset_name = readset_json[vb.READSET_NAME]
                     stmt = (
@@ -114,47 +114,47 @@ def name_to_id(model_class, name, session=None):
     return session.scalars(stmt).unique().all()
 
 
-def select_readsets_from_organisms(session, digest_data, nucleic_acid_type):
-    """Returning Readsets Objects based on requested organisms in digest_data"""
-    organisms = []
+def select_readsets_from_specimens(session, digest_data, nucleic_acid_type):
+    """Returning Readsets Objects based on requested specimens in digest_data"""
+    specimens = []
     readsets = []
-    if vb.ORGANISM_NAME in digest_data.keys():
-        for organism_name in digest_data[vb.ORGANISM_NAME]:
-            organism = session.scalars(
-                select(Organism)
-                .where(Organism.name == organism_name)
-                .join(Organism.samples)
+    if vb.SPECIMEN_NAME in digest_data.keys():
+        for specimen_name in digest_data[vb.SPECIMEN_NAME]:
+            specimen = session.scalars(
+                select(Specimen)
+                .where(Specimen.name == specimen_name)
+                .join(Specimen.samples)
                 .join(Sample.readsets)
                 .where(Readset.deprecated.is_(False))
                 .where(Readset.deleted.is_(False))
                 .join(Readset.experiment)
                 .where(Experiment.nucleic_acid_type == nucleic_acid_type)
                 ).unique().first()
-            if organism:
-                organisms.append(organism)
+            if specimen:
+                specimens.append(specimen)
             else:
-                raise DidNotFindError(f"'Organism' with 'name' '{organism_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
-    if vb.ORGANISM_ID in digest_data.keys():
-        for organism_id in digest_data[vb.ORGANISM_ID]:
-            # logger.debug(f"\n\n{organism_id}\n\n")
-            organism = session.scalars(
-                select(Organism)
-                .where(Organism.id == organism_id)
-                .join(Organism.samples)
+                raise DidNotFindError(f"'Specimen' with 'name' '{specimen_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+    if vb.SPECIMEN_ID in digest_data.keys():
+        for specimen_id in digest_data[vb.SPECIMEN_ID]:
+            # logger.debug(f"\n\n{specimen_id}\n\n")
+            specimen = session.scalars(
+                select(Specimen)
+                .where(Specimen.id == specimen_id)
+                .join(Specimen.samples)
                 .join(Sample.readsets)
                 .where(Readset.deprecated.is_(False))
                 .where(Readset.deleted.is_(False))
                 .join(Readset.experiment)
                 .where(Experiment.nucleic_acid_type == nucleic_acid_type)
                 ).unique().first()
-            if organism:
-                organisms.append(organism)
+            if specimen:
+                specimens.append(specimen)
             else:
-                raise DidNotFindError(f"'Organism' with 'id' '{organism_id}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
-    if organisms:
-        set(organisms)
-        for organism in organisms:
-            for sample in organism.samples:
+                raise DidNotFindError(f"'Specimen' with 'id' '{specimen_id}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+    if specimens:
+        set(specimens)
+        for specimen in specimens:
+            for sample in specimen.samples:
                 for readset in sample.readsets:
                     readsets.append(readset)
 
@@ -260,10 +260,10 @@ def projects(project_id=None, session=None):
 
     return session.scalars(stmt).unique().all()
 
-def metrics_deliverable(project_id: str, deliverable: bool, organism_id=None, sample_id=None, readset_id=None, metric_id=None):
+def metrics_deliverable(project_id: str, deliverable: bool, specimen_id=None, sample_id=None, readset_id=None, metric_id=None):
     """
-    deliverable = True: Returns only organisms that have a tumor and a normal sample
-    deliverable = False, Tumor = False: Returns  organisms that only have a normal samples
+    deliverable = True: Returns only specimens that have a tumor and a normal sample
+    deliverable = False, Tumor = False: Returns  specimens that only have a normal samples
     """
 
     session = database.get_session()
@@ -281,13 +281,13 @@ def metrics_deliverable(project_id: str, deliverable: bool, organism_id=None, sa
             .where(Metric.deleted.is_(False))
             .join(Metric.readsets)
             .join(Readset.sample)
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
-    elif organism_id and project_id:
-        if isinstance(organism_id, int):
-            organism_id = [organism_id]
+    elif specimen_id and project_id:
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
         stmt = (
             select(Metric)
             .where(Metric.deliverable == deliverable)
@@ -295,9 +295,9 @@ def metrics_deliverable(project_id: str, deliverable: bool, organism_id=None, sa
             .where(Metric.deleted.is_(False))
             .join(Metric.readsets)
             .join(Readset.sample)
-            .join(Sample.organism)
-            .where(Organism.id.in_(organism_id))
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .where(Specimen.id.in_(specimen_id))
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif sample_id and project_id:
@@ -311,8 +311,8 @@ def metrics_deliverable(project_id: str, deliverable: bool, organism_id=None, sa
             .join(Metric.readsets)
             .join(Readset.sample)
             .where(Sample.id.in_(sample_id))
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif readset_id and project_id:
@@ -326,8 +326,8 @@ def metrics_deliverable(project_id: str, deliverable: bool, organism_id=None, sa
             .join(Metric.readsets)
             .where(Readset.id.in_(readset_id))
             .join(Readset.sample)
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     else:
@@ -336,9 +336,9 @@ def metrics_deliverable(project_id: str, deliverable: bool, organism_id=None, sa
     return session.scalars(stmt).unique().all()
 
 
-def metrics(project_id=None, organism_id=None, sample_id=None, readset_id=None, metric_id=None):
+def metrics(project_id=None, specimen_id=None, sample_id=None, readset_id=None, metric_id=None):
     """
-    Fetching all metrics that are part of the project or organism or sample or readset
+    Fetching all metrics that are part of the project or specimen or sample or readset
     """
     session = database.get_session()
     if isinstance(project_id, str):
@@ -354,22 +354,22 @@ def metrics(project_id=None, organism_id=None, sample_id=None, readset_id=None, 
             .where(Metric.deleted.is_(False))
             .join(Metric.readsets)
             .join(Readset.sample)
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
-    elif organism_id and project_id:
-        if isinstance(organism_id, int):
-            organism_id = [organism_id]
+    elif specimen_id and project_id:
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
         stmt = (
             select(Metric)
             .where(Metric.deprecated.is_(False))
             .where(Metric.deleted.is_(False))
             .join(Metric.readsets)
             .join(Readset.sample)
-            .join(Sample.organism)
-            .where(Organism.id.in_(organism_id))
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .where(Specimen.id.in_(specimen_id))
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif sample_id and project_id:
@@ -382,8 +382,8 @@ def metrics(project_id=None, organism_id=None, sample_id=None, readset_id=None, 
             .join(Metric.readsets)
             .join(Readset.sample)
             .where(Sample.id.in_(sample_id))
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif readset_id and project_id:
@@ -396,8 +396,8 @@ def metrics(project_id=None, organism_id=None, sample_id=None, readset_id=None, 
             .join(Metric.readsets)
             .where(Readset.id.in_(readset_id))
             .join(Readset.sample)
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     else:
@@ -406,7 +406,7 @@ def metrics(project_id=None, organism_id=None, sample_id=None, readset_id=None, 
     return session.scalars(stmt).unique().all()
 
 
-def files_deliverable(project_id: str, deliverable: bool, organism_id=None, sample_id=None, readset_id=None, file_id=None):
+def files_deliverable(project_id: str, deliverable: bool, specimen_id=None, sample_id=None, readset_id=None, file_id=None):
     """
     deliverable = True: Returns only files labelled as deliverable
     deliverable = False: Returns only files NOT labelled as deliverable
@@ -427,13 +427,13 @@ def files_deliverable(project_id: str, deliverable: bool, organism_id=None, samp
             .where(File.id.in_(file_id))
             .join(File.readsets)
             .join(Readset.sample)
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
-    elif organism_id and project_id:
-        if isinstance(organism_id, int):
-            organism_id = [organism_id]
+    elif specimen_id and project_id:
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
         stmt = (
             select(File)
             .where(File.deliverable == deliverable)
@@ -441,9 +441,9 @@ def files_deliverable(project_id: str, deliverable: bool, organism_id=None, samp
             .where(File.deleted.is_(False))
             .join(File.readsets)
             .join(Readset.sample)
-            .join(Sample.organism)
-            .where(Organism.id.in_(organism_id))
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .where(Specimen.id.in_(specimen_id))
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif sample_id and project_id:
@@ -457,8 +457,8 @@ def files_deliverable(project_id: str, deliverable: bool, organism_id=None, samp
             .join(File.readsets)
             .join(Readset.sample)
             .where(Sample.id.in_(sample_id))
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif readset_id and project_id:
@@ -472,8 +472,8 @@ def files_deliverable(project_id: str, deliverable: bool, organism_id=None, samp
             .join(File.readsets)
             .where(Readset.id.in_(readset_id))
             .join(Readset.sample)
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     else:
@@ -481,7 +481,7 @@ def files_deliverable(project_id: str, deliverable: bool, organism_id=None, samp
 
     return session.scalars(stmt).unique().all()
 
-def files(project_id=None, organism_id=None, sample_id=None, readset_id=None, file_id=None):
+def files(project_id=None, specimen_id=None, sample_id=None, readset_id=None, file_id=None):
     """
     Fetching all files that are linked to readset
     """
@@ -500,22 +500,22 @@ def files(project_id=None, organism_id=None, sample_id=None, readset_id=None, fi
             .where(File.id.in_(file_id))
             .join(File.readsets)
             .join(Readset.sample)
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
-    elif organism_id and project_id:
-        if isinstance(organism_id, int):
-            organism_id = [organism_id]
+    elif specimen_id and project_id:
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
         stmt = (
             select(File)
             .where(File.deprecated.is_(False))
             .where(File.deleted.is_(False))
             .join(File.readsets)
             .join(Readset.sample)
-            .join(Sample.organism)
-            .where(Organism.id.in_(organism_id))
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .where(Specimen.id.in_(specimen_id))
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif sample_id and project_id:
@@ -528,8 +528,8 @@ def files(project_id=None, organism_id=None, sample_id=None, readset_id=None, fi
             .join(File.readsets)
             .join(Readset.sample)
             .where(Sample.id.in_(sample_id))
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif readset_id and project_id:
@@ -542,8 +542,8 @@ def files(project_id=None, organism_id=None, sample_id=None, readset_id=None, fi
             .join(File.readsets)
             .where(Readset.id.in_(readset_id))
             .join(Readset.sample)
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     else:
@@ -573,8 +573,8 @@ def readsets(project_id=None, sample_id=None, readset_id=None):
             .where(Readset.deprecated.is_(False))
             .where(Readset.deleted.is_(False))
             .join(Readset.sample)
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif sample_id and project_id:
@@ -587,8 +587,8 @@ def readsets(project_id=None, sample_id=None, readset_id=None):
             .join(Readset.sample)
             .where(Sample.id.in_(sample_id)).where(Project.id.in_(project_id))
             .join(Readset.sample)
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif readset_id and project_id:
@@ -600,62 +600,62 @@ def readsets(project_id=None, sample_id=None, readset_id=None):
             .where(Readset.deleted.is_(False))
             .where(Readset.id.in_(readset_id))
             .join(Readset.sample)
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
 
     return session.scalars(stmt).unique().all()
 
 
-def organism_pair(project_id: str, pair: bool, organism_id=None, tumor: bool=True):
+def specimen_pair(project_id: str, pair: bool, specimen_id=None, tumor: bool=True):
     """
-    Pair = True: Returns only organisms that have a tumor and a normal sample
-    Pair = False, Tumor = True: Returns organisms that only have a tumor samples
-    Pair = False, Tumor = False: Returns  organisms that only have a normal samples
+    Pair = True: Returns only specimens that have a tumor and a normal sample
+    Pair = False, Tumor = True: Returns specimens that only have a tumor samples
+    Pair = False, Tumor = False: Returns  specimens that only have a normal samples
     """
 
     session = database.get_session()
     if isinstance(project_id, str):
         project_id = [project_id]
 
-    if organism_id is None:
+    if specimen_id is None:
         stmt1 = (
-            select(Organism)
-            .where(Organism.deprecated.is_(False))
-            .where(Organism.deleted.is_(False))
-            .join(Organism.samples)
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            .join(Specimen.samples)
             .where(Sample.tumour.is_(True))
             .where(Project.id.in_(project_id))
             )
         stmt2 = (
-            select(Organism)
-            .where(Organism.deprecated.is_(False))
-            .where(Organism.deleted.is_(False))
-            .join(Organism.samples)
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            .join(Specimen.samples)
             .where(Sample.tumour.is_(False))
             .where(Project.id.in_(project_id))
             )
     else:
-        if isinstance(organism_id, int):
-            organism_id = [organism_id]
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
         stmt1 = (
-            select(Organism)
-            .where(Organism.deprecated.is_(False))
-            .where(Organism.deleted.is_(False))
-            .join(Organism.samples)
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            .join(Specimen.samples)
             .where(Sample.tumour.is_(True))
             .where(Project.id.in_(project_id))
-            .where(Organism.id.in_(organism_id))
+            .where(Specimen.id.in_(specimen_id))
             )
         stmt2 = (
-            select(Organism)
-            .where(Organism.deprecated.is_(False))
-            .where(Organism.deleted.is_(False))
-            .join(Organism.samples)
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            .join(Specimen.samples)
             .where(Sample.tumour.is_(False))
             .where(Project.id.in_(project_id))
-            .where(Organism.id.in_(organism_id))
+            .where(Specimen.id.in_(specimen_id))
             )
     s1 = set(session.scalars(stmt1).all())
     s2 = set(session.scalars(stmt2).all())
@@ -667,37 +667,37 @@ def organism_pair(project_id: str, pair: bool, organism_id=None, tumor: bool=Tru
         return s2.difference(s1)
 
 
-def organisms(project_id=None, organism_id=None):
+def specimens(project_id=None, specimen_id=None):
     """
-    Fetching all organisms from projets or selected organism from id
+    Fetching all specimens from projets or selected specimen from id
     """
     session = database.get_session()
     if isinstance(project_id, str):
         project_id = [project_id]
 
-    if project_id is None and organism_id is None:
+    if project_id is None and specimen_id is None:
         stmt = (
-            select(Organism)
-            .where(Organism.deprecated.is_(False))
-            .where(Organism.deleted.is_(False))
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
             )
-    elif organism_id is None and project_id:
+    elif specimen_id is None and project_id:
         stmt = (
-            select(Organism)
-            .where(Organism.deprecated.is_(False))
-            .where(Organism.deleted.is_(False))
-            .join(Organism.project)
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     else:
-        if isinstance(organism_id, int):
-            organism_id = [organism_id]
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
         stmt = (
-            select(Organism)
-            .where(Organism.deprecated.is_(False))
-            .where(Organism.deleted.is_(False))
-            .where(Organism.id.in_(organism_id))
-            .join(Organism.project)
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            .where(Specimen.id.in_(specimen_id))
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
 
@@ -723,8 +723,8 @@ def samples(project_id=None, sample_id=None):
             select(Sample)
             .where(Sample.deprecated.is_(False))
             .where(Sample.deleted.is_(False))
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     else:
@@ -735,8 +735,8 @@ def samples(project_id=None, sample_id=None):
             .where(Sample.deprecated.is_(False))
             .where(Sample.deleted.is_(False))
             .where(Sample.id.in_(sample_id))
-            .join(Sample.organism)
-            .join(Organism.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
 
@@ -804,19 +804,19 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
         session=session
         )
 
-    for organism_json in ingest_data[vb.ORGANISM]:
-        organism = Organism.from_name(
-            name=organism_json[vb.ORGANISM_NAME],
-            cohort=organism_json[vb.ORGANISM_COHORT],
-            institution=organism_json[vb.ORGANISM_INSTITUTION],
+    for specimen_json in ingest_data[vb.SPECIMEN]:
+        specimen = Specimen.from_name(
+            name=specimen_json[vb.SPECIMEN_NAME],
+            cohort=specimen_json[vb.SPECIMEN_COHORT],
+            institution=specimen_json[vb.SPECIMEN_INSTITUTION],
             project=project,
             session=session
             )
-        for sample_json in organism_json[vb.SAMPLE]:
+        for sample_json in specimen_json[vb.SAMPLE]:
             sample = Sample.from_name(
                 name=sample_json[vb.SAMPLE_NAME],
                 tumour=sample_json[vb.SAMPLE_TUMOUR],
-                organism=organism,
+                specimen=specimen,
                 session=session
                 )
             for readset_json in sample_json[vb.READSET]:
@@ -1027,7 +1027,7 @@ def digest_readset_file(project_id: str, digest_data, session=None):
     if not session:
         session = database.get_session()
 
-    # organisms = []
+    # specimens = []
     # samples = []
     readsets = []
     output = []
@@ -1044,7 +1044,7 @@ def digest_readset_file(project_id: str, digest_data, session=None):
     else:
         raise RequestError(argument="experiment_nucleic_acid_type")
 
-    readsets += select_readsets_from_organisms(session, digest_data, nucleic_acid_type)
+    readsets += select_readsets_from_specimens(session, digest_data, nucleic_acid_type)
     readsets += select_readsets_from_samples(session, digest_data, nucleic_acid_type)
     readsets += select_readsets_from_readsets(session, digest_data, nucleic_acid_type)
 
@@ -1115,7 +1115,7 @@ def digest_pair_file(project_id: str, digest_data, session=None):
 
     pair_dict = {}
     samples = []
-    organisms = []
+    specimens = []
     # readsets = []
     output = []
 
@@ -1124,42 +1124,42 @@ def digest_pair_file(project_id: str, digest_data, session=None):
     else:
         raise RequestError(argument="experiment_nucleic_acid_type")
 
-    if vb.ORGANISM_NAME in digest_data.keys():
-        for organism_name in digest_data[vb.ORGANISM_NAME]:
-            organism = session.scalars(
-                select(Organism)
-                .where(Organism.deprecated.is_(False))
-                .where(Organism.deleted.is_(False))
-                .where(Organism.name == organism_name)
-                .join(Organism.samples)
+    if vb.SPECIMEN_NAME in digest_data.keys():
+        for specimen_name in digest_data[vb.SPECIMEN_NAME]:
+            specimen = session.scalars(
+                select(Specimen)
+                .where(Specimen.deprecated.is_(False))
+                .where(Specimen.deleted.is_(False))
+                .where(Specimen.name == specimen_name)
+                .join(Specimen.samples)
                 .join(Sample.readsets)
                 .join(Readset.experiment)
                 .where(Experiment.nucleic_acid_type == nucleic_acid_type)
                 ).unique().first()
-            if organism:
-                organisms.append(organism)
+            if specimen:
+                specimens.append(specimen)
             else:
-                raise DidNotFindError(table="Organism", attribute="name", query=organism_name)
-    if vb.ORGANISM_ID in digest_data.keys():
-        for organism_id in digest_data[vb.ORGANISM_ID]:
-            organism = session.scalars(
-                select(Organism)
-                .where(Organism.deprecated.is_(False))
-                .where(Organism.deleted.is_(False))
-                .where(Organism.id == organism_id)
-                .join(Organism.samples)
+                raise DidNotFindError(table="Specimen", attribute="name", query=specimen_name)
+    if vb.SPECIMEN_ID in digest_data.keys():
+        for specimen_id in digest_data[vb.SPECIMEN_ID]:
+            specimen = session.scalars(
+                select(Specimen)
+                .where(Specimen.deprecated.is_(False))
+                .where(Specimen.deleted.is_(False))
+                .where(Specimen.id == specimen_id)
+                .join(Specimen.samples)
                 .join(Sample.readsets)
                 .join(Readset.experiment)
                 .where(Experiment.nucleic_acid_type == nucleic_acid_type)
                 ).unique().first()
-            if organism:
-                organisms.append(organism)
+            if specimen:
+                specimens.append(specimen)
             else:
-                raise DidNotFindError(table="Organism", attribute="id", query=organism_id)
-    if organisms:
-        set(organisms)
-        for organism in organisms:
-            for sample in organism.samples:
+                raise DidNotFindError(table="Specimen", attribute="id", query=specimen_id)
+    if specimens:
+        set(specimens)
+        for specimen in specimens:
+            for sample in specimen.samples:
                 samples.append(sample)
 
     if vb.SAMPLE_NAME in digest_data.keys():
@@ -1223,19 +1223,19 @@ def digest_pair_file(project_id: str, digest_data, session=None):
     if samples:
         set(samples)
         for sample in samples:
-            if not sample.organism.name in pair_dict.keys():
-                pair_dict[sample.organism.name] = {
+            if not sample.specimen.name in pair_dict.keys():
+                pair_dict[sample.specimen.name] = {
                     "T": None,
                     "N": None
                     }
             if sample.tumour:
-                pair_dict[sample.organism.name]["T"] = sample.name
+                pair_dict[sample.specimen.name]["T"] = sample.name
             else:
-                pair_dict[sample.organism.name]["N"] = sample.name
+                pair_dict[sample.specimen.name]["N"] = sample.name
     if pair_dict:
-        for organism_name, dict_tn in pair_dict.items():
+        for specimen_name, dict_tn in pair_dict.items():
             pair_line = {
-                "Organism": organism_name,
+                "Specimen": specimen_name,
                 "Sample_N": dict_tn["N"],
                 "Sample_T": dict_tn["T"]
                 }
@@ -1455,8 +1455,8 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
     stmt = (
         stmt.join(Readset.operations)
         .where(Operation.name.notilike("%genpipes%"))
-        .join(Sample.organism)
-        .join(Organism.project)
+        .join(Sample.specimen)
+        .join(Specimen.project)
         .where(Project.id.in_(project_id))
         )
 
@@ -1505,7 +1505,7 @@ def digest_delivery(project_id: str, digest_data, session=None):
     else:
         raise RequestError(argument="experiment_nucleic_acid_type")
 
-    readsets += select_readsets_from_organisms(session, digest_data, nucleic_acid_type)
+    readsets += select_readsets_from_specimens(session, digest_data, nucleic_acid_type)
     readsets += select_readsets_from_samples(session, digest_data, nucleic_acid_type)
     readsets += select_readsets_from_readsets(session, digest_data, nucleic_acid_type)
 

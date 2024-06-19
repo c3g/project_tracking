@@ -15,14 +15,14 @@ PROJECT_EXT_ID = "project_ext_id"
 PROJECT_EXT_SRC = "project_ext_src"
 PROJECT_NAME = "project_name"
 
-# organism table
-ORGANISM = "organism"
-ORGANISM_ID = "organism_id"
-ORGANISM_EXT_ID = "organism_ext_id"
-ORGANISM_EXT_SRC = "organism_ext_src"
-ORGANISM_NAME = "organism_name"
-ORGANISM_COHORT = "organism_cohort"
-ORGANISM_INSTITUTION = "organism_institution"
+# specimen table
+SPECIMEN = "specimen"
+SPECIMEN_ID = "specimen_id"
+SPECIMEN_EXT_ID = "specimen_ext_id"
+SPECIMEN_EXT_SRC = "specimen_ext_src"
+SPECIMEN_NAME = "specimen_name"
+SPECIMEN_COHORT = "specimen_cohort"
+SPECIMEN_INSTITUTION = "specimen_institution"
 
 # sample table
 SAMPLE = "sample"

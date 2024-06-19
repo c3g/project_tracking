@@ -37,9 +37,9 @@ def test_create(not_app_db, run_processing_json, transfer_json, genpipes_json):
     # assert isinstance(run_processing_job, model.Job)
     assert not_app_db.scalars(select(model.Project)).first().name == project_name
 
-    for organism_json in run_processing_json[vb.ORGANISM]:
-        assert not_app_db.scalars(select(model.Organism).where(model.Organism.name == organism_json[vb.ORGANISM_NAME])).first().name == organism_json[vb.ORGANISM_NAME]
-        for sample_json in organism_json[vb.SAMPLE]:
+    for specimen_json in run_processing_json[vb.SPECIMEN]:
+        assert not_app_db.scalars(select(model.Specimen).where(model.Specimen.name == specimen_json[vb.SPECIMEN_NAME])).first().name == specimen_json[vb.SPECIMEN_NAME]
+        for sample_json in specimen_json[vb.SAMPLE]:
             assert not_app_db.scalars(select(model.Sample).where(model.Sample.name == sample_json[vb.SAMPLE_NAME])).first().name == sample_json[vb.SAMPLE_NAME]
             for readset_json in sample_json[vb.READSET]:
                 assert not_app_db.scalars(select(model.Readset).where(model.Readset.name == readset_json[vb.READSET_NAME])).first().name == readset_json[vb.READSET_NAME]
