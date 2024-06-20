@@ -16,6 +16,7 @@ from . import database
 from .model import (
     LaneEnum,
     SequencingTypeEnum,
+    StateEnum,
     StatusEnum,
     FlagEnum,
     AggregateEnum,
@@ -1453,7 +1454,8 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
         key = "readset_id"
 
     stmt = (
-        stmt.join(Readset.operations)
+        stmt.where(Readset.state == StateEnum("VALID"))
+        .join(Readset.operations)
         .where(Operation.name.notilike("%genpipes%"))
         .join(Sample.specimen)
         .join(Specimen.project)

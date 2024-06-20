@@ -62,12 +62,13 @@ class SequencingTypeEnum(enum.Enum):
     SINGLE_END = "SINGLE_END"
     PAIRED_END = "PAIRED_END"
 
-class StateTypeEnum(enum.Enum):
+class StateEnum(enum.Enum):
     """
     state enum
     """
     VALID = "VALID"
     ON_HOLD = "ON_HOLD"
+    INVALID = "INVALID"
 
 
 class StatusEnum(enum.Enum):
@@ -493,7 +494,7 @@ class Readset(BaseTable):
     adapter1: Mapped[str] = mapped_column(default=None, nullable=True)
     adapter2: Mapped[str] = mapped_column(default=None, nullable=True)
     sequencing_type: Mapped[SequencingTypeEnum] = mapped_column(default=None, nullable=True)
-    state: Mapped[StateTypeEnum] = mapped_column(default=None, nullable=True)
+    state: Mapped[StateEnum] = mapped_column(default=StateEnum.VALID, nullable=True)
 
     sample: Mapped["Sample"] = relationship(back_populates="readsets")
     experiment: Mapped["Experiment"] = relationship(back_populates="readsets")
