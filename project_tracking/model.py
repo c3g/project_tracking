@@ -73,6 +73,7 @@ class StatusEnum(enum.Enum):
     FAILED = "FAILED"
     OUT_OF_MEMORY = "OUT_OF_MEMORY"
     CANCELLED = "CANCELLED"
+    MISSING = "MISSING"
 
 
 class FlagEnum(enum.Enum):
@@ -82,6 +83,7 @@ class FlagEnum(enum.Enum):
     PASS = "PASS"
     WARNING = "WARNING"
     FAILED = "FAILED"
+    MISSING = "MISSING"
 
 
 class AggregateEnum(enum.Enum):

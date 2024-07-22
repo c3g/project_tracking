@@ -43,11 +43,11 @@ def convcheck_project(func):
                 all_available = [f"id: {project.id}, name: {project.name}" for project in db_action.projects()]
                 project_id = {"DB_ACTION_WARNING": f"Requested Project '{project}' doesn't exist. Please try again with one of the following: {all_available}"}
         else:
+            logger.debug(project.upper())
             project_id = str(db_action.name_to_id("Project", project.upper())[0])
             if not project_id:
                 all_available = [f"id: {project.id}, name: {project.name}" for project in db_action.projects()]
                 project_id = {"DB_ACTION_WARNING": f"Requested Project '{project}' doesn't exist. Please try again with one of the following: {all_available}"}
-
         return func(*args, project_id=project_id, **kwargs)
     return wrap
 

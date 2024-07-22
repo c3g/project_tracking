@@ -1,4 +1,5 @@
 {
+    "project_name": "MOH-Q",
     "operation_config_name": "genpipes_ini",
     "operation_config_version": "4.2.2",
     "operation_config_md5sum": "7d1c19539caae10d34861fc6013dbdc5",
@@ -548,6 +549,6 @@
                             "readset_name": "MoHQ-CM-1-10-3357-1DN.A00266_0642_1"
                         }
                     ]
-                },
+                }
             ]
 }
