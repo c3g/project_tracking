@@ -458,7 +458,6 @@ def ingest_run_processing(project_id: str):
         out["DB_ACTION_OUTPUT"] = [i.flat_dict for i in out["DB_ACTION_OUTPUT"]]
 
         return out
-        # return [i.flat_dict for i in db_action.ingest_run_processing(project_id=project_id, ingest_data=ingest_data)]
 
 
 @bp.route('/<string:project>/ingest_transfer', methods=['POST'])
@@ -482,7 +481,6 @@ def ingest_transfer(project_id: str):
         out["DB_ACTION_OUTPUT"] = [i.flat_dict for i in out["DB_ACTION_OUTPUT"]]
 
         return out
-        # return [i.flat_dict for i in db_action.ingest_transfer(project_id=project_id, ingest_data=ingest_data)]
 
 
 @bp.route('/<string:project>/ingest_genpipes', methods=['POST'])
@@ -507,8 +505,6 @@ def ingest_genpipes(project_id: str):
         out["DB_ACTION_OUTPUT"] = [i.flat_dict for i in out["DB_ACTION_OUTPUT"]]
 
         return out
-
-        # return [i.flat_dict for i in db_action.ingest_genpipes(project_id=project_id, ingest_data=ingest_data)]
 
 @bp.route('/<string:project>/digest_unanalyzed', methods=['POST'])
 @convcheck_project

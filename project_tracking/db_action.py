@@ -137,7 +137,7 @@ def select_readsets_from_specimens(session, digest_data, nucleic_acid_type):
                 raise DidNotFindError(f"'Specimen' with 'name' '{specimen_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if vb.SPECIMEN_ID in digest_data.keys():
         for specimen_id in digest_data[vb.SPECIMEN_ID]:
-            # logger.debug(f"\n\n{specimen_id}\n\n")
+            logger.debug(f"specimen_id: {specimen_id}")
             specimen = session.scalars(
                 select(Specimen)
                 .where(Specimen.id == specimen_id)
@@ -182,7 +182,7 @@ def select_readsets_from_samples(session, digest_data, nucleic_acid_type):
                 raise DidNotFindError(f"'Sample' with 'name' '{sample_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if vb.SAMPLE_ID in digest_data.keys():
         for sample_id in digest_data[vb.SAMPLE_ID]:
-            # logger.debug(f"\n\n{sample_id}\n\n")
+            logger.debug(f"specimen_id: {specimen_id}")
             sample = session.scalars(
                 select(Sample)
                 .where(Sample.id == sample_id)
@@ -1028,8 +1028,6 @@ def digest_readset_file(project_id: str, digest_data, session=None):
     if not session:
         session = database.get_session()
 
-    # specimens = []
-    # samples = []
     readsets = []
     output = []
     warnings = {
@@ -1050,7 +1048,6 @@ def digest_readset_file(project_id: str, digest_data, session=None):
     readsets += select_readsets_from_readsets(session, digest_data, nucleic_acid_type)
 
     if readsets:
-        # set(readsets)
         for readset in readsets:
             readset_files = []
             bed = None
@@ -1387,12 +1384,10 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
     # operation
     operation = session.scalars(select(Operation).where(Operation.id == operation_id)).first()
     # jobs
-    # jobs = [session.scalars(select(Job).where(Job.id == job_id)).first() for job_id in job_ids]
     ret["DB_ACTION_OUTPUT"].append(operation)
     # If no warning
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
-    # return [operation, jobs]
     return ret
 
 
@@ -1468,7 +1463,7 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
             .join(Readset.run)
             )
     if experiment_nucleic_acid_type:
-        # logger.debug(f"run_name: {run_name}")
+        logger.debug(f"run_name: {run_name}")
         stmt = (
             stmt.where(Experiment.nucleic_acid_type == experiment_nucleic_acid_type)
             .join(Readset.experiment)
@@ -1517,9 +1512,9 @@ def digest_delivery(project_id: str, digest_data, session=None):
             for file in readset.files:
                 if file.deliverable:
                     if location_endpoint:
-                        # logger.debug(f"File: {file}")
+                        logger.debug(f"File: {file}")
                         for location in file.locations:
-                            # logger.debug(f"Location: {location}")
+                            logger.debug(f"Location: {location}")
                             if location_endpoint == location.endpoint:
                                 file_deliverable = location.uri.split("://")[-1]
                                 if not file_deliverable:
