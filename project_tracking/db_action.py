@@ -182,7 +182,7 @@ def select_readsets_from_samples(session, digest_data, nucleic_acid_type):
                 raise DidNotFindError(f"'Sample' with 'name' '{sample_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if vb.SAMPLE_ID in digest_data.keys():
         for sample_id in digest_data[vb.SAMPLE_ID]:
-            logger.debug(f"specimen_id: {specimen_id}")
+            logger.debug(f"sample_id: {sample_id}")
             sample = session.scalars(
                 select(Sample)
                 .where(Sample.id == sample_id)
