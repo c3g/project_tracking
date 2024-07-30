@@ -5,6 +5,12 @@ from logging.config import fileConfig
 from sqlalchemy import create_engine
 from alembic import context
 
+from alembic_utils.pg_function import PGFunction
+from alembic_utils.replaceable_entity import register_entities
+import alembic_postgresql_enum
+
+from project_tracking.model import Base
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -18,12 +24,28 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = None
+# Cf. https://github.com/sqlalchemy/alembic/discussions/1149
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
+
+
+# Cf. https://github.com/olirice/alembic_utils
+to_upper = PGFunction(
+  schema='public',
+  signature='to_upper(some_text text)',
+  definition="""
+  RETURNS text as
+  $$
+    SELECT upper(some_text)
+  $$ language SQL;
+  """
+)
+
+register_entities([to_upper])
 
 def get_url():
     """Generate a URL from the environment variables.
