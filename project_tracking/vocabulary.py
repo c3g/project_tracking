@@ -3,23 +3,32 @@
 # Generic
 DATE_LONG_FMT = "%Y-%m-%d %H:%M:%S"
 DATE_FMT = "%Y-%m-%d"
+TABLE = "table"
+COLUMN = "column"
+OLD = "old"
+NEW = "new"
+ID = "id"
+MODIFICATION = "modification"
 
 # project table
-PROJECT_FMS_ID = "project_fms_id"
+PROJECT_EXT_ID = "project_ext_id"
+PROJECT_EXT_SRC = "project_ext_src"
 PROJECT_NAME = "project_name"
 
-# patient table
-PATIENT = "patient"
-PATIENT_ID = "patient_id"
-PATIENT_FMS_ID = "patient_fms_id"
-PATIENT_NAME = "patient_name"
-PATIENT_COHORT = "patient_cohort"
-PATIENT_INSTITUTION = "patient_institution"
+# specimen table
+SPECIMEN = "specimen"
+SPECIMEN_ID = "specimen_id"
+SPECIMEN_EXT_ID = "specimen_ext_id"
+SPECIMEN_EXT_SRC = "specimen_ext_src"
+SPECIMEN_NAME = "specimen_name"
+SPECIMEN_COHORT = "specimen_cohort"
+SPECIMEN_INSTITUTION = "specimen_institution"
 
 # sample table
 SAMPLE = "sample"
 SAMPLE_ID = "sample_id"
-SAMPLE_FMS_ID = "sample_fms_id"
+SAMPLE_EXT_ID = "sample_ext_id"
+SAMPLE_EXT_SRC = "sample_ext_src"
 SAMPLE_NAME = "sample_name"
 SAMPLE_TUMOUR = "sample_tumour"
 
@@ -32,7 +41,8 @@ EXPERIMENT_KIT_EXPIRATION_DATE = "experiment_kit_expiration_date"
 EXPERIMENT_TYPE_LIST = ["PCR-FREE", "RNASEQ"]
 
 # run table
-RUN_FMS_ID = "run_fms_id"
+RUN_EXT_ID = "run_ext_id"
+RUN_EXT_SRC = "run_ext_src"
 RUN_NAME = "run_name"
 RUN_INSTRUMENT = "run_instrument"
 RUN_DATE = "run_date"
