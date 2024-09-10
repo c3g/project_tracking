@@ -137,6 +137,9 @@ def downgrade() -> None:
     op.drop_column('experiment', 'ext_src')
     op.drop_column('experiment', 'ext_id')
     op.rename_table('specimen', 'patient')
+    op.drop_column('patient', 'ext_src')
+    op.drop_column('patient', 'ext_id')
+    op.add_column('patient', sa.Column('fms_id', sa.VARCHAR(), autoincrement=False, nullable=True))
     op.drop_table('reference')
     sa.Enum('VALID', 'ON_HOLD', 'INVALID', name='stateenum').drop(op.get_bind())
     # ### end Alembic commands ###
