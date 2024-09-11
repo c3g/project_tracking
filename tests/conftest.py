@@ -30,9 +30,9 @@ def pre_filled_model():
     sequencing_technology = 'Fancy Buzzword'
     exp = model.Experiment(nucleic_acid_type=model.NucleicAcidTypeEnum.DNA)
     pa_name = "P_O"
-    pa = model.Patient(name=pa_name, project=project)
+    pa = model.Specimen(name=pa_name, project=project)
     sa_name = 'gros_bobo'
-    sa = model.Sample(name=sa_name, patient=pa)
+    sa = model.Sample(name=sa_name, specimen=pa)
     ru_name = "cure the Conglomerat old director's partner 01"
     instrument = 'Grosse machine du 6e'
     ru = model.Run(instrument=instrument, name=ru_name)

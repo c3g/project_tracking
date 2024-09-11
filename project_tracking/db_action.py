@@ -8,6 +8,7 @@ import sqlite3
 
 from datetime import datetime
 from sqlalchemy import select, exc
+from sqlalchemy import delete as sql_delete
 from pathlib import Path
 
 from . import vocabulary as vb
@@ -15,12 +16,13 @@ from . import database
 from .model import (
     LaneEnum,
     SequencingTypeEnum,
+    StateEnum,
     StatusEnum,
     FlagEnum,
     AggregateEnum,
     readset_file,
     Project,
-    Patient,
+    Specimen,
     Sample,
     Experiment,
     Run,
@@ -81,12 +83,12 @@ class UniqueConstraintError(Error):
 
 def unique_constraint_error(session, json_format, ingest_data):
     """
-    When unique constraint errors, checks which entity is causing the error and returns it/them
+    When unique constraint errors, checks which entity is causing the error and returns it/them as a list
     """
     ret = []
     if json_format == "run_processing":
-        for patient_json in ingest_data[vb.PATIENT]:
-            for sample_json in patient_json[vb.SAMPLE]:
+        for specimen_json in ingest_data[vb.SPECIMEN]:
+            for sample_json in specimen_json[vb.SAMPLE]:
                 for readset_json in sample_json[vb.READSET]:
                     readset_name = readset_json[vb.READSET_NAME]
                     stmt = (
@@ -100,7 +102,7 @@ def unique_constraint_error(session, json_format, ingest_data):
 
 def name_to_id(model_class, name, session=None):
     """
-    Converting a given name into its id
+    Converting a given name into its id(s) for a given model_class
     """
     if session is None:
         session = database.get_session()
@@ -111,6 +113,132 @@ def name_to_id(model_class, name, session=None):
     stmt = (select(the_class.id).where(the_class.name.in_(name)))
 
     return session.scalars(stmt).unique().all()
+
+
+def select_readsets_from_specimens(session, digest_data, nucleic_acid_type):
+    """Returning Readsets Objects based on requested specimens in digest_data"""
+    specimens = []
+    readsets = []
+    if vb.SPECIMEN_NAME in digest_data.keys():
+        for specimen_name in digest_data[vb.SPECIMEN_NAME]:
+            specimen = session.scalars(
+                select(Specimen)
+                .where(Specimen.name == specimen_name)
+                .join(Specimen.samples)
+                .join(Sample.readsets)
+                .where(Readset.deprecated.is_(False))
+                .where(Readset.deleted.is_(False))
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
+            if specimen:
+                specimens.append(specimen)
+            else:
+                raise DidNotFindError(f"'Specimen' with 'name' '{specimen_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+    if vb.SPECIMEN_ID in digest_data.keys():
+        for specimen_id in digest_data[vb.SPECIMEN_ID]:
+            logger.debug(f"specimen_id: {specimen_id}")
+            specimen = session.scalars(
+                select(Specimen)
+                .where(Specimen.id == specimen_id)
+                .join(Specimen.samples)
+                .join(Sample.readsets)
+                .where(Readset.deprecated.is_(False))
+                .where(Readset.deleted.is_(False))
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
+            if specimen:
+                specimens.append(specimen)
+            else:
+                raise DidNotFindError(f"'Specimen' with 'id' '{specimen_id}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+    if specimens:
+        set(specimens)
+        for specimen in specimens:
+            for sample in specimen.samples:
+                for readset in sample.readsets:
+                    readsets.append(readset)
+
+    return readsets
+
+def select_readsets_from_samples(session, digest_data, nucleic_acid_type):
+    """Returning Readsets Objects based on requested samples in digest_data"""
+    samples = []
+    readsets = []
+    if vb.SAMPLE_NAME in digest_data.keys():
+        for sample_name in digest_data[vb.SAMPLE_NAME]:
+            sample = session.scalars(
+                select(Sample)
+                .where(Sample.name == sample_name)
+                .join(Sample.readsets)
+                .where(Readset.deprecated.is_(False))
+                .where(Readset.deleted.is_(False))
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
+            if sample:
+                samples.append(sample)
+            else:
+                raise DidNotFindError(f"'Sample' with 'name' '{sample_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+    if vb.SAMPLE_ID in digest_data.keys():
+        for sample_id in digest_data[vb.SAMPLE_ID]:
+            logger.debug(f"sample_id: {sample_id}")
+            sample = session.scalars(
+                select(Sample)
+                .where(Sample.id == sample_id)
+                .join(Sample.readsets)
+                .where(Readset.deprecated.is_(False))
+                .where(Readset.deleted.is_(False))
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
+            if sample:
+                samples.append(sample)
+            else:
+                raise DidNotFindError(f"'Sample' with 'id' '{sample_id}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+    if samples:
+        set(samples)
+        for sample in samples:
+            for readset in sample.readsets:
+                readsets.append(readset)
+
+    return readsets
+
+def select_readsets_from_readsets(session, digest_data, nucleic_acid_type):
+    """Returning Readsets Objects based on requested readsets in digest_data"""
+    readsets = []
+    if vb.READSET_NAME in digest_data.keys():
+        for readset_name in digest_data[vb.READSET_NAME]:
+            readset = session.scalars(
+                select(Readset)
+                .where(Readset.name == readset_name)
+                .where(Readset.deprecated.is_(False))
+                .where(Readset.deleted.is_(False))
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
+            if readset:
+                readsets.append(readset)
+            else:
+                raise DidNotFindError(f"'Readset' with 'name' '{readset_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+    if vb.READSET_ID in digest_data.keys():
+        for readset_id in digest_data[vb.READSET_ID]:
+            readset = session.scalars(
+                select(Readset)
+                .where(Readset.id == readset_id)
+                .where(Readset.deprecated.is_(False))
+                .where(Readset.deleted.is_(False))
+                .join(Readset.experiment)
+                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
+                ).unique().first()
+            if readset:
+                readsets.append(readset)
+            else:
+                raise DidNotFindError(f"'Readset' with 'id' '{readset_id}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+    if readsets:
+        set(readsets)
+
+    return readsets
 
 def projects(project_id=None, session=None):
     """
@@ -127,14 +255,16 @@ def projects(project_id=None, session=None):
         stmt = (
             select(Project)
             .where(Project.id.in_(project_id))
+            .where(Project.deprecated.is_(False))
+            .where(Project.deleted.is_(False))
             )
 
     return session.scalars(stmt).unique().all()
 
-def metrics_deliverable(project_id: str, deliverable: bool, patient_id=None, sample_id=None, readset_id=None, metric_id=None):
+def metrics_deliverable(project_id: str, deliverable: bool, specimen_id=None, sample_id=None, readset_id=None, metric_id=None):
     """
-    deliverable = True: Returns only patients that have a tumor and a normal sample
-    deliverable = False, Tumor = False: Returns  patients that only have a normal samples
+    deliverable = True: Returns only specimens that have a tumor and a normal sample
+    deliverable = False, Tumor = False: Returns  specimens that only have a normal samples
     """
 
     session = database.get_session()
@@ -148,23 +278,27 @@ def metrics_deliverable(project_id: str, deliverable: bool, patient_id=None, sam
             select(Metric)
             .where(Metric.deliverable == deliverable)
             .where(Metric.id.in_(metric_id))
+            .where(Metric.deprecated.is_(False))
+            .where(Metric.deleted.is_(False))
             .join(Metric.readsets)
             .join(Readset.sample)
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
-    elif patient_id and project_id:
-        if isinstance(patient_id, int):
-            patient_id = [patient_id]
+    elif specimen_id and project_id:
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
         stmt = (
             select(Metric)
             .where(Metric.deliverable == deliverable)
+            .where(Metric.deprecated.is_(False))
+            .where(Metric.deleted.is_(False))
             .join(Metric.readsets)
             .join(Readset.sample)
-            .join(Sample.patient)
-            .where(Patient.id.in_(patient_id))
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .where(Specimen.id.in_(specimen_id))
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif sample_id and project_id:
@@ -173,11 +307,13 @@ def metrics_deliverable(project_id: str, deliverable: bool, patient_id=None, sam
         stmt = (
             select(Metric)
             .where(Metric.deliverable == deliverable)
+            .where(Metric.deprecated.is_(False))
+            .where(Metric.deleted.is_(False))
             .join(Metric.readsets)
             .join(Readset.sample)
             .where(Sample.id.in_(sample_id))
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif readset_id and project_id:
@@ -186,11 +322,13 @@ def metrics_deliverable(project_id: str, deliverable: bool, patient_id=None, sam
         stmt = (
             select(Metric)
             .where(Metric.deliverable == deliverable)
+            .where(Metric.deprecated.is_(False))
+            .where(Metric.deleted.is_(False))
             .join(Metric.readsets)
             .where(Readset.id.in_(readset_id))
             .join(Readset.sample)
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     else:
@@ -199,9 +337,9 @@ def metrics_deliverable(project_id: str, deliverable: bool, patient_id=None, sam
     return session.scalars(stmt).unique().all()
 
 
-def metrics(project_id=None, patient_id=None, sample_id=None, readset_id=None, metric_id=None):
+def metrics(project_id=None, specimen_id=None, sample_id=None, readset_id=None, metric_id=None):
     """
-    Fetching all metrics that are part of the project or patient or sample or readset
+    Fetching all metrics that are part of the project or specimen or sample or readset
     """
     session = database.get_session()
     if isinstance(project_id, str):
@@ -213,22 +351,26 @@ def metrics(project_id=None, patient_id=None, sample_id=None, readset_id=None, m
         stmt = (
             select(Metric)
             .where(Metric.id.in_(metric_id))
+            .where(Metric.deprecated.is_(False))
+            .where(Metric.deleted.is_(False))
             .join(Metric.readsets)
             .join(Readset.sample)
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
-    elif patient_id and project_id:
-        if isinstance(patient_id, int):
-            patient_id = [patient_id]
+    elif specimen_id and project_id:
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
         stmt = (
             select(Metric)
+            .where(Metric.deprecated.is_(False))
+            .where(Metric.deleted.is_(False))
             .join(Metric.readsets)
             .join(Readset.sample)
-            .join(Sample.patient)
-            .where(Patient.id.in_(patient_id))
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .where(Specimen.id.in_(specimen_id))
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif sample_id and project_id:
@@ -236,11 +378,13 @@ def metrics(project_id=None, patient_id=None, sample_id=None, readset_id=None, m
             sample_id = [sample_id]
         stmt = (
             select(Metric)
+            .where(Metric.deprecated.is_(False))
+            .where(Metric.deleted.is_(False))
             .join(Metric.readsets)
             .join(Readset.sample)
             .where(Sample.id.in_(sample_id))
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif readset_id and project_id:
@@ -248,11 +392,13 @@ def metrics(project_id=None, patient_id=None, sample_id=None, readset_id=None, m
             readset_id = [readset_id]
         stmt = (
             select(Metric)
+            .where(Metric.deprecated.is_(False))
+            .where(Metric.deleted.is_(False))
             .join(Metric.readsets)
             .where(Readset.id.in_(readset_id))
             .join(Readset.sample)
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     else:
@@ -261,7 +407,7 @@ def metrics(project_id=None, patient_id=None, sample_id=None, readset_id=None, m
     return session.scalars(stmt).unique().all()
 
 
-def files_deliverable(project_id: str, deliverable: bool, patient_id=None, sample_id=None, readset_id=None, file_id=None):
+def files_deliverable(project_id: str, deliverable: bool, specimen_id=None, sample_id=None, readset_id=None, file_id=None):
     """
     deliverable = True: Returns only files labelled as deliverable
     deliverable = False: Returns only files NOT labelled as deliverable
@@ -276,25 +422,29 @@ def files_deliverable(project_id: str, deliverable: bool, patient_id=None, sampl
             file_id = [file_id]
         stmt = (
             select(File)
+            .where(File.deprecated.is_(False))
+            .where(File.deleted.is_(False))
             .where(File.deliverable == deliverable)
             .where(File.id.in_(file_id))
             .join(File.readsets)
             .join(Readset.sample)
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
-    elif patient_id and project_id:
-        if isinstance(patient_id, int):
-            patient_id = [patient_id]
+    elif specimen_id and project_id:
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
         stmt = (
             select(File)
             .where(File.deliverable == deliverable)
+            .where(File.deprecated.is_(False))
+            .where(File.deleted.is_(False))
             .join(File.readsets)
             .join(Readset.sample)
-            .join(Sample.patient)
-            .where(Patient.id.in_(patient_id))
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .where(Specimen.id.in_(specimen_id))
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif sample_id and project_id:
@@ -303,11 +453,13 @@ def files_deliverable(project_id: str, deliverable: bool, patient_id=None, sampl
         stmt = (
             select(File)
             .where(File.deliverable == deliverable)
+            .where(File.deprecated.is_(False))
+            .where(File.deleted.is_(False))
             .join(File.readsets)
             .join(Readset.sample)
             .where(Sample.id.in_(sample_id))
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif readset_id and project_id:
@@ -316,11 +468,13 @@ def files_deliverable(project_id: str, deliverable: bool, patient_id=None, sampl
         stmt = (
             select(File)
             .where(File.deliverable == deliverable)
+            .where(File.deprecated.is_(False))
+            .where(File.deleted.is_(False))
             .join(File.readsets)
             .where(Readset.id.in_(readset_id))
             .join(Readset.sample)
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     else:
@@ -328,7 +482,7 @@ def files_deliverable(project_id: str, deliverable: bool, patient_id=None, sampl
 
     return session.scalars(stmt).unique().all()
 
-def files(project_id=None, patient_id=None, sample_id=None, readset_id=None, file_id=None):
+def files(project_id=None, specimen_id=None, sample_id=None, readset_id=None, file_id=None):
     """
     Fetching all files that are linked to readset
     """
@@ -342,23 +496,27 @@ def files(project_id=None, patient_id=None, sample_id=None, readset_id=None, fil
             file_id = [file_id]
         stmt = (
             select(File)
+            .where(File.deprecated.is_(False))
+            .where(File.deleted.is_(False))
             .where(File.id.in_(file_id))
             .join(File.readsets)
             .join(Readset.sample)
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
-    elif patient_id and project_id:
-        if isinstance(patient_id, int):
-            patient_id = [patient_id]
+    elif specimen_id and project_id:
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
         stmt = (
             select(File)
+            .where(File.deprecated.is_(False))
+            .where(File.deleted.is_(False))
             .join(File.readsets)
             .join(Readset.sample)
-            .join(Sample.patient)
-            .where(Patient.id.in_(patient_id))
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .where(Specimen.id.in_(specimen_id))
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif sample_id and project_id:
@@ -366,11 +524,13 @@ def files(project_id=None, patient_id=None, sample_id=None, readset_id=None, fil
             sample_id = [sample_id]
         stmt = (
             select(File)
+            .where(File.deprecated.is_(False))
+            .where(File.deleted.is_(False))
             .join(File.readsets)
             .join(Readset.sample)
             .where(Sample.id.in_(sample_id))
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif readset_id and project_id:
@@ -378,11 +538,13 @@ def files(project_id=None, patient_id=None, sample_id=None, readset_id=None, fil
             readset_id = [readset_id]
         stmt = (
             select(File)
+            .where(File.deprecated.is_(False))
+            .where(File.deleted.is_(False))
             .join(File.readsets)
             .where(Readset.id.in_(readset_id))
             .join(Readset.sample)
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     else:
@@ -401,13 +563,19 @@ def readsets(project_id=None, sample_id=None, readset_id=None):
         project_id = [project_id]
 
     if project_id is None and sample_id is None and readset_id is None:
-        stmt = select(Readset)
+        stmt = (
+            select(Readset)
+            .where(Readset.deprecated.is_(False))
+            .where(Readset.deleted.is_(False))
+            )
     elif project_id and sample_id is None and readset_id is None:
         stmt = (
             select(Readset)
+            .where(Readset.deprecated.is_(False))
+            .where(Readset.deleted.is_(False))
             .join(Readset.sample)
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif sample_id and project_id:
@@ -415,11 +583,13 @@ def readsets(project_id=None, sample_id=None, readset_id=None):
             sample_id = [sample_id]
         stmt = (
             select(Readset)
+            .where(Readset.deprecated.is_(False))
+            .where(Readset.deleted.is_(False))
             .join(Readset.sample)
             .where(Sample.id.in_(sample_id)).where(Project.id.in_(project_id))
             .join(Readset.sample)
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     elif readset_id and project_id:
@@ -427,56 +597,66 @@ def readsets(project_id=None, sample_id=None, readset_id=None):
             readset_id = [readset_id]
         stmt = (
             select(Readset)
+            .where(Readset.deprecated.is_(False))
+            .where(Readset.deleted.is_(False))
             .where(Readset.id.in_(readset_id))
             .join(Readset.sample)
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
 
     return session.scalars(stmt).unique().all()
 
 
-def patient_pair(project_id: str, pair: bool, patient_id=None, tumor: bool=True):
+def specimen_pair(project_id: str, pair: bool, specimen_id=None, tumor: bool=True):
     """
-    Pair = True: Returns only patients that have a tumor and a normal sample
-    Pair = False, Tumor = True: Returns patients that only have a tumor samples
-    Pair = False, Tumor = False: Returns  patients that only have a normal samples
+    Pair = True: Returns only specimens that have a tumor and a normal sample
+    Pair = False, Tumor = True: Returns specimens that only have a tumor samples
+    Pair = False, Tumor = False: Returns  specimens that only have a normal samples
     """
 
     session = database.get_session()
     if isinstance(project_id, str):
         project_id = [project_id]
 
-    if patient_id is None:
+    if specimen_id is None:
         stmt1 = (
-            select(Patient)
-            .join(Patient.samples)
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            .join(Specimen.samples)
             .where(Sample.tumour.is_(True))
             .where(Project.id.in_(project_id))
             )
         stmt2 = (
-            select(Patient)
-            .join(Patient.samples)
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            .join(Specimen.samples)
             .where(Sample.tumour.is_(False))
             .where(Project.id.in_(project_id))
             )
     else:
-        if isinstance(patient_id, int):
-            patient_id = [patient_id]
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
         stmt1 = (
-            select(Patient)
-            .join(Patient.samples)
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            .join(Specimen.samples)
             .where(Sample.tumour.is_(True))
             .where(Project.id.in_(project_id))
-            .where(Patient.id.in_(patient_id))
+            .where(Specimen.id.in_(specimen_id))
             )
         stmt2 = (
-            select(Patient)
-            .join(Patient.samples)
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            .join(Specimen.samples)
             .where(Sample.tumour.is_(False))
             .where(Project.id.in_(project_id))
-            .where(Patient.id.in_(patient_id))
+            .where(Specimen.id.in_(specimen_id))
             )
     s1 = set(session.scalars(stmt1).all())
     s2 = set(session.scalars(stmt2).all())
@@ -488,29 +668,37 @@ def patient_pair(project_id: str, pair: bool, patient_id=None, tumor: bool=True)
         return s2.difference(s1)
 
 
-def patients(project_id=None, patient_id=None):
+def specimens(project_id=None, specimen_id=None):
     """
-    Fetching all patients from projets or selected patient from id
+    Fetching all specimens from projets or selected specimen from id
     """
     session = database.get_session()
     if isinstance(project_id, str):
         project_id = [project_id]
 
-    if project_id is None and patient_id is None:
-        stmt = select(Patient)
-    elif patient_id is None and project_id:
+    if project_id is None and specimen_id is None:
         stmt = (
-            select(Patient)
-            .join(Patient.project)
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            )
+    elif specimen_id is None and project_id:
+        stmt = (
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     else:
-        if isinstance(patient_id, int):
-            patient_id = [patient_id]
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
         stmt = (
-            select(Patient)
-            .where(Patient.id.in_(patient_id))
-            .join(Patient.project)
+            select(Specimen)
+            .where(Specimen.deprecated.is_(False))
+            .where(Specimen.deleted.is_(False))
+            .where(Specimen.id.in_(specimen_id))
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
 
@@ -526,12 +714,18 @@ def samples(project_id=None, sample_id=None):
         project_id = [project_id]
 
     if project_id is None:
-        stmt = (select(Sample))
+        stmt = (
+            select(Sample)
+            .where(Sample.deprecated.is_(False))
+            .where(Sample.deleted.is_(False))
+            )
     elif sample_id is None:
         stmt = (
             select(Sample)
-            .join(Sample.patient)
-            .join(Patient.project)
+            .where(Sample.deprecated.is_(False))
+            .where(Sample.deleted.is_(False))
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
     else:
@@ -539,16 +733,18 @@ def samples(project_id=None, sample_id=None):
             sample_id = [sample_id]
         stmt = (
             select(Sample)
+            .where(Sample.deprecated.is_(False))
+            .where(Sample.deleted.is_(False))
             .where(Sample.id.in_(sample_id))
-            .join(Sample.patient)
-            .join(Patient.project)
+            .join(Sample.specimen)
+            .join(Specimen.project)
             .where(Project.id.in_(project_id))
             )
 
     return session.scalars(stmt).unique().all()
 
 
-def create_project(project_name, fms_id=None, session=None):
+def create_project(project_name, ext_id=None, ext_src=None, session=None):
     """
     Creating new project
     Returns project even if it already exist
@@ -556,7 +752,7 @@ def create_project(project_name, fms_id=None, session=None):
     if not session:
         session = database.get_session()
 
-    project = Project(name=project_name, fms_id=fms_id)
+    project = Project(name=project_name, ext_id=ext_id, ext_src=ext_src)
 
     session.add(project)
 
@@ -578,6 +774,11 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
     if not session:
         session = database.get_session()
 
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+        }
+
     project = projects(project_id=project_id, session=session)[0]
 
     operation = Operation(
@@ -596,26 +797,27 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
     session.add(job)
     # Defining Run
     run = Run.from_attributes(
-        fms_id=ingest_data[vb.RUN_FMS_ID],
+        ext_id=ingest_data[vb.RUN_EXT_ID],
+        ext_src=ingest_data[vb.RUN_EXT_SRC],
         name=ingest_data[vb.RUN_NAME],
         instrument=ingest_data[vb.RUN_INSTRUMENT],
         date=datetime.strptime(ingest_data[vb.RUN_DATE], vb.DATE_LONG_FMT),
         session=session
         )
 
-    for patient_json in ingest_data[vb.PATIENT]:
-        patient = Patient.from_name(
-            name=patient_json[vb.PATIENT_NAME],
-            cohort=patient_json[vb.PATIENT_COHORT],
-            institution=patient_json[vb.PATIENT_INSTITUTION],
+    for specimen_json in ingest_data[vb.SPECIMEN]:
+        specimen = Specimen.from_name(
+            name=specimen_json[vb.SPECIMEN_NAME],
+            cohort=specimen_json[vb.SPECIMEN_COHORT],
+            institution=specimen_json[vb.SPECIMEN_INSTITUTION],
             project=project,
             session=session
             )
-        for sample_json in patient_json[vb.SAMPLE]:
+        for sample_json in specimen_json[vb.SAMPLE]:
             sample = Sample.from_name(
                 name=sample_json[vb.SAMPLE_NAME],
                 tumour=sample_json[vb.SAMPLE_TUMOUR],
-                patient=patient,
+                specimen=specimen,
                 session=session
                 )
             for readset_json in sample_json[vb.READSET]:
@@ -638,7 +840,6 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                     adapter1=readset_json[vb.READSET_ADAPTER1],
                     adapter2=readset_json[vb.READSET_ADAPTER2],
                     sequencing_type=SequencingTypeEnum(readset_json[vb.READSET_SEQUENCING_TYPE]),
-                    quality_offset=readset_json[vb.READSET_QUALITY_OFFSET],
                     sample=sample,
                     experiment=experiment,
                     run=run,
@@ -650,11 +851,13 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                     file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
                     if ".gz" in suffixes:
                         file_type = "".join(suffixes[-2:])
+                        if file_type.startswith("."):
+                            file_type = file_type[1:]
                     if vb.FILE_DELIVERABLE in file_json:
                         file_deliverable = file_json[vb.FILE_DELIVERABLE]
                     else:
                         file_deliverable = False
-                    # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
+                    # Need to have the following otherwise assigning extra_metadata to None converts null into json in the db
                     if vb.FILE_EXTRA_METADATA in file_json.keys():
                         file = File(
                             name=file_json[vb.FILE_NAME],
@@ -713,7 +916,13 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
     # job
     job = session.scalars(select(Job).where(Job.id == job_id)).first()
 
-    return [operation, job]
+    ret["DB_ACTION_OUTPUT"].append(operation)
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+    # return [operation, jobs]
+
+    return ret
 
 
 def ingest_transfer(project_id: str, ingest_data, session=None, check_readset_name=True):
@@ -723,6 +932,11 @@ def ingest_transfer(project_id: str, ingest_data, session=None, check_readset_na
 
     if not session:
         session = database.get_session()
+
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+        }
 
     project = projects(project_id=project_id, session=session)[0]
 
@@ -743,30 +957,41 @@ def ingest_transfer(project_id: str, ingest_data, session=None, check_readset_na
     readset_list = []
     for readset_json in ingest_data[vb.READSET]:
         readset_name = readset_json[vb.READSET_NAME]
-        readset_list.append(session.scalars(select(Readset).where(Readset.name == readset_name)).unique().first())
+        readset_list.append(
+            session.scalars(
+                select(Readset)
+                .where(Readset.name == readset_name)
+                .where(Readset.deprecated.is_(False))
+                .where(Readset.deleted.is_(False))
+                ).unique().first()
+            )
         for file_json in readset_json[vb.FILE]:
             src_uri = file_json[vb.SRC_LOCATION_URI]
             dest_uri = file_json[vb.DEST_LOCATION_URI]
             if check_readset_name:
                 file = session.scalars(
                     select(File)
+                    .where(File.deprecated.is_(False))
+                    .where(File.deleted.is_(False))
                     .join(File.readsets)
                     .where(Readset.name == readset_name)
                     .join(File.locations)
                     .where(Location.uri == src_uri)
                     ).unique().first()
                 if not file:
-                    raise DidNotFindError(f"No file with uri: {src_uri} and readset {readset_name}")
+                    raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}' and 'Readset' with 'name' '{readset_name}'")
             else:
                 file = session.scalars(
                     select(File)
+                        .where(File.deprecated.is_(False))
+                        .where(File.deleted.is_(False))
                         .join(File.readsets)
                         .where(Readset.name == readset_name)
                         .join(File.locations)
                         .where(Location.uri == src_uri)
                 ).unique().first()
                 if not file:
-                    raise DidNotFindError(f"No file with uri: {src_uri}")
+                    raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}'")
 
             new_location = Location.from_uri(uri=dest_uri, file=file, session=session)
             file.jobs.append(job)
@@ -790,7 +1015,12 @@ def ingest_transfer(project_id: str, ingest_data, session=None, check_readset_na
     # job
     job = session.scalars(select(Job).where(Job.id == job_id)).first()
 
-    return [operation, job]
+    ret["DB_ACTION_OUTPUT"].append(operation)
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+    # return [operation, jobs]
+    return ret
 
 
 def digest_readset_file(project_id: str, digest_data, session=None):
@@ -798,11 +1028,9 @@ def digest_readset_file(project_id: str, digest_data, session=None):
     if not session:
         session = database.get_session()
 
-    patients = []
-    samples = []
     readsets = []
     output = []
-    errors = {
+    warnings = {
         "DB_ACTION_WARNING": []
         }
 
@@ -815,101 +1043,11 @@ def digest_readset_file(project_id: str, digest_data, session=None):
     else:
         raise RequestError(argument="experiment_nucleic_acid_type")
 
-    if vb.PATIENT_NAME in digest_data.keys():
-        for patient_name in digest_data[vb.PATIENT_NAME]:
-            patient = session.scalars(
-                select(Patient)
-                .where(Patient.name == patient_name)
-                .join(Patient.samples)
-                .join(Sample.readsets)
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
-            if patient:
-                patients.append(patient)
-            else:
-                raise DidNotFindError(f"'Patient' with 'name' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
-    if vb.PATIENT_ID in digest_data.keys():
-        for patient_id in digest_data[vb.PATIENT_ID]:
-            # logger.debug(f"\n\n{patient_id}\n\n")
-            patient = session.scalars(
-                select(Patient)
-                .where(Patient.id == patient_id)
-                .join(Patient.samples)
-                .join(Sample.readsets)
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
-            if patient:
-                patients.append(patient)
-            else:
-                raise DidNotFindError(f"'Patient' with 'id' '{patient_id}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
-    if patients:
-        set(patients)
-        for patient in patients:
-            for sample in patient.samples:
-                for readset in sample.readsets:
-                    readsets.append(readset)
+    readsets += select_readsets_from_specimens(session, digest_data, nucleic_acid_type)
+    readsets += select_readsets_from_samples(session, digest_data, nucleic_acid_type)
+    readsets += select_readsets_from_readsets(session, digest_data, nucleic_acid_type)
 
-    if vb.SAMPLE_NAME in digest_data.keys():
-        for sample_name in digest_data[vb.SAMPLE_NAME]:
-            sample = session.scalars(
-                select(Sample)
-                .where(Sample.name == sample_name)
-                .join(Sample.readsets)
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
-            if sample:
-                samples.append(sample)
-            else:
-                raise DidNotFindError(f"'Sample' with 'name' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
-    if vb.SAMPLE_ID in digest_data.keys():
-        for sample_id in digest_data[vb.SAMPLE_ID]:
-            # logger.debug(f"\n\n{sample_id}\n\n")
-            sample = session.scalars(
-                select(Sample)
-                .where(Sample.id == sample_id)
-                .join(Sample.readsets)
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
-            if sample:
-                samples.append(sample)
-            else:
-                raise DidNotFindError(f"'Sample' with 'id' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
-    if samples:
-        set(samples)
-        for sample in samples:
-            for readset in sample.readsets:
-                readsets.append(readset)
-
-    if vb.READSET_NAME in digest_data.keys():
-        for readset_name in digest_data[vb.READSET_NAME]:
-            readset = session.scalars(
-                select(Readset)
-                .where(Readset.name == readset_name)
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
-            if readset:
-                readsets.append(readset)
-            else:
-                raise DidNotFindError(f"'Readset' with 'name' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
-    if vb.READSET_ID in digest_data.keys():
-        for readset_id in digest_data[vb.READSET_ID]:
-            readset = session.scalars(
-                select(Readset)
-                .where(Readset.id == readset_id)
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
-            if readset:
-                readsets.append(readset)
-            else:
-                raise DidNotFindError(f"'Readset' with 'id' '{patient_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
     if readsets:
-        set(readsets)
         for readset in readsets:
             readset_files = []
             bed = None
@@ -929,21 +1067,21 @@ def digest_readset_file(project_id: str, digest_data, session=None):
                                 if location_endpoint == location.endpoint:
                                     fastq1 = location.uri.split("://")[-1]
                             if not fastq1:
-                                errors["DB_ACTION_WARNING"].append(f"Looking for fastq R1 file for Sample {readset.sample.name} and Readset {readset.name} in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
+                                warnings["DB_ACTION_WARNING"].append(f"Looking for R1 fastq 'File' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset' with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
                     elif file.extra_metadata["read_type"] == "R2":
                         if location_endpoint:
                             for location in file.locations:
                                 if location_endpoint == location.endpoint:
                                     fastq2 = location.uri.split("://")[-1]
                             if not fastq2:
-                                errors["DB_ACTION_WARNING"].append(f"Looking for fastq R2 file for Sample {readset.sample.name} and Readset {readset.name} in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
+                                warnings["DB_ACTION_WARNING"].append(f"Looking for R2 fastq 'File' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset' with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
                 elif file.type == "bam":
                     if location_endpoint:
                         for location in file.locations:
                             if location_endpoint == location.endpoint:
                                 bam = location.uri.split("://")[-1]
                         if not bam:
-                            errors["DB_ACTION_WARNING"].append(f"Looking for bam file for Sample {readset.sample.name} and Readset {readset.name} in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
+                            warnings["DB_ACTION_WARNING"].append(f"Looking for bam 'File' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset'  with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
                 if file.type == "bed":
                     bed = file.name
             readset_line = {
@@ -955,15 +1093,15 @@ def digest_readset_file(project_id: str, digest_data, session=None):
                 "Lane": readset.lane.value,
                 "Adapter1": readset.adapter1,
                 "Adapter2": readset.adapter2,
-                "QualityOffset": readset.quality_offset,
+                "QualityOffset": "33",
                 "BED": bed,
                 "FASTQ1": fastq1,
                 "FASTQ2": fastq2,
                 "BAM": bam
                 }
             output.append(readset_line)
-    if errors["DB_ACTION_WARNING"]:
-        ret = errors
+    if warnings["DB_ACTION_WARNING"]:
+        ret = warnings
     else:
         ret = output
     return json.dumps(ret)
@@ -975,7 +1113,7 @@ def digest_pair_file(project_id: str, digest_data, session=None):
 
     pair_dict = {}
     samples = []
-    patients = []
+    specimens = []
     # readsets = []
     output = []
 
@@ -984,44 +1122,50 @@ def digest_pair_file(project_id: str, digest_data, session=None):
     else:
         raise RequestError(argument="experiment_nucleic_acid_type")
 
-    if vb.PATIENT_NAME in digest_data.keys():
-        for patient_name in digest_data[vb.PATIENT_NAME]:
-            patient = session.scalars(
-                select(Patient)
-                .where(Patient.name == patient_name)
-                .join(Patient.samples)
+    if vb.SPECIMEN_NAME in digest_data.keys():
+        for specimen_name in digest_data[vb.SPECIMEN_NAME]:
+            specimen = session.scalars(
+                select(Specimen)
+                .where(Specimen.deprecated.is_(False))
+                .where(Specimen.deleted.is_(False))
+                .where(Specimen.name == specimen_name)
+                .join(Specimen.samples)
                 .join(Sample.readsets)
                 .join(Readset.experiment)
                 .where(Experiment.nucleic_acid_type == nucleic_acid_type)
                 ).unique().first()
-            if patient:
-                patients.append(patient)
+            if specimen:
+                specimens.append(specimen)
             else:
-                raise DidNotFindError(table="Patient", attribute="name", query=patient_name)
-    if vb.PATIENT_ID in digest_data.keys():
-        for patient_id in digest_data[vb.PATIENT_ID]:
-            patient = session.scalars(
-                select(Patient)
-                .where(Patient.id == patient_id)
-                .join(Patient.samples)
+                raise DidNotFindError(table="Specimen", attribute="name", query=specimen_name)
+    if vb.SPECIMEN_ID in digest_data.keys():
+        for specimen_id in digest_data[vb.SPECIMEN_ID]:
+            specimen = session.scalars(
+                select(Specimen)
+                .where(Specimen.deprecated.is_(False))
+                .where(Specimen.deleted.is_(False))
+                .where(Specimen.id == specimen_id)
+                .join(Specimen.samples)
                 .join(Sample.readsets)
                 .join(Readset.experiment)
                 .where(Experiment.nucleic_acid_type == nucleic_acid_type)
                 ).unique().first()
-            if patient:
-                patients.append(patient)
+            if specimen:
+                specimens.append(specimen)
             else:
-                raise DidNotFindError(table="Patient", attribute="id", query=patient_id)
-    if patients:
-        set(patients)
-        for patient in patients:
-            for sample in patient.samples:
+                raise DidNotFindError(table="Specimen", attribute="id", query=specimen_id)
+    if specimens:
+        set(specimens)
+        for specimen in specimens:
+            for sample in specimen.samples:
                 samples.append(sample)
 
     if vb.SAMPLE_NAME in digest_data.keys():
         for sample_name in digest_data[vb.SAMPLE_NAME]:
             sample = session.scalars(
                 select(Sample)
+                .where(Sample.deprecated.is_(False))
+                .where(Sample.deleted.is_(False))
                 .where(Sample.name == sample_name)
                 .join(Sample.readsets)
                 .join(Readset.experiment)
@@ -1035,6 +1179,8 @@ def digest_pair_file(project_id: str, digest_data, session=None):
         for sample_id in digest_data[vb.SAMPLE_ID]:
             sample = session.scalars(
                 select(Sample)
+                .where(Sample.deprecated.is_(False))
+                .where(Sample.deleted.is_(False))
                 .where(Sample.id == sample_id)
                 .join(Sample.readsets)
                 .join(Readset.experiment)
@@ -1048,6 +1194,8 @@ def digest_pair_file(project_id: str, digest_data, session=None):
         for readset_name in digest_data[vb.READSET_NAME]:
             readset = session.scalars(
                 select(Readset)
+                .where(Readset.deprecated.is_(False))
+                .where(Readset.deleted.is_(False))
                 .where(Readset.name == readset_name)
                 .join(Readset.experiment)
                 .where(Experiment.nucleic_acid_type == nucleic_acid_type)
@@ -1060,6 +1208,8 @@ def digest_pair_file(project_id: str, digest_data, session=None):
         for readset_id in digest_data[vb.READSET_ID]:
             readset = session.scalars(
                 select(Readset)
+                .where(Readset.deprecated.is_(False))
+                .where(Readset.deleted.is_(False))
                 .where(Readset.id == readset_id)
                 .join(Readset.experiment)
                 .where(Experiment.nucleic_acid_type == nucleic_acid_type)
@@ -1071,19 +1221,19 @@ def digest_pair_file(project_id: str, digest_data, session=None):
     if samples:
         set(samples)
         for sample in samples:
-            if not sample.patient.name in pair_dict.keys():
-                pair_dict[sample.patient.name] = {
+            if not sample.specimen.name in pair_dict.keys():
+                pair_dict[sample.specimen.name] = {
                     "T": None,
                     "N": None
                     }
             if sample.tumour:
-                pair_dict[sample.patient.name]["T"] = sample.name
+                pair_dict[sample.specimen.name]["T"] = sample.name
             else:
-                pair_dict[sample.patient.name]["N"] = sample.name
+                pair_dict[sample.specimen.name]["N"] = sample.name
     if pair_dict:
-        for patient_name, dict_tn in pair_dict.items():
+        for specimen_name, dict_tn in pair_dict.items():
             pair_line = {
-                "Patient": patient_name,
+                "Specimen": specimen_name,
                 "Sample_N": dict_tn["N"],
                 "Sample_T": dict_tn["T"]
                 }
@@ -1098,6 +1248,11 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
 
     if not session:
         session = database.get_session()
+
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+        }
 
     project = projects(project_id=project_id, session=session)[0]
 
@@ -1119,23 +1274,29 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
         )
 
     readset_list = []
+    if not ingest_data[vb.SAMPLE]:
+        raise RequestError("No 'Sample' found, this json won't be ingested.")
     for sample_json in ingest_data[vb.SAMPLE]:
         sample = session.scalars(
             select(Sample)
+            .where(Sample.deprecated.is_(False))
+            .where(Sample.deleted.is_(False))
             .where(Sample.name == sample_json[vb.SAMPLE_NAME])
             ).unique().first()
         if not sample:
-            raise DidNotFindError(f"No sample named {sample_json[vb.SAMPLE_NAME]}")
+            raise DidNotFindError(f"No Sample named '{sample_json[vb.SAMPLE_NAME]}'")
         for readset_json in sample_json[vb.READSET]:
             readset = session.scalars(
                 select(Readset)
+                .where(Readset.deprecated.is_(False))
+                .where(Readset.deleted.is_(False))
                 .where(Readset.name == readset_json[vb.READSET_NAME])
                 ).unique().first()
             readset_list.append(readset)
             if not readset:
-                raise DidNotFindError(f"No readset named {readset_json[vb.READSET_NAME]}")
+                raise DidNotFindError(f"No Readset named '{readset_json[vb.READSET_NAME]}'")
             if readset.sample != sample:
-                raise DidNotFindError(f"sample {sample_json[vb.SAMPLE_NAME]} not linked with readset {readset_json[vb.READSET_NAME]}")
+                raise DidNotFindError(f"'Sample' with 'name' '{sample_json[vb.SAMPLE_NAME]}' not linked with 'Readset' with 'name' '{readset_json[vb.READSET_NAME]}'")
             for job_json in readset_json[vb.JOB]:
                 try:
                     job_start = datetime.strptime(job_json[vb.JOB_START], vb.DATE_LONG_FMT)
@@ -1202,13 +1363,18 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
                                 )
                 # If job status is null then skip it as we don't want to ingest data not generated
                 else:
-                    pass
+                    ret["DB_ACTION_WARNING"].append(f"'Readset' with 'name' '{readset.name}' has 'Job' with 'name' '{job_json[vb.JOB_NAME]}' with no status, skipping.")
 
-                session.add(job)
-                session.flush()
+                try:
+                    session.add(job)
+                    session.flush()
+                except UnboundLocalError:
+                    pass
     operation.readsets = readset_list
     operation_id = operation.id
     job_ids = [job.id for job in operation.jobs]
+    if not job_ids:
+        raise RequestError("No 'Job' has a status, this json won't be ingested.")
     try:
         session.commit()
     except exc.SQLAlchemyError as error:
@@ -1218,9 +1384,11 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
     # operation
     operation = session.scalars(select(Operation).where(Operation.id == operation_id)).first()
     # jobs
-    jobs = [session.scalars(select(Job).where(Job.id == job_id)).first() for job_id in job_ids]
-
-    return [operation, jobs]
+    ret["DB_ACTION_OUTPUT"].append(operation)
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+    return ret
 
 
 def digest_unanalyzed(project_id: str, digest_data, session=None):
@@ -1242,29 +1410,50 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
     run_id = digest_data["run_id"]
     run_name = digest_data["run_name"]
     if run_name:
-        run_id = name_to_id("Run", run_name)[0]
+        try:
+            run_id = name_to_id("Run", run_name)[0]
+        except:
+            raise DidNotFindError(f"'Run' with 'name' '{run_name}' doesn't exist on database")
     experiment_nucleic_acid_type = digest_data["experiment_nucleic_acid_type"]
     location_endpoint = digest_data["location_endpoint"]
 
     if sample_name_flag:
-        stmt = select(Sample.name)
+        stmt = (
+            select(Sample.name)
+            .where(Sample.deprecated.is_(False))
+            .where(Sample.deleted.is_(False))
+            .join(Sample.readsets)
+            )
         key = "sample_name"
     elif sample_id_flag:
-        stmt = select(Sample.id)
+        stmt = (
+            select(Sample.id)
+            .where(Sample.deprecated.is_(False))
+            .where(Sample.deleted.is_(False))
+            .join(Sample.readsets)
+            )
         key = "sample_id"
     elif readset_name_flag:
-        stmt = select(Readset.name)
+        stmt = (
+            select(Readset.name)
+            .where(Readset.deprecated.is_(False))
+            .where(Readset.deleted.is_(False))
+            )
         key = "readset_name"
     elif readset_id_flag:
-        stmt = select(Readset.id)
+        stmt = (
+            select(Readset.id)
+            .where(Readset.deprecated.is_(False))
+            .where(Readset.deleted.is_(False))
+            )
         key = "readset_id"
 
     stmt = (
-        stmt.join(Sample.readsets)
+        stmt.where(Readset.state == StateEnum("VALID"))
         .join(Readset.operations)
-        .where(Operation.name.ilike(f"%genpipes%"))
-        .join(Sample.patient)
-        .join(Patient.project)
+        .where(Operation.name.notilike("%genpipes%"))
+        .join(Sample.specimen)
+        .join(Specimen.project)
         .where(Project.id.in_(project_id))
         )
 
@@ -1274,6 +1463,7 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
             .join(Readset.run)
             )
     if experiment_nucleic_acid_type:
+        logger.debug(f"run_name: {run_name}")
         stmt = (
             stmt.where(Experiment.nucleic_acid_type == experiment_nucleic_acid_type)
             .join(Readset.experiment)
@@ -1286,3 +1476,307 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
     }
 
     return json.dumps(output)
+
+def digest_delivery(project_id: str, digest_data, session=None):
+    """
+    Getting delivery samples or readsets
+    """
+    if not session:
+        session = database.get_session()
+
+    location_endpoint = None
+    if vb.LOCATION_ENDPOINT in digest_data.keys():
+        location_endpoint = digest_data[vb.LOCATION_ENDPOINT]
+
+    readsets = []
+    output = {
+        "location_endpoint": location_endpoint,
+        "readset": []
+        }
+    warnings = {
+        "DB_ACTION_WARNING": []
+        }
+
+    if vb.EXPERIMENT_NUCLEIC_ACID_TYPE in digest_data.keys():
+        nucleic_acid_type = digest_data[vb.EXPERIMENT_NUCLEIC_ACID_TYPE]
+    else:
+        raise RequestError(argument="experiment_nucleic_acid_type")
+
+    readsets += select_readsets_from_specimens(session, digest_data, nucleic_acid_type)
+    readsets += select_readsets_from_samples(session, digest_data, nucleic_acid_type)
+    readsets += select_readsets_from_readsets(session, digest_data, nucleic_acid_type)
+
+    if readsets:
+        for readset in readsets:
+            readset_files = []
+            for file in readset.files:
+                if file.deliverable:
+                    if location_endpoint:
+                        logger.debug(f"File: {file}")
+                        for location in file.locations:
+                            logger.debug(f"Location: {location}")
+                            if location_endpoint == location.endpoint:
+                                file_deliverable = location.uri.split("://")[-1]
+                                if not file_deliverable:
+                                    warnings["DB_ACTION_WARNING"].append(f"Looking for 'File' with 'name' '{file.name}' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset' with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
+                                else:
+                                    readset_files.append({
+                                        "name": file.name,
+                                        "location": file_deliverable
+                                        })
+            output["readset"].append({
+                "name": readset.name,
+                "file": readset_files
+                })
+    if warnings["DB_ACTION_WARNING"]:
+        ret = warnings
+    else:
+        ret = output
+    return json.dumps(ret)
+
+def edit(ingest_data, session=None):
+    """Edition of the database based on ingested_data"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+        }
+
+    if not ingest_data[vb.MODIFICATION]:
+        raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
+
+    for table in ingest_data[vb.MODIFICATION]:
+        from . import model
+        the_table = getattr(model, table[vb.TABLE].title())
+        for current_id in set(table[vb.ID]):
+            selected_table = session.scalars(select(the_table).where(the_table.id == current_id)).unique().first()
+            if not selected_table:
+                raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
+            old = getattr(selected_table, table[vb.COLUMN])
+            latest_modification = selected_table.modification
+            # Skip the edit if the new value is the same as the old one
+            if old == table[vb.NEW]:
+                ret["DB_ACTION_WARNING"].append(f"Table '{table[vb.TABLE]}' with id '{current_id}' already has '{table[vb.COLUMN]}' with value '{old}'. Skipping...")
+            else:
+                setattr(selected_table, table[vb.COLUMN], table[vb.NEW])
+                new = getattr(selected_table, table[vb.COLUMN])
+                ret["DB_ACTION_OUTPUT"].append(f"Table '{table[vb.TABLE]}' edited: column '{table[vb.COLUMN]}' with id '{current_id}' changes from '{old}' to '{new}' (previous edit done '{latest_modification}').")
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+
+    return ret
+
+def delete(ingest_data, session=None):
+    """deletion of the database based on ingested_data"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+        }
+
+    if not ingest_data[vb.MODIFICATION]:
+        raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
+
+    for table in ingest_data[vb.MODIFICATION]:
+        from . import model
+        the_table = getattr(model, table[vb.TABLE].title())
+        for current_id in set(table[vb.ID]):
+            selected_table = session.scalars(select(the_table).where(the_table.id == current_id)).unique().first()
+            if not selected_table:
+                raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
+            if selected_table.deleted is True:
+                ret["DB_ACTION_WARNING"].append(f"'{table[vb.TABLE]}' with id '{current_id}' already deleted.. Skipping...")
+            else:
+                selected_table.deleted = True
+                ret["DB_ACTION_OUTPUT"].append(f"'{table[vb.TABLE]}' with id '{current_id}' deleted.")
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+
+    return ret
+
+def undelete(ingest_data, session=None):
+    """revert deletion of the database based on ingested_data"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+        }
+
+    if not ingest_data[vb.MODIFICATION]:
+        raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
+
+    for table in ingest_data[vb.MODIFICATION]:
+        from . import model
+        the_table = getattr(model, table[vb.TABLE].title())
+        for current_id in set(table[vb.ID]):
+            selected_table = session.scalars(select(the_table).where(the_table.id == current_id)).unique().first()
+            if not selected_table:
+                raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
+            if selected_table.deleted is False:
+                ret["DB_ACTION_WARNING"].append(f"'{table[vb.TABLE]}' with id '{current_id}' already undeleted.. Skipping...")
+            else:
+                selected_table.deleted = False
+                ret["DB_ACTION_OUTPUT"].append(f"'{table[vb.TABLE]}' with id '{current_id}' undeleted.")
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+
+    return ret
+
+def deprecate(ingest_data, session=None):
+    """deprecation of the database based on ingested_data"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+        }
+
+    if not ingest_data[vb.MODIFICATION]:
+        raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
+
+    for table in ingest_data[vb.MODIFICATION]:
+        from . import model
+        the_table = getattr(model, table[vb.TABLE].title())
+        for current_id in set(table[vb.ID]):
+            selected_table = session.scalars(select(the_table).where(the_table.id == current_id)).unique().first()
+            if not selected_table:
+                raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
+            if selected_table.deprecated is True:
+                ret["DB_ACTION_WARNING"].append(f"'{table[vb.TABLE]}' with id '{current_id}' already deprecated.. Skipping...")
+            else:
+                selected_table.deprecated = True
+                ret["DB_ACTION_OUTPUT"].append(f"'{table[vb.TABLE]}' with id '{current_id}' deprecated.")
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+
+    return ret
+
+def undeprecate(ingest_data, session=None):
+    """revert deprecation of the database based on ingested_data"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+        }
+
+    if not ingest_data[vb.MODIFICATION]:
+        raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
+
+    for table in ingest_data[vb.MODIFICATION]:
+        from . import model
+        the_table = getattr(model, table[vb.TABLE].title())
+        for current_id in set(table[vb.ID]):
+            selected_table = session.scalars(select(the_table).where(the_table.id == current_id)).unique().first()
+            if not selected_table:
+                raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
+            if selected_table.deprecated is False:
+                ret["DB_ACTION_WARNING"].append(f"'{table[vb.TABLE]}' with id '{current_id}' already undeprecated.. Skipping...")
+            else:
+                selected_table.deprecated = False
+                ret["DB_ACTION_OUTPUT"].append(f"'{table[vb.TABLE]}' with id '{current_id}' undeprecated.")
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+
+    return ret
+
+def curate(ingest_data, session=None):
+    """curate the database based on ingested_data"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+        }
+
+    if not ingest_data[vb.MODIFICATION]:
+        raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
+
+    for table in ingest_data[vb.MODIFICATION]:
+        from . import model
+        the_table = getattr(model, table[vb.TABLE].title())
+        for current_id in set(table[vb.ID]):
+            selected_table = session.scalars(select(the_table).where(the_table.id == current_id)).unique().first()
+            if not selected_table:
+                raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
+            session.delete(selected_table)
+            ret["DB_ACTION_OUTPUT"].append(f"'{table[vb.TABLE]}' with id '{current_id}' deleted.")
+
+    try:
+        session.commit()
+    except exc.SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+
+    return ret

@@ -7,12 +7,16 @@ fi
 DB_OPS=
 
 if [[ -v "${C3G_SQLALCHEMY_DATABASE_URI}" ]]; then
-   DB_OPS=--db_uri ${C3G_SQLALCHEMY_DATABASE_URI}
+   DB_OPS=--db-uri ${C3G_SQLALCHEMY_DATABASE_URI}
 fi
 
-if [[ -v C3G_INIT_DB ]]; then
+if [[ -v "${C3G_INIT_DB}" ]]; then
   echo instanciating data base
   flask  --app $APP   init-db $DB_OPS
 fi
+
+if [[ -v "${C3G_ALEMBIC_UPGRADE}" ]]; then
+   alembic upgrade head
+fi 
 
 gunicorn "project_tracking:create_app()"  "${@}"

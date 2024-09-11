@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
@@ -13,9 +13,15 @@ testpaths = [
 run.branch = true
 run.source = ["project_tracking"]
 
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "_version.py"
+
 [project]
 name = "project_tracking"
-version = "0.0.1"
+dynamic = ["version"]
 authors = [
   { name="P-O Quirion", email="po.quirion@mcgill.ca" },
   { name="Paul Streteowich", email="paul.stretenowich@mcgill.ca" },
@@ -31,6 +37,9 @@ classifiers = [
 dependencies = [
     "flask>=2.2.2",
     "sqlalchemy>=2.0.25",
+    "alembic>=1.13.1",
+    "alembic-utils",
+    "alembic-postgresql-enum",
     "gunicorn>=20.1.0",
     "sqlalchemy-json>=0.5.0"
 ]
