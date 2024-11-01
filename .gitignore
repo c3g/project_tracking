@@ -1,17 +1,20 @@
+# Virtual env
 venv
+.venv
+swift
 
+# Misc
+load-latest-database.sh
 *.sublime-*
-
 *.pyc
 __pycache__/
-
 instance/
-
 .pytest_cache/
 .coverage
 dist/
 build/
 *.egg-info/
+.pdm*
 
 .DS_Store
 
