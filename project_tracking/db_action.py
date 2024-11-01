@@ -15,6 +15,7 @@ from . import vocabulary as vb
 from . import database
 from .model import (
     LaneEnum,
+    NucleicAcidTypeEnum,
     SequencingTypeEnum,
     StateEnum,
     StatusEnum,
@@ -114,129 +115,186 @@ def name_to_id(model_class, name, session=None):
 
     return session.scalars(stmt).unique().all()
 
+def fetch_specimen_by_attr(session, attr, value):
+    return session.scalars(
+        select(Specimen)
+        .where(getattr(Specimen, attr) == value)
+        ).unique().first()
 
-def select_readsets_from_specimens(session, digest_data, nucleic_acid_type):
+def fetch_sample_by_attr(session, attr, value):
+    return session.scalars(
+        select(Sample)
+        .where(getattr(Sample, attr) == value)
+        ).unique().first()
+
+def fetch_readset_by_attr(session, attr, value):
+    return session.scalars(
+        select(Readset)
+        .where(getattr(Readset, attr) == value)
+        ).unique().first()
+
+def select_samples_from_specimens(session, ret, digest_data, nucleic_acid_type):
+    """Returning Samples Objects based on requested specimens in digest_data"""
+    specimens = []
+    samples = []
+
+    if vb.SPECIMEN_NAME in digest_data:
+        for specimen_name in digest_data[vb.SPECIMEN_NAME]:
+            specimen = fetch_specimen_by_attr(session, 'name', specimen_name)
+            if specimen:
+                specimens.append(specimen)
+            else:
+                raise DidNotFindError(table="Specimen", attribute="name", query=specimen_name)
+    if vb.SPECIMEN_ID in digest_data:
+        for specimen_id in digest_data[vb.SPECIMEN_ID]:
+            specimen = fetch_specimen_by_attr(session, 'id', specimen_id)
+            if specimen:
+                specimens.append(specimen)
+            else:
+                raise DidNotFindError(table="Specimen", attribute="id", query=specimen_id)
+    if specimens:
+        for specimen in set(specimens):
+            for sample in specimen.samples:
+                if sample.readsets[0].experiment.nucleic_acid_type == nucleic_acid_type and not sample.deprecated and not sample.deleted:
+                    samples.append(sample)
+                else:
+                    ret["DB_ACTION_WARNING"].append(f"'Sample' with 'name' '{sample.name}' only exists with 'nucleic_acid_type' '{sample.readsets[0].experiment.nucleic_acid_type.value}' on database. Skipping...")
+    return samples
+
+def select_samples_from_samples(session, ret, digest_data, nucleic_acid_type):
+    """Returning Samples Objects based on requested samples in digest_data"""
+    samples = []
+
+    if vb.SAMPLE_NAME in digest_data.keys():
+        for sample_name in digest_data[vb.SAMPLE_NAME]:
+            sample = fetch_sample_by_attr(session, 'name', sample_name)
+            if sample:
+                samples.append(sample)
+            else:
+                raise DidNotFindError(table="Sample", attribute="name", query=sample_name)
+    if vb.SAMPLE_ID in digest_data.keys():
+        for sample_id in digest_data[vb.SAMPLE_ID]:
+            sample = fetch_sample_by_attr(session, 'name', sample_id)
+            if sample:
+                samples.append(sample)
+            else:
+                raise DidNotFindError(table="Sample", attribute="id", query=sample_id)
+    if samples:
+        for sample in set(samples):
+            if sample.readsets[0].experiment.nucleic_acid_type != nucleic_acid_type or sample.deprecated or sample.deleted:
+                samples.remove(sample)
+                ret["DB_ACTION_WARNING"].append(f"'Sample' with 'name' '{sample.name}' only exists with 'nucleic_acid_type' '{sample.readsets[0].experiment.nucleic_acid_type.value}' on database. Skipping...")
+    return samples
+
+def select_samples_from_readsets(session, ret, digest_data, nucleic_acid_type):
+    """Returning Samples Objects based on requested readsets in digest_data"""
+    samples = []
+    readsets = []
+
+    if vb.READSET_NAME in digest_data.keys():
+        for readset_name in digest_data[vb.READSET_NAME]:
+            readset = fetch_readset_by_attr(session, 'name', readset_name)
+            if readset:
+                readsets.append(readset)
+            else:
+                raise DidNotFindError(table="Readset", attribute="name", query=readset_name)
+    if vb.READSET_ID in digest_data.keys():
+        for readset_id in digest_data[vb.READSET_ID]:
+            readset = fetch_readset_by_attr(session, 'id', readset_id)
+            if readset:
+                readsets.append(readset)
+            else:
+                raise DidNotFindError(table="Readset", attribute="id", query=readset_name)
+    if readsets:
+        for readset in set(readsets):
+            if readset.experiment.nucleic_acid_type == nucleic_acid_type and not readset.deprecated and not readset.deleted:
+                if readset.sample not in samples:
+                    samples.append(readset.sample)
+                else:
+                    ret["DB_ACTION_WARNING"].append(f"'Sample' with 'name' '{readset.sample.name}' only exists with 'nucleic_acid_type' '{readset.experiment.nucleic_acid_type.value}' on database. Skipping...")
+    return samples
+
+def select_readsets_from_specimens(session, ret, digest_data, nucleic_acid_type):
     """Returning Readsets Objects based on requested specimens in digest_data"""
     specimens = []
     readsets = []
-    if vb.SPECIMEN_NAME in digest_data.keys():
+
+    if vb.SPECIMEN_NAME in digest_data:
         for specimen_name in digest_data[vb.SPECIMEN_NAME]:
-            specimen = session.scalars(
-                select(Specimen)
-                .where(Specimen.name == specimen_name)
-                .join(Specimen.samples)
-                .join(Sample.readsets)
-                .where(Readset.deprecated.is_(False))
-                .where(Readset.deleted.is_(False))
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
+            specimen = fetch_specimen_by_attr(session, 'name', specimen_name)
             if specimen:
                 specimens.append(specimen)
             else:
-                raise DidNotFindError(f"'Specimen' with 'name' '{specimen_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
-    if vb.SPECIMEN_ID in digest_data.keys():
+                raise DidNotFindError(table="Specimen", attribute="name", query=specimen_name)
+
+    if vb.SPECIMEN_ID in digest_data:
         for specimen_id in digest_data[vb.SPECIMEN_ID]:
-            logger.debug(f"specimen_id: {specimen_id}")
-            specimen = session.scalars(
-                select(Specimen)
-                .where(Specimen.id == specimen_id)
-                .join(Specimen.samples)
-                .join(Sample.readsets)
-                .where(Readset.deprecated.is_(False))
-                .where(Readset.deleted.is_(False))
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
+            specimen = fetch_specimen_by_attr(session, 'id', specimen_id)
             if specimen:
                 specimens.append(specimen)
             else:
-                raise DidNotFindError(f"'Specimen' with 'id' '{specimen_id}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+                raise DidNotFindError(table="Specimen", attribute="id", query=specimen_id)
     if specimens:
-        set(specimens)
-        for specimen in specimens:
+        for specimen in set(specimens):
             for sample in specimen.samples:
                 for readset in sample.readsets:
-                    readsets.append(readset)
-
+                    if readset.experiment.nucleic_acid_type == nucleic_acid_type and not readset.deprecated and not readset.deleted:
+                        readsets.append(readset)
+                    else:
+                        ret["DB_ACTION_WARNING"].append(f"'Readset' with 'name' '{readset.name}' only exists with 'nucleic_acid_type' '{readset.experiment.nucleic_acid_type.value}' on database. Skipping...")
     return readsets
 
-def select_readsets_from_samples(session, digest_data, nucleic_acid_type):
+def select_readsets_from_samples(session, ret, digest_data, nucleic_acid_type):
     """Returning Readsets Objects based on requested samples in digest_data"""
     samples = []
     readsets = []
+
     if vb.SAMPLE_NAME in digest_data.keys():
         for sample_name in digest_data[vb.SAMPLE_NAME]:
-            sample = session.scalars(
-                select(Sample)
-                .where(Sample.name == sample_name)
-                .join(Sample.readsets)
-                .where(Readset.deprecated.is_(False))
-                .where(Readset.deleted.is_(False))
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
+            sample = fetch_sample_by_attr(session, 'name', sample_name)
             if sample:
                 samples.append(sample)
             else:
-                raise DidNotFindError(f"'Sample' with 'name' '{sample_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+                raise DidNotFindError(table="Sample", attribute="name", query=sample_name)
     if vb.SAMPLE_ID in digest_data.keys():
         for sample_id in digest_data[vb.SAMPLE_ID]:
-            logger.debug(f"sample_id: {sample_id}")
-            sample = session.scalars(
-                select(Sample)
-                .where(Sample.id == sample_id)
-                .join(Sample.readsets)
-                .where(Readset.deprecated.is_(False))
-                .where(Readset.deleted.is_(False))
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
+            sample = fetch_sample_by_attr(session, 'name', sample_id)
             if sample:
                 samples.append(sample)
             else:
-                raise DidNotFindError(f"'Sample' with 'id' '{sample_id}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+                raise DidNotFindError(table="Sample", attribute="id", query=sample_id)
     if samples:
-        set(samples)
-        for sample in samples:
+        for sample in set(samples):
             for readset in sample.readsets:
-                readsets.append(readset)
-
+                if readset.experiment.nucleic_acid_type == nucleic_acid_type and not readset.deprecated and not readset.deleted:
+                    readsets.append(readset)
+                else:
+                    ret["DB_ACTION_WARNING"].append(f"'Readset' with 'name' '{readset.name}' only exists with 'nucleic_acid_type' '{readset.experiment.nucleic_acid_type.value}' on database. Skipping...")
     return readsets
 
-def select_readsets_from_readsets(session, digest_data, nucleic_acid_type):
+def select_readsets_from_readsets(session, ret, digest_data, nucleic_acid_type):
     """Returning Readsets Objects based on requested readsets in digest_data"""
     readsets = []
+
     if vb.READSET_NAME in digest_data.keys():
         for readset_name in digest_data[vb.READSET_NAME]:
-            readset = session.scalars(
-                select(Readset)
-                .where(Readset.name == readset_name)
-                .where(Readset.deprecated.is_(False))
-                .where(Readset.deleted.is_(False))
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
+            readset = fetch_readset_by_attr(session, 'name', readset_name)
             if readset:
                 readsets.append(readset)
             else:
-                raise DidNotFindError(f"'Readset' with 'name' '{readset_name}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+                raise DidNotFindError(table="Readset", attribute="name", query=readset_name)
     if vb.READSET_ID in digest_data.keys():
         for readset_id in digest_data[vb.READSET_ID]:
-            readset = session.scalars(
-                select(Readset)
-                .where(Readset.id == readset_id)
-                .where(Readset.deprecated.is_(False))
-                .where(Readset.deleted.is_(False))
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
+            readset = fetch_readset_by_attr(session, 'id', readset_id)
             if readset:
                 readsets.append(readset)
             else:
-                raise DidNotFindError(f"'Readset' with 'id' '{readset_id}' AND 'nucleic_acid_type' '{nucleic_acid_type}' doesn't exist on database")
+                raise DidNotFindError(table="Readset", attribute="id", query=readset_id)
     if readsets:
-        set(readsets)
+        for readset in set(readsets):
+            if readset.experiment.nucleic_acid_type != nucleic_acid_type or readset.deprecated or readset.deleted:
+                readsets.remove(readset)
+                ret["DB_ACTION_WARNING"].append(f"'Readset' with 'name' '{readset.name}' only exists with 'nucleic_acid_type' '{readset.experiment.nucleic_acid_type.value}' on database. Skipping...")
 
     return readsets
 
@@ -1029,9 +1087,9 @@ def digest_readset_file(project_id: str, digest_data, session=None):
         session = database.get_session()
 
     readsets = []
-    output = []
-    warnings = {
-        "DB_ACTION_WARNING": []
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
         }
 
     location_endpoint = None
@@ -1039,13 +1097,15 @@ def digest_readset_file(project_id: str, digest_data, session=None):
         location_endpoint = digest_data[vb.LOCATION_ENDPOINT]
 
     if vb.EXPERIMENT_NUCLEIC_ACID_TYPE in digest_data.keys():
-        nucleic_acid_type = digest_data[vb.EXPERIMENT_NUCLEIC_ACID_TYPE]
+        nucleic_acid_type = NucleicAcidTypeEnum(digest_data[vb.EXPERIMENT_NUCLEIC_ACID_TYPE])
     else:
         raise RequestError(argument="experiment_nucleic_acid_type")
 
-    readsets += select_readsets_from_specimens(session, digest_data, nucleic_acid_type)
-    readsets += select_readsets_from_samples(session, digest_data, nucleic_acid_type)
-    readsets += select_readsets_from_readsets(session, digest_data, nucleic_acid_type)
+    readsets += select_readsets_from_specimens(session, ret, digest_data, nucleic_acid_type)
+    readsets += select_readsets_from_samples(session, ret, digest_data, nucleic_acid_type)
+    readsets += select_readsets_from_readsets(session, ret, digest_data, nucleic_acid_type)
+
+    logging.debug(f"Readsets: {readsets}")
 
     if readsets:
         for readset in readsets:
@@ -1067,21 +1127,21 @@ def digest_readset_file(project_id: str, digest_data, session=None):
                                 if location_endpoint == location.endpoint:
                                     fastq1 = location.uri.split("://")[-1]
                             if not fastq1:
-                                warnings["DB_ACTION_WARNING"].append(f"Looking for R1 fastq 'File' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset' with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
+                                ret["DB_ACTION_WARNING"].append(f"Looking for R1 fastq 'File' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset' with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]}. The readset file might be corrupted.")
                     elif file.extra_metadata["read_type"] == "R2":
                         if location_endpoint:
                             for location in file.locations:
                                 if location_endpoint == location.endpoint:
                                     fastq2 = location.uri.split("://")[-1]
                             if not fastq2:
-                                warnings["DB_ACTION_WARNING"].append(f"Looking for R2 fastq 'File' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset' with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
+                                ret["DB_ACTION_WARNING"].append(f"Looking for R2 fastq 'File' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset' with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]}. The readset file might be corrupted.")
                 elif file.type == "bam":
                     if location_endpoint:
                         for location in file.locations:
                             if location_endpoint == location.endpoint:
                                 bam = location.uri.split("://")[-1]
                         if not bam:
-                            warnings["DB_ACTION_WARNING"].append(f"Looking for bam 'File' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset'  with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
+                            ret["DB_ACTION_WARNING"].append(f"Looking for bam 'File' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset'  with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]}. The readset file might be corrupted.")
                 if file.type == "bed":
                     bed = file.name
             readset_line = {
@@ -1099,11 +1159,14 @@ def digest_readset_file(project_id: str, digest_data, session=None):
                 "FASTQ2": fastq2,
                 "BAM": bam
                 }
-            output.append(readset_line)
-    if warnings["DB_ACTION_WARNING"]:
-        ret = warnings
-    else:
-        ret = output
+            ret["DB_ACTION_OUTPUT"].append(readset_line)
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+    # if warnings["DB_ACTION_WARNING"]:
+    #     ret = warnings
+    # else:
+    #     ret = output
     return json.dumps(ret)
 
 def digest_pair_file(project_id: str, digest_data, session=None):
@@ -1113,113 +1176,21 @@ def digest_pair_file(project_id: str, digest_data, session=None):
 
     pair_dict = {}
     samples = []
-    specimens = []
-    # readsets = []
-    output = []
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+        }
 
     if vb.EXPERIMENT_NUCLEIC_ACID_TYPE in digest_data.keys():
-        nucleic_acid_type = digest_data[vb.EXPERIMENT_NUCLEIC_ACID_TYPE]
+        nucleic_acid_type = NucleicAcidTypeEnum(digest_data[vb.EXPERIMENT_NUCLEIC_ACID_TYPE])
     else:
         raise RequestError(argument="experiment_nucleic_acid_type")
 
-    if vb.SPECIMEN_NAME in digest_data.keys():
-        for specimen_name in digest_data[vb.SPECIMEN_NAME]:
-            specimen = session.scalars(
-                select(Specimen)
-                .where(Specimen.deprecated.is_(False))
-                .where(Specimen.deleted.is_(False))
-                .where(Specimen.name == specimen_name)
-                .join(Specimen.samples)
-                .join(Sample.readsets)
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
-            if specimen:
-                specimens.append(specimen)
-            else:
-                raise DidNotFindError(table="Specimen", attribute="name", query=specimen_name)
-    if vb.SPECIMEN_ID in digest_data.keys():
-        for specimen_id in digest_data[vb.SPECIMEN_ID]:
-            specimen = session.scalars(
-                select(Specimen)
-                .where(Specimen.deprecated.is_(False))
-                .where(Specimen.deleted.is_(False))
-                .where(Specimen.id == specimen_id)
-                .join(Specimen.samples)
-                .join(Sample.readsets)
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
-            if specimen:
-                specimens.append(specimen)
-            else:
-                raise DidNotFindError(table="Specimen", attribute="id", query=specimen_id)
-    if specimens:
-        set(specimens)
-        for specimen in specimens:
-            for sample in specimen.samples:
-                samples.append(sample)
+    samples += select_samples_from_specimens(session, ret, digest_data, nucleic_acid_type)
+    samples += select_samples_from_samples(session, ret, digest_data, nucleic_acid_type)
+    samples += select_samples_from_readsets(session, ret, digest_data, nucleic_acid_type)
 
-    if vb.SAMPLE_NAME in digest_data.keys():
-        for sample_name in digest_data[vb.SAMPLE_NAME]:
-            sample = session.scalars(
-                select(Sample)
-                .where(Sample.deprecated.is_(False))
-                .where(Sample.deleted.is_(False))
-                .where(Sample.name == sample_name)
-                .join(Sample.readsets)
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
-            if sample:
-                samples.append(sample)
-            else:
-                raise DidNotFindError(table="Sample", attribute="name", query=sample_name)
-    if vb.SAMPLE_ID in digest_data.keys():
-        for sample_id in digest_data[vb.SAMPLE_ID]:
-            sample = session.scalars(
-                select(Sample)
-                .where(Sample.deprecated.is_(False))
-                .where(Sample.deleted.is_(False))
-                .where(Sample.id == sample_id)
-                .join(Sample.readsets)
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
-            if sample:
-                samples.append(sample)
-            else:
-                raise DidNotFindError(table="Sample", attribute="id", query=sample_id)
-    if vb.READSET_NAME in digest_data.keys():
-        for readset_name in digest_data[vb.READSET_NAME]:
-            readset = session.scalars(
-                select(Readset)
-                .where(Readset.deprecated.is_(False))
-                .where(Readset.deleted.is_(False))
-                .where(Readset.name == readset_name)
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
-            if readset:
-                samples.append(readset.sample)
-            else:
-                raise DidNotFindError(table="Readset", attribute="name", query=readset_name)
-    if vb.READSET_ID in digest_data.keys():
-        for readset_id in digest_data[vb.READSET_ID]:
-            readset = session.scalars(
-                select(Readset)
-                .where(Readset.deprecated.is_(False))
-                .where(Readset.deleted.is_(False))
-                .where(Readset.id == readset_id)
-                .join(Readset.experiment)
-                .where(Experiment.nucleic_acid_type == nucleic_acid_type)
-                ).unique().first()
-            if readset:
-                samples.append(readset.sample)
-            else:
-                raise DidNotFindError(table="Readset", attribute="id", query=readset_id)
     if samples:
-        set(samples)
         for sample in samples:
             if not sample.specimen.name in pair_dict.keys():
                 pair_dict[sample.specimen.name] = {
@@ -1237,9 +1208,16 @@ def digest_pair_file(project_id: str, digest_data, session=None):
                 "Sample_N": dict_tn["N"],
                 "Sample_T": dict_tn["T"]
                 }
-            output.append(pair_line)
+            ret["DB_ACTION_OUTPUT"].append(pair_line)
 
-    return json.dumps(output)
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+    # if warnings["DB_ACTION_WARNING"]:
+    #     ret = warnings
+    # else:
+    #     ret = output
+    return json.dumps(ret)
 
 def ingest_genpipes(project_id: str, ingest_data, session=None):
     """Ingesting GenPipes run"""
@@ -1463,7 +1441,6 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
             .join(Readset.run)
             )
     if experiment_nucleic_acid_type:
-        logger.debug(f"run_name: {run_name}")
         stmt = (
             stmt.where(Experiment.nucleic_acid_type == experiment_nucleic_acid_type)
             .join(Readset.experiment)
@@ -1489,22 +1466,26 @@ def digest_delivery(project_id: str, digest_data, session=None):
         location_endpoint = digest_data[vb.LOCATION_ENDPOINT]
 
     readsets = []
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": {
+            "location_endpoint": location_endpoint,
+            "readset": []
+            }
+        }
     output = {
         "location_endpoint": location_endpoint,
         "readset": []
         }
-    warnings = {
-        "DB_ACTION_WARNING": []
-        }
 
     if vb.EXPERIMENT_NUCLEIC_ACID_TYPE in digest_data.keys():
-        nucleic_acid_type = digest_data[vb.EXPERIMENT_NUCLEIC_ACID_TYPE]
+        nucleic_acid_type = NucleicAcidTypeEnum(digest_data[vb.EXPERIMENT_NUCLEIC_ACID_TYPE])
     else:
         raise RequestError(argument="experiment_nucleic_acid_type")
 
-    readsets += select_readsets_from_specimens(session, digest_data, nucleic_acid_type)
-    readsets += select_readsets_from_samples(session, digest_data, nucleic_acid_type)
-    readsets += select_readsets_from_readsets(session, digest_data, nucleic_acid_type)
+    readsets += select_readsets_from_specimens(session, ret, digest_data, nucleic_acid_type)
+    readsets += select_readsets_from_samples(session, ret, digest_data, nucleic_acid_type)
+    readsets += select_readsets_from_readsets(session, ret, digest_data, nucleic_acid_type)
 
     if readsets:
         for readset in readsets:
@@ -1518,20 +1499,24 @@ def digest_delivery(project_id: str, digest_data, session=None):
                             if location_endpoint == location.endpoint:
                                 file_deliverable = location.uri.split("://")[-1]
                                 if not file_deliverable:
-                                    warnings["DB_ACTION_WARNING"].append(f"Looking for 'File' with 'name' '{file.name}' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset' with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]} system")
+                                    ret["DB_ACTION_WARNING"].append(f"Looking for 'File' with 'name' '{file.name}' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset' with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]}.")
                                 else:
                                     readset_files.append({
                                         "name": file.name,
                                         "location": file_deliverable
                                         })
-            output["readset"].append({
+            ret["DB_ACTION_OUTPUT"]["readset"].append({
                 "name": readset.name,
                 "file": readset_files
                 })
-    if warnings["DB_ACTION_WARNING"]:
-        ret = warnings
-    else:
-        ret = output
+
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+    # if warnings["DB_ACTION_WARNING"]:
+    #     ret = warnings
+    # else:
+    #     ret = output
     return json.dumps(ret)
 
 def edit(ingest_data, session=None):

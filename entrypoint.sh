@@ -11,8 +11,8 @@ if [[ -v "${C3G_SQLALCHEMY_DATABASE_URI}" ]]; then
 fi
 
 if [[ -v "${C3G_INIT_DB}" ]]; then
-  echo instanciating data base
-  flask  --app $APP   init-db $DB_OPS
+  echo "Initializing database"
+  flask --app $APP init-db $DB_OPS
 fi
 
 if [[ -v "${C3G_ALEMBIC_UPGRADE}" ]]; then

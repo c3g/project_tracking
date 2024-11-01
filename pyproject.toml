@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
+requires = ["pdm-backend", "flask", "sqlalchemy", "sqlalchemy_json"]
+build-backend = "pdm.backend"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -12,12 +12,6 @@ testpaths = [
 [tool.coverage]
 run.branch = true
 run.source = ["project_tracking"]
-
-[tool.hatch.version]
-source = "vcs"
-
-[tool.hatch.build.hooks.vcs]
-version-file = "_version.py"
 
 [project]
 name = "project_tracking"
@@ -56,3 +50,14 @@ tests = [
 postgres = [
   "psycopg2-binary",
 ]
+
+[tool.pdm]
+allow-direct-references = true
+
+[tool.pdm.version]
+# source = "file"
+# path = "project_tracking/__version__.py"
+source = "scm"
+version_format = "project_tracking.version:format_version"
+write_to = "project_tracking/__version__.py"
+write_template = "__version__ = '{}'"

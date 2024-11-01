@@ -97,22 +97,14 @@ def init_db_command(db_uri=None, flush=False):
     init_db(db_uri, flush)
     click.echo('Database initialized')
 
-@click.command('add-random-project')
-def add_random_project_command():
-    import random
-    import string
-    from . import model
-    d = {'description': 'cte projet là, yé ben ben beau'}
-    session = get_session()
-    # printing lowercase
-    letters = string.ascii_lowercase
-    s = ''.join(random.choice(letters) for i in range(10))
-    p = model.Project(name=s, extra_metadata=d)
-    session.add(p)
-    session.commit()
+@click.command('version')
+def version_command():
+    """Print the version of the database"""
+    from . import __version__
+    click.echo(f"{__version__.__version__}")
 
 
 def init_app(app):
     app.teardown_appcontext(close_db)
     app.cli.add_command(init_db_command)
-    app.cli.add_command(add_random_project_command)
+    app.cli.add_command(version_command)
