@@ -27,6 +27,10 @@ jobs:
         pip3 install --upgrade pip
         pip install flake8 pytest
 
+    - name: Install project
+      run: |
+        pdm install --prod --no-lock --no-editable
+
     - name: Run Tests
       run: |
         pdm run -v pytest tests
