@@ -27,7 +27,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pdm sync -d -G testing
+        pdm install -d -G testing
     - name: Run Tests
       run: |
         pdm run -v pytest tests
@@ -42,6 +42,6 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/.pdm/cache
-        key: ${{ runner.os }}-pdm-${{ hashFiles('pdm.lock') }}
+        key: ${{ runner.os }}-pdm-${{ hashFiles('pyproject.toml') }}
         restore-keys: |
           ${{ runner.os }}-pdm-
