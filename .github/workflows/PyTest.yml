@@ -21,9 +21,12 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Install project
+    - name: Install pip, pytest and flake8
       run: |
-        pdm install --prod --no-lock --no-editable
+        python -m ensurepip --upgrade
+        pip3 install --upgrade pip
+        pip install flake8 pytest
+
     - name: Run Tests
       run: |
         pdm run -v pytest tests
