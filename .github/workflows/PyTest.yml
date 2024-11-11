@@ -40,7 +40,7 @@ jobs:
         pdm run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Cache PDM packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.pdm/cache
         key: ${{ runner.os }}-pdm-${{ hashFiles('pyproject.toml') }}
