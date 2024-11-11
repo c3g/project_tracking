@@ -28,6 +28,8 @@ jobs:
     - name: Install dependencies
       run: |
         pdm install -d -G testing
+        pdm add pytest flake8
+
     - name: Run Tests
       run: |
         pdm run -v pytest tests
