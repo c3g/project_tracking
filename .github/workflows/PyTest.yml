@@ -3,7 +3,7 @@ name: Run PyTest
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    branches: ['dev']
+    branches: ['dev', 'main']
   push:
     branches: ['main']
 
