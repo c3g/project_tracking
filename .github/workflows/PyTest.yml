@@ -25,6 +25,7 @@ jobs:
 
     - name: Sourcing venv
       run: |
+        pdm venv create
         $(pdm venv activate)
 
     - name: Install pip, pytest and flake8
