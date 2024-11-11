@@ -29,7 +29,10 @@ jobs:
 
     - name: Install project
       run: |
-        pdm install --prod --no-lock --no-editable
+        pdm install --prod --frozen-lockfile --no-editable
+
+    - name: Setup upterm session
+      uses: lhotari/action-upterm@v1
 
     - name: Run Tests
       run: |
