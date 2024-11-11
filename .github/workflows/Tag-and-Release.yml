@@ -1,0 +1,84 @@
+name: Tag and Release Workflow
+
+on:
+  pull_request:
+    types: [closed]
+    branches: ['main']
+
+env:
+  REGISTRY: ghcr.io
+  REGISTRY_USER: ${{ github.actor }}
+  REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, macos-latest]
+
+    # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    if: startsWith(github.event.pull_request.title, 'Release:') && github.event.pull_request.merged == true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Git
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+      - name: Setup PDM
+        uses: pdm-project/setup-pdm@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Get tag
+        id: get_tag
+        run: |
+          git branch --show-current
+          git pull
+          pdm install --prod --no-lock --no-editable
+          echo "version=$(pdm show --version)" >> $GITHUB_OUTPUT
+      - name: Tag the commit
+        run: |
+          next_version=${{ steps.get_tag.outputs.version }}
+          git tag -a "$next_version" -m "Version $next_version"
+          git push --follow-tags
+      - name: Create changelog diff
+        id: changelog_diff
+        run: |
+          sed -n '/#### \[${{ steps.get_tag.outputs.version }}\]/,/^#### /p' CHANGELOG.md | sed '$d' > release_notes.md
+      - name: Build Container Image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: ${{ steps.get_tag.outputs.version }}
+          containerfiles: ./Containerfile
+          archs: amd64,arm64
+      - name: Push to repo
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+          registry: ${{ env.REGISTRY }}
+          image: ${{ env.IMAGE_NAME }}
+          tags: ${{ steps.get_tag.outputs.version }}
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get_tag.outputs.version }}
+          release_name: Release ${{ steps.get_tag.outputs.version }}
+          body_path: ./release_notes.md
+          draft: false
+          prerelease: false
+      - name: Delete release_notes file
+        run: rm release_notes.md

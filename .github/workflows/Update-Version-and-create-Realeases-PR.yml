@@ -1,0 +1,59 @@
+name: Update version and create Release's PR Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version name'
+        required: true
+        type: string
+        pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+
+    # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
+    permissions:
+      contents: write
+      pull-requests: write
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Setup Git
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+      - name: Update the version
+        id: update_version
+        run: |
+          echo "__version__ = '${{ inputs.version }}'" > project_tracking/__version__.py
+          echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+      - name: Update Changelog
+        run: |
+          npm install -g auto-changelog
+          auto-changelog -v ${{ steps.update_version.outputs.version }}
+      - name: Create pull request
+        id: create_pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: release/${{ steps.update_version.outputs.version }}
+          title: "Release: Candidate Version ${{ steps.update_version.outputs.version }} Pull Request"
+          body: "This pull request contains the updated __version__.py file with the new release version and an updated CHANGELOG.md file."
+          base: main
+          assignees: paulstretenowich
+          reviewers: paulstretenowich
+          delete-branch: true
+          labels: automated pr
