@@ -35,7 +35,8 @@ dependencies = [
     "alembic-utils",
     "alembic-postgresql-enum",
     "gunicorn>=20.1.0",
-    "sqlalchemy-json>=0.5.0"
+    "sqlalchemy-json>=0.5.0",
+    "pytest>=8.0.0",
 ]
 
 [project.urls]
