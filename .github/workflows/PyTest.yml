@@ -22,7 +22,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Sourcing venv
       run: |
-        $(pdm venv activate
+        $(pdm venv activate)
 
     - name: Install pip, pytest and flake8
       run: |
