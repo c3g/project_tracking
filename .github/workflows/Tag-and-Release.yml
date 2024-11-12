@@ -52,6 +52,8 @@ jobs:
         id: changelog_diff
         run: |
           sed -n '/#### \[${{ steps.get_tag.outputs.version }}\]/,/^#### /p' CHANGELOG.md | sed '$d' > release_notes.md
+      - name: Install QEMU
+        run: sudo apt-get install qemu-user-static
       - name: Build Container Image
         uses: redhat-actions/buildah-build@v2
         with:
