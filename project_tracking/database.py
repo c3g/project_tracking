@@ -99,7 +99,7 @@ def init_db_command(db_uri=None, flush=False):
 
 @click.command('version')
 def version_command():
-    """Print the version of the database"""
+    """Print the version of the API of the database"""
     from . import __version__
     click.echo(f"{__version__.__version__}")
 
