@@ -70,7 +70,7 @@ jobs:
           password: ${{ env.REGISTRY_PASSWORD }}
           registry: ${{ env.REGISTRY }}
           image: ${{ env.IMAGE_NAME }}
-          tags: ${{ steps.get_tag.outputs.version }}
+          tags: ${{ steps.get_tag.outputs.version }} latest
       - name: Create release
         id: create_release
         uses: softprops/action-gh-release@v2.1.0
