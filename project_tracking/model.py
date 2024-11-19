@@ -688,9 +688,9 @@ class Metric(BaseTable):
     """
     __tablename__ = "metric"
 
-    name: Mapped[str] = mapped_column()
+    name: Mapped[str] = mapped_column(nullable=False)
     job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None)
-    value: Mapped[str] = mapped_column()
+    value: Mapped[str] = mapped_column(default=None, nullable=True)
     flag: Mapped[FlagEnum] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
     aggregate: Mapped[AggregateEnum] = mapped_column(default=None, nullable=True)
