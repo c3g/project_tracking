@@ -958,6 +958,8 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
             except exc.IntegrityError as error:
                 session.rollback()
                 message = unique_constraint_error(session, "run_processing", ingest_data)
+                if not message:
+                    raise UniqueConstraintError(message=str(error.orig)) from error
                 raise UniqueConstraintError(message=message) from error
 
     operation_id = operation.id
