@@ -60,7 +60,7 @@ jobs:
         uses: redhat-actions/buildah-build@v2
         with:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: ${{ steps.get_tag.outputs.version }}
+          tags: ${{ steps.get_tag.outputs.version }} latest
           containerfiles: ./Containerfile
           archs: amd64,arm64
       - name: Push to repo
