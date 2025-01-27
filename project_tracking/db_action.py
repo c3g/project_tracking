@@ -952,7 +952,7 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                         readsets=[readset]
                         )
 
-            session.add(readset)
+                session.add(readset)
             try:
                 session.flush()
             except exc.IntegrityError as error:
