@@ -908,7 +908,8 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                     suffixes = Path(file_json[vb.FILE_NAME]).suffixes
                     file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
                     if ".gz" in suffixes:
-                        file_type = "".join(suffixes[-2:])
+                        index = suffixes.index(".gz")
+                        file_type = "".join(suffixes[index - 1:]).replace(".", "", 1)
                         if file_type.startswith("."):
                             file_type = file_type[1:]
                     if vb.FILE_DELIVERABLE in file_json:
@@ -1299,7 +1300,8 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
                         suffixes = Path(file_json[vb.FILE_NAME]).suffixes
                         file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
                         if ".gz" in suffixes:
-                            file_type = "".join(suffixes[-2:])
+                            index = suffixes.index(".gz")
+                            file_type = "".join(suffixes[index - 1:]).replace(".", "", 1)
                         if vb.FILE_DELIVERABLE in file_json:
                             file_deliverable = file_json[vb.FILE_DELIVERABLE]
                         else:
