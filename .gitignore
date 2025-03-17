@@ -15,6 +15,7 @@ dist/
 build/
 *.egg-info/
 .pdm*
+pdm*
 
 .DS_Store
 
