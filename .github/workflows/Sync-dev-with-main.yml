@@ -1,20 +1,23 @@
-name: Sync dev with main
+name: Rebase main and dev and add .dev to version
 
 on:
   workflow_run:
     workflows: ["Tag and Release"]
     types:
       - completed
+  workflow_dispatch:
 
 jobs:
   rebase:
     runs-on: ubuntu-latest
-
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
+          token: ${{ secrets.BOT_ACCESS_TOKEN }}
 
       - name: Setup Git
         run: |
@@ -33,9 +36,13 @@ jobs:
         id: update_version
         run: |
           version_file="genpipes/__version__.py"
-          version_number=$(grep -oP '(?<=__version__ = ")[^"]+' $version_file)
-          echo "__version__ = '${version_number}.dev'" > $version_file
+          version_number=$(sed -n "s/__version__ = '\([^']*\)'/\1/p" $version_file)
+          if [[ "$version_number" != *.dev ]]; then
+            echo "__version__ = '${version_number}.dev'" > $version_file
+          fi
 
-      - name: Push changes
+      - name: Commit changes
         run: |
-          git push --force-with-lease origin dev
+          git add genpipes/__version__.py
+          git commit -m "Dev Version update"
+          git push --force-with-lease
