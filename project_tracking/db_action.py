@@ -1058,7 +1058,8 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
         cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
         status=StatusEnum("COMPLETED"),
         project=project,
-        operation_config=operation_config
+        operation_config=operation_config,
+        session=session
     )
     if warning:
         ret["DB_ACTION_WARNING"].append(warning)
