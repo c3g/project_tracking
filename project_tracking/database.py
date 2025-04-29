@@ -1,7 +1,7 @@
 """Module providing database tables and operations support."""
-import click
 import logging
 import os
+import click
 
 import flask
 from sqlalchemy import (
@@ -39,17 +39,23 @@ def get_session(no_app=False, db_uri=None):
         if Engine.SESSION is None:
             if db_uri is None:
                 db_uri = os.getenv("SQLALCHEMY_DATABASE_URI", default="sqlite+pysqlite:///:memory:")
-            Engine.SESSION = sessionmaker(bind=get_engine(db_uri),
-                                          autoflush=False,
-                                          autocommit=False)
+            Engine.SESSION = sessionmaker(
+                bind=get_engine(db_uri),
+                autoflush=False,
+                autocommit=False
+                )
         return Engine.SESSION()
 
     if 'session' not in flask.g:
         if db_uri is None:
             db_uri = flask.current_app.config["SQLALCHEMY_DATABASE_URI"]
-        flask.g.session = scoped_session(sessionmaker(bind=get_engine(db_uri=db_uri),
-                                                      autoflush=False,
-                                                      autocommit=False))
+        flask.g.session = scoped_session(
+            sessionmaker(
+                bind=get_engine(db_uri=db_uri),
+                autoflush=False,
+                autocommit=False
+                )
+            )
         from .model import Base
         Base.query = flask.g.session.query_property()
     return flask.g.session

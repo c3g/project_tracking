@@ -40,6 +40,10 @@ class NucleicAcidTypeEnum(enum.Enum):
     DNA = "DNA"
     RNA = "RNA"
 
+    def to_json(self):
+        """Serialize the enum to json"""
+        return self.value
+
 
 class LaneEnum(enum.Enum):
     """
@@ -54,6 +58,10 @@ class LaneEnum(enum.Enum):
     SEVEN = "7"
     EIGHT = "8"
 
+    def to_json(self):
+        """Serialize the enum to json"""
+        return self.value
+
 
 class SequencingTypeEnum(enum.Enum):
     """
@@ -62,6 +70,10 @@ class SequencingTypeEnum(enum.Enum):
     SINGLE_END = "SINGLE_END"
     PAIRED_END = "PAIRED_END"
 
+    def to_json(self):
+        """Serialize the enum to json"""
+        return self.value
+
 class StateEnum(enum.Enum):
     """
     state enum
@@ -69,6 +81,10 @@ class StateEnum(enum.Enum):
     VALID = "VALID"
     ON_HOLD = "ON_HOLD"
     INVALID = "INVALID"
+
+    def to_json(self):
+        """Serialize the enum to json"""
+        return self.value
 
 
 class StatusEnum(enum.Enum):
@@ -82,6 +98,10 @@ class StatusEnum(enum.Enum):
     OUT_OF_MEMORY = "OUT_OF_MEMORY"
     CANCELLED = "CANCELLED"
 
+    def to_json(self):
+        """Serialize the enum to json"""
+        return self.value
+
 
 class FlagEnum(enum.Enum):
     """
@@ -93,6 +113,10 @@ class FlagEnum(enum.Enum):
     MISSING = "MISSING"
     NOT_APPLICABLE = "NOT_APPLICABLE"
 
+    def to_json(self):
+        """Serialize the enum to json"""
+        return self.value
+
 
 class AggregateEnum(enum.Enum):
     """
@@ -101,6 +125,10 @@ class AggregateEnum(enum.Enum):
     SUM = "SUM"
     AVERAGE = "AVERAGE"
     N = "N" # for NOT aggregating for metric at sample level
+
+    def to_json(self):
+        """Serialize the enum to json"""
+        return self.value
 
 
 class Base(DeclarativeBase):
@@ -294,7 +322,7 @@ class Specimen(BaseTable):
     samples: Mapped[list["Sample"]] = relationship(back_populates="specimen", cascade="all, delete")
 
     @classmethod
-    def from_name(cls, name, project, cohort=None, institution=None, session=None):
+    def from_name(cls, name, project, cohort=None, institution=None, session=None, deprecated=False, deleted=False):
         """
         get specimen if it exist, set it if it does not exist
         """
@@ -302,7 +330,11 @@ class Specimen(BaseTable):
             session = database.get_session()
 
         # Name is unique
-        specimen = session.scalars(select(cls).where(cls.name == name)).first()
+        specimen = session.query(cls).filter(
+            cls.name == name,
+            cls.deprecated.is_(deprecated),
+            cls.deleted.is_(deleted)
+        ).first()
 
         if not specimen:
             specimen = cls(name=name, cohort=cohort, institution=institution, project=project)
@@ -338,7 +370,7 @@ class Sample(BaseTable):
     readsets: Mapped[list["Readset"]] = relationship(back_populates="sample", cascade="all, delete")
 
     @classmethod
-    def from_name(cls, name, specimen, tumour=None, session=None):
+    def from_name(cls, name, specimen, tumour=None, session=None, deprecated=False, deleted=False):
         """
         get sample if it exist, set it if it does not exist
         """
@@ -346,7 +378,11 @@ class Sample(BaseTable):
             session = database.get_session()
 
         # Name is unique
-        sample = session.scalars(select(cls).where(cls.name == name)).first()
+        sample = session.query(cls).filter(
+            cls.name == name,
+            cls.deprecated.is_(deprecated),
+            cls.deleted.is_(deleted)
+        ).first()
 
         if not sample:
             sample = cls(name=name, specimen=specimen, tumour=tumour)
@@ -390,21 +426,25 @@ class Experiment(BaseTable):
         type=None,
         library_kit=None,
         kit_expiration_date=None,
-        session=None
+        session=None,
+        deprecated=False,
+        deleted=False
         ):
         """
         get experiment if it exist, set it if it does not exist
         """
         if not session:
             session = database.get_session()
-        experiment = session.scalars(
-            select(cls)
-                .where(cls.sequencing_technology == sequencing_technology)
-                .where(cls.type == type)
-                .where(cls.nucleic_acid_type == nucleic_acid_type)
-                .where(cls.library_kit == library_kit)
-                .where(cls.kit_expiration_date == kit_expiration_date)
+        experiment = session.query(cls).filter(
+            cls.sequencing_technology == sequencing_technology,
+            cls.type == type,
+            cls.nucleic_acid_type == nucleic_acid_type,
+            cls.library_kit == library_kit,
+            cls.kit_expiration_date == kit_expiration_date,
+            cls.deprecated.is_(deprecated),
+            cls.deleted.is_(deleted)
         ).first()
+
         if not experiment:
             experiment = cls(
                 sequencing_technology=sequencing_technology,
@@ -438,20 +478,22 @@ class Run(BaseTable):
     readsets: Mapped[list["Readset"]] = relationship(back_populates="run", cascade="all, delete")
 
     @classmethod
-    def from_attributes(cls, ext_id=None, ext_src=None, name=None, instrument=None, date=None, session=None):
+    def from_attributes(cls, ext_id=None, ext_src=None, name=None, instrument=None, date=None, session=None, deprecated=False, deleted=False):
         """
         get run if it exist, set it if it does not exist
         """
         if not session:
             session = database.get_session()
-        run = session.scalars(
-            select(cls)
-                .where(cls.ext_id == ext_id)
-                .where(cls.ext_src == ext_src)
-                .where(cls.name == name)
-                .where(cls.instrument == instrument)
-                .where(cls.date == date)
+        run = session.query(cls).filter(
+            cls.ext_id == ext_id,
+            cls.ext_src == ext_src,
+            cls.name == name,
+            cls.instrument == instrument,
+            cls.date == date,
+            cls.deprecated.is_(deprecated),
+            cls.deleted.is_(deleted)
         ).first()
+
         if not run:
             run = cls(
                 ext_id=ext_id,
@@ -505,7 +547,7 @@ class Readset(BaseTable):
     metrics: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readsets")
 
     @classmethod
-    def from_name(cls, name, sample, alias=None, session=None):
+    def from_name(cls, name, sample, alias=None, session=None, deprecated=False, deleted=False):
         """
         get readset if it exist, set it if it does not exist
         """
@@ -513,7 +555,11 @@ class Readset(BaseTable):
             session = database.get_session()
 
         # Name is unique
-        readset = session.scalars(select(cls).where(cls.name == name)).first()
+        readset = session.query(cls).filter(
+            cls.name == name,
+            cls.deprecated.is_(deprecated),
+            cls.deleted.is_(deleted)
+        ).first()
 
         if not readset:
             readset = cls(name=name, alias=alias, sample=sample)
@@ -555,6 +601,52 @@ class Operation(BaseTable):
     project: Mapped["Project"] = relationship(back_populates="operations")
     jobs: Mapped[list["Job"]] = relationship(back_populates="operation", cascade="all, delete")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operations")
+
+    @classmethod
+    def from_attributes(
+        cls,
+        operation_config,
+        project,
+        reference=None,
+        platform=None,
+        cmd_line=None,
+        name=None,
+        status=None,
+        session=None,
+        deprecated=False,
+        deleted=False
+        ):
+        """
+        get operation if it exist, set it if it does not exist
+        """
+        warning = None
+        if not session:
+            session = database.get_session()
+        operation = session.query(cls).filter(
+            cls.operation_config == operation_config,
+            cls.reference == reference,
+            cls.project == project,
+            cls.platform == platform,
+            cls.cmd_line == cmd_line,
+            cls.name == name,
+            cls.status == status,
+            cls.deprecated.is_(deprecated),
+            cls.deleted.is_(deleted)
+        ).first()
+
+        if operation:
+            warning = f"Operation with id {operation.id} already exists, informations will be attached to this one."
+        else:
+            operation = cls(
+                operation_config=operation_config,
+                project=project,
+                reference=reference,
+                platform=platform,
+                cmd_line=cmd_line,
+                name=name,
+                status=status
+            )
+        return operation, warning
 
 class Reference(BaseTable):
     """
@@ -608,25 +700,20 @@ class OperationConfig(BaseTable):
     operations: Mapped[list["Operation"]] = relationship(back_populates="operation_config", cascade="all, delete")
 
     @classmethod
-    def config_data(cls, data):
-        """
-        DocString
-        """
-        pass
-
-    @classmethod
-    def from_attributes(cls, name=None, version=None, md5sum=None, data=None, session=None):
+    def from_attributes(cls, name=None, version=None, md5sum=None, data=None, session=None, deprecated=False, deleted=False):
         """
         get operation_config if it exist, set it if it does not exist
         """
         if not session:
             session = database.get_session()
-        operation_config = session.scalars(
-            select(cls)
-                .where(cls.name == name)
-                .where(cls.version == version)
-                .where(cls.md5sum == md5sum)
-                .where(cls.data == data)
+        # Use ORM query
+        operation_config = session.query(cls).filter(
+            cls.name == name,
+            cls.version == version,
+            cls.md5sum == md5sum,
+            cls.data == data,
+            cls.deprecated.is_(deprecated),
+            cls.deleted.is_(deleted)
         ).first()
         if not operation_config:
             operation_config = cls(
@@ -698,6 +785,64 @@ class Metric(BaseTable):
     job: Mapped["Job"] = relationship(back_populates="metrics")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_metric, back_populates="metrics")
 
+    @classmethod
+    def get_or_create(cls, name, readsets, value=None, flag=None, deliverable=False, job=None, session=None, deprecated=False, deleted=False):
+        """
+        Retrieve or create a metric based on the provided name and value.
+
+        This method checks if a metric with the given name and value already exists for the specified readset.
+        If such a metric exists, it links the job and readset to the existing metric.
+        If a metric with the same name but a different value exists, it deprecates the old metric and adds a warning.
+        If no matching metric is found, it creates a new metric.
+
+        Args:
+            name (str): The name of the metric.
+            readsets (list[Readset]): A list of readsets associated with the metric.
+            value (str, optional): The value of the metric. Defaults to None.
+            flag (FlagEnum, optional): The flag status of the metric. Defaults to None.
+            deliverable (bool, optional): Indicates if the metric is deliverable. Defaults to False.
+            job (Job, optional): The job associated with the metric. Defaults to None.
+            session (Session, optional): The database session to use. Defaults to None.
+
+        Returns:
+            tuple: A tuple containing the metric instance and a warning message (if any).
+        """
+        if session is None:
+            session = database.get_session()
+
+        # Assuming readsets contains a single unique readset
+        readset = readsets[0]
+
+        # Combine checks into a single query
+        metrics = session.query(cls).join(cls.readsets).filter(
+            cls.name == name,
+            cls.deprecated.is_(deprecated),
+            cls.deleted.is_(deleted),
+            Readset.id == readset.id
+        ).all()
+
+        warning = None
+        metric = None
+        for m in metrics:
+            if m.value == value:
+                metric = m
+                break
+            if m.value != value:
+                m.deprecated = True
+                warning = f"Metric '{name}' already exists for readset '{readset.id}' with a different value (old: '{m.value}', new: '{value})'. Deprecating the old metric."
+
+        if metric:
+            # Metric with the same name and value exists, link to job and readset
+            metric.job = job
+            if readset not in metric.readsets:
+                metric.readsets.append(readset)
+        else:
+            # Create a new metric
+            metric = cls(name=name, value=value, flag=flag, deliverable=deliverable, job=job, readsets=readsets)
+            session.add(metric)
+
+        return metric, warning
+
 
 class Location(BaseTable):
     """
@@ -723,14 +868,19 @@ class Location(BaseTable):
     file: Mapped["File"] = relationship(back_populates="locations")
 
     @classmethod
-    def from_uri(cls, uri, file, endpoint=None, session=None):
+    def from_uri(cls, uri, file, endpoint=None, session=None, deprecated=False, deleted=False):
         """
         Sets endpoint from uri
         """
         if not session:
             session = database.get_session()
 
-        location = session.scalars(select(cls).where(cls.uri == uri)).first()
+        location = session.query(cls).filter(
+            cls.uri == uri,
+            cls.deprecated.is_(deprecated),
+            cls.deleted.is_(deleted)
+        ).first()
+
         if not location:
             if endpoint is None:
                 endpoint = uri.split(':///')[0]
@@ -763,3 +913,77 @@ class File(BaseTable):
     locations: Mapped[list["Location"]] = relationship(back_populates="file", cascade="all, delete")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="files")
     jobs: Mapped[list["Job"]] = relationship(secondary=job_file, back_populates="files")
+
+    @classmethod
+    def get_or_create(
+        cls,
+        name,
+        readsets,
+        jobs,
+        type=None,
+        md5sum=None,
+        deliverable=False,
+        extra_metadata=None,
+        session=None,
+        deprecated=False,
+        deleted=False
+        ):
+        """
+        Retrieve or create a file based on the provided attributes.
+
+        This method checks if a file with the given name, type, and md5sum already exists for the specified readset and job.
+        If such a file exists, it links the readset and job to the existing file.
+        If a file with the same name but different md5sum exists, it deprecates the old file and adds a warning.
+        If no matching file is found, it creates a new file.
+
+        Args:
+            name (str): The name of the file.
+            readsets (list[Readset]): A list of readsets associated with the file.
+            jobs (list[Job]): A list of jobs associated with the file.
+            type (str, optional): The type of the file. Defaults to None.
+            md5sum (str, optional): The MD5 checksum of the file. Defaults to None.
+            deliverable (bool, optional): Indicates if the file is deliverable. Defaults to False.
+            extra_metadata (dict, optional): Additional metadata for the file. Defaults to None.
+            session (Session, optional): The database session to use. Defaults to None.
+
+        Returns:
+            tuple: A tuple containing the file instance and a warning message (if any).
+        """
+        if not session:
+            session = database.get_session()
+
+        # Assuming readsets and jobs each contain a single unique item
+        readset = readsets[0]
+        job = jobs[0]
+
+        # Combine checks into a single query
+        files = session.query(cls).join(cls.readsets).join(cls.jobs).filter(
+            cls.name == name,
+            cls.deprecated.is_(deprecated),
+            cls.deleted.is_(deleted),
+            Readset.id == readset.id,
+            Job.id == job.id
+        ).all()
+
+        warning = None
+        file = None
+        for f in files:
+            if f.md5sum == md5sum:
+                file = f
+                break
+            if f.md5sum != md5sum:
+                f.deprecated = True
+                warning = f"Warning: File '{name}' already exists for readset '{readset.id}' and job '{job.id}' with a different MD5 checksum (old: '{f.md5sum}', new: '{md5sum}). Deprecating the old file."
+
+        if file:
+            # File with the same name and md5sum exists, link to readset and job
+            if readset not in file.readsets:
+                file.readsets.append(readset)
+            if job not in file.jobs:
+                file.jobs.append(job)
+        else:
+            # Create a new file
+            file = cls(name=name, type=type, md5sum=md5sum, deliverable=deliverable, extra_metadata=extra_metadata, readsets=readsets, jobs=jobs)
+            session.add(file)
+
+        return file, warning

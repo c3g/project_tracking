@@ -7,8 +7,12 @@ import csv
 import sqlite3
 
 from datetime import datetime
-from sqlalchemy import select, exc
+from sqlalchemy import select
 from sqlalchemy import delete as sql_delete
+from sqlalchemy.exc import (
+    SQLAlchemyError,
+    IntegrityError
+    )
 from pathlib import Path
 
 from . import vocabulary as vb
@@ -92,46 +96,47 @@ def unique_constraint_error(session, json_format, ingest_data):
             for sample_json in specimen_json[vb.SAMPLE]:
                 for readset_json in sample_json[vb.READSET]:
                     readset_name = readset_json[vb.READSET_NAME]
-                    stmt = (
-                        select(Readset)
-                        .where(Readset.name == readset_name)
-                        )
-                    if session.scalars(stmt).unique().all():
+                    readset = session.query(Readset).filter(Readset.name == readset_name).first()
+                    if readset:
                         ret.append(f"'Readset' with 'name' '{readset_name}' already exists in the database and 'name' has to be unique")
     return ret
 
 
 def name_to_id(model_class, name, session=None):
     """
-    Converting a given name into its id(s) for a given model_class
+    Converting a given name into its id(s) for a given model_class.
     """
     if session is None:
         session = database.get_session()
+
     from . import model
-    the_class  = getattr(model, model_class)
+    the_class = getattr(model, model_class)
+
     if isinstance(name, str):
         name = [name]
-    stmt = (select(the_class.id).where(the_class.name.in_(name)))
 
-    return session.scalars(stmt).unique().all()
+    ids = session.query(the_class.id).filter(the_class.name.in_(name)).all()
+
+    return [id[0] for id in ids]
 
 def fetch_specimen_by_attr(session, attr, value):
-    return session.scalars(
-        select(Specimen)
-        .where(getattr(Specimen, attr) == value)
-        ).unique().first()
+    """
+    Fetch a specimen by a given attribute and value.
+    """
+    return session.query(Specimen).filter(getattr(Specimen, attr) == value).first()
 
 def fetch_sample_by_attr(session, attr, value):
-    return session.scalars(
-        select(Sample)
-        .where(getattr(Sample, attr) == value)
-        ).unique().first()
+    """
+    Fetch a sample by a given attribute and value.
+    """
+    return session.query(Sample).filter(getattr(Sample, attr) == value).first()
+
 
 def fetch_readset_by_attr(session, attr, value):
-    return session.scalars(
-        select(Readset)
-        .where(getattr(Readset, attr) == value)
-        ).unique().first()
+    """
+    Fetch a readset by a given attribute and value.
+    """
+    return session.query(Readset).filter(getattr(Readset, attr) == value).first()
 
 def select_samples_from_specimens(session, ret, digest_data, nucleic_acid_type):
     """Returning Samples Objects based on requested specimens in digest_data"""
@@ -258,7 +263,7 @@ def select_readsets_from_samples(session, ret, digest_data, nucleic_acid_type):
                 raise DidNotFindError(table="Sample", attribute="name", query=sample_name)
     if vb.SAMPLE_ID in digest_data.keys():
         for sample_id in digest_data[vb.SAMPLE_ID]:
-            sample = fetch_sample_by_attr(session, 'name', sample_id)
+            sample = fetch_sample_by_attr(session, 'id', sample_id)
             if sample:
                 samples.append(sample)
             else:
@@ -300,470 +305,292 @@ def select_readsets_from_readsets(session, ret, digest_data, nucleic_acid_type):
 
 def projects(project_id=None, session=None):
     """
-    Fetching all projects in database
+    Fetching all projects in the database.
     """
     if session is None:
         session = database.get_session()
 
     if project_id is None:
-        stmt = select(Project)
-    elif project_id:
+        projects = session.query(Project).all()
+    else:
         if isinstance(project_id, str):
             project_id = [project_id]
-        stmt = (
-            select(Project)
-            .where(Project.id.in_(project_id))
-            .where(Project.deprecated.is_(False))
-            .where(Project.deleted.is_(False))
-            )
 
-    return session.scalars(stmt).unique().all()
+        projects = session.query(Project).filter(
+            Project.id.in_(project_id),
+            Project.deprecated.is_(False),
+            Project.deleted.is_(False)
+        ).all()
 
-def metrics_deliverable(project_id: str, deliverable: bool, specimen_id=None, sample_id=None, readset_id=None, metric_id=None):
+    return projects
+
+def metrics_deliverable(project_id: str, deliverable: bool, specimen_id=None, sample_id=None, readset_id=None, metric_id=None, deprecated=False, deleted=False):
     """
     deliverable = True: Returns only specimens that have a tumor and a normal sample
-    deliverable = False, Tumor = False: Returns  specimens that only have a normal samples
-    """
-
-    session = database.get_session()
-    if isinstance(project_id, str):
-        project_id = [project_id]
-
-    if metric_id and project_id:
-        if isinstance(metric_id, int):
-            metric_id = [metric_id]
-        stmt = (
-            select(Metric)
-            .where(Metric.deliverable == deliverable)
-            .where(Metric.id.in_(metric_id))
-            .where(Metric.deprecated.is_(False))
-            .where(Metric.deleted.is_(False))
-            .join(Metric.readsets)
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    elif specimen_id and project_id:
-        if isinstance(specimen_id, int):
-            specimen_id = [specimen_id]
-        stmt = (
-            select(Metric)
-            .where(Metric.deliverable == deliverable)
-            .where(Metric.deprecated.is_(False))
-            .where(Metric.deleted.is_(False))
-            .join(Metric.readsets)
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .where(Specimen.id.in_(specimen_id))
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    elif sample_id and project_id:
-        if isinstance(sample_id, int):
-            sample_id = [sample_id]
-        stmt = (
-            select(Metric)
-            .where(Metric.deliverable == deliverable)
-            .where(Metric.deprecated.is_(False))
-            .where(Metric.deleted.is_(False))
-            .join(Metric.readsets)
-            .join(Readset.sample)
-            .where(Sample.id.in_(sample_id))
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    elif readset_id and project_id:
-        if isinstance(readset_id, int):
-            readset_id = [readset_id]
-        stmt = (
-            select(Metric)
-            .where(Metric.deliverable == deliverable)
-            .where(Metric.deprecated.is_(False))
-            .where(Metric.deleted.is_(False))
-            .join(Metric.readsets)
-            .where(Readset.id.in_(readset_id))
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    else:
-        return ""
-
-    return session.scalars(stmt).unique().all()
-
-
-def metrics(project_id=None, specimen_id=None, sample_id=None, readset_id=None, metric_id=None):
-    """
-    Fetching all metrics that are part of the project or specimen or sample or readset
+    deliverable = False, Tumor = False: Returns specimens that only have normal samples
     """
     session = database.get_session()
     if isinstance(project_id, str):
         project_id = [project_id]
 
-    if metric_id and project_id:
+    query = session.query(Metric).filter(
+        Metric.deliverable == deliverable,
+        Metric.deprecated.is_(deprecated),
+        Metric.deleted.is_(deleted)
+    ).join(Metric.readsets).join(Readset.sample).join(Sample.specimen).join(Specimen.project).filter(
+        Project.id.in_(project_id)
+    )
+
+    if metric_id:
         if isinstance(metric_id, int):
             metric_id = [metric_id]
-        stmt = (
-            select(Metric)
-            .where(Metric.id.in_(metric_id))
-            .where(Metric.deprecated.is_(False))
-            .where(Metric.deleted.is_(False))
-            .join(Metric.readsets)
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    elif specimen_id and project_id:
+        query = query.filter(Metric.id.in_(metric_id))
+    elif specimen_id:
         if isinstance(specimen_id, int):
             specimen_id = [specimen_id]
-        stmt = (
-            select(Metric)
-            .where(Metric.deprecated.is_(False))
-            .where(Metric.deleted.is_(False))
-            .join(Metric.readsets)
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .where(Specimen.id.in_(specimen_id))
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    elif sample_id and project_id:
+        query = query.filter(Specimen.id.in_(specimen_id))
+    elif sample_id:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
-        stmt = (
-            select(Metric)
-            .where(Metric.deprecated.is_(False))
-            .where(Metric.deleted.is_(False))
-            .join(Metric.readsets)
-            .join(Readset.sample)
-            .where(Sample.id.in_(sample_id))
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    elif readset_id and project_id:
+        query = query.filter(Sample.id.in_(sample_id))
+    elif readset_id:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
-        stmt = (
-            select(Metric)
-            .where(Metric.deprecated.is_(False))
-            .where(Metric.deleted.is_(False))
-            .join(Metric.readsets)
-            .where(Readset.id.in_(readset_id))
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    else:
-        return ""
+        query = query.filter(Readset.id.in_(readset_id))
 
-    return session.scalars(stmt).unique().all()
+    return query.all()
 
 
-def files_deliverable(project_id: str, deliverable: bool, specimen_id=None, sample_id=None, readset_id=None, file_id=None):
+
+def metrics(project_id=None, specimen_id=None, sample_id=None, readset_id=None, metric_id=None, deprecated=False, deleted=False):
+    """
+    Fetching all metrics that are part of the project or specimen or sample or readset.
+    """
+    session = database.get_session()
+    if isinstance(project_id, str):
+        project_id = [project_id]
+
+    query = session.query(Metric).filter(
+        Metric.deprecated.is_(deprecated),
+        Metric.deleted.is_(deleted)
+    ).join(Metric.readsets).join(Readset.sample).join(Sample.specimen).join(Specimen.project).filter(
+        Project.id.in_(project_id)
+    )
+
+    if metric_id:
+        if isinstance(metric_id, int):
+            metric_id = [metric_id]
+        query = query.filter(Metric.id.in_(metric_id))
+    elif specimen_id:
+        if isinstance(specimen_id, int):
+            specimen_id = [specimen_id]
+        query = query.filter(Specimen.id.in_(specimen_id))
+    elif sample_id:
+        if isinstance(sample_id, int):
+            sample_id = [sample_id]
+        query = query.filter(Sample.id.in_(sample_id))
+    elif readset_id:
+        if isinstance(readset_id, int):
+            readset_id = [readset_id]
+        query = query.filter(Readset.id.in_(readset_id))
+
+    return query.all()
+
+
+def files_deliverable(project_id: str, deliverable: bool, specimen_id=None, sample_id=None, readset_id=None, file_id=None, deprecated=False, deleted=False):
     """
     deliverable = True: Returns only files labelled as deliverable
     deliverable = False: Returns only files NOT labelled as deliverable
     """
-
     session = database.get_session()
     if isinstance(project_id, str):
         project_id = [project_id]
 
-    if file_id and project_id:
+    query = session.query(File).filter(
+        File.deliverable == deliverable,
+        File.deprecated.is_(deprecated),
+        File.deleted.is_(deleted)
+    ).join(File.readsets).join(Readset.sample).join(Sample.specimen).join(Specimen.project).filter(
+        Project.id.in_(project_id)
+    )
+
+    if file_id:
         if isinstance(file_id, int):
             file_id = [file_id]
-        stmt = (
-            select(File)
-            .where(File.deprecated.is_(False))
-            .where(File.deleted.is_(False))
-            .where(File.deliverable == deliverable)
-            .where(File.id.in_(file_id))
-            .join(File.readsets)
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    elif specimen_id and project_id:
+        query = query.filter(File.id.in_(file_id))
+    elif specimen_id:
         if isinstance(specimen_id, int):
             specimen_id = [specimen_id]
-        stmt = (
-            select(File)
-            .where(File.deliverable == deliverable)
-            .where(File.deprecated.is_(False))
-            .where(File.deleted.is_(False))
-            .join(File.readsets)
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .where(Specimen.id.in_(specimen_id))
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    elif sample_id and project_id:
+        query = query.filter(Specimen.id.in_(specimen_id))
+    elif sample_id:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
-        stmt = (
-            select(File)
-            .where(File.deliverable == deliverable)
-            .where(File.deprecated.is_(False))
-            .where(File.deleted.is_(False))
-            .join(File.readsets)
-            .join(Readset.sample)
-            .where(Sample.id.in_(sample_id))
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    elif readset_id and project_id:
+        query = query.filter(Sample.id.in_(sample_id))
+    elif readset_id:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
-        stmt = (
-            select(File)
-            .where(File.deliverable == deliverable)
-            .where(File.deprecated.is_(False))
-            .where(File.deleted.is_(False))
-            .join(File.readsets)
-            .where(Readset.id.in_(readset_id))
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    else:
-        return ""
+        query = query.filter(Readset.id.in_(readset_id))
 
-    return session.scalars(stmt).unique().all()
+    return query.all()
 
-def files(project_id=None, specimen_id=None, sample_id=None, readset_id=None, file_id=None):
+
+def files(project_id=None, specimen_id=None, sample_id=None, readset_id=None, file_id=None, deprecated=False, deleted=False):
     """
-    Fetching all files that are linked to readset
+    Fetching all files that are linked to readset.
     """
     session = database.get_session()
 
     if isinstance(project_id, str):
         project_id = [project_id]
 
-    if file_id and project_id:
+    query = session.query(File).filter(
+        File.deprecated.is_(deprecated),
+        File.deleted.is_(deleted)
+    ).join(File.readsets).join(Readset.sample).join(Sample.specimen).join(Specimen.project).filter(
+        Project.id.in_(project_id)
+    )
+
+    if file_id:
         if isinstance(file_id, int):
             file_id = [file_id]
-        stmt = (
-            select(File)
-            .where(File.deprecated.is_(False))
-            .where(File.deleted.is_(False))
-            .where(File.id.in_(file_id))
-            .join(File.readsets)
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    elif specimen_id and project_id:
+        query = query.filter(File.id.in_(file_id))
+    elif specimen_id:
         if isinstance(specimen_id, int):
             specimen_id = [specimen_id]
-        stmt = (
-            select(File)
-            .where(File.deprecated.is_(False))
-            .where(File.deleted.is_(False))
-            .join(File.readsets)
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .where(Specimen.id.in_(specimen_id))
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    elif sample_id and project_id:
+        query = query.filter(Specimen.id.in_(specimen_id))
+    elif sample_id:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
-        stmt = (
-            select(File)
-            .where(File.deprecated.is_(False))
-            .where(File.deleted.is_(False))
-            .join(File.readsets)
-            .join(Readset.sample)
-            .where(Sample.id.in_(sample_id))
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    elif readset_id and project_id:
+        query = query.filter(Sample.id.in_(sample_id))
+    elif readset_id:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
-        stmt = (
-            select(File)
-            .where(File.deprecated.is_(False))
-            .where(File.deleted.is_(False))
-            .join(File.readsets)
-            .where(Readset.id.in_(readset_id))
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    else:
-        return ""
+        query = query.filter(Readset.id.in_(readset_id))
 
-    return session.scalars(stmt).unique().all()
+    return query.all()
 
 
-def readsets(project_id=None, sample_id=None, readset_id=None):
+def readsets(project_id=None, sample_id=None, readset_id=None, deprecated=False, deleted=False):
     """
-    Fetching all readsets that are part of the project or sample
+    Fetching all readsets that are part of the project or sample.
     """
     session = database.get_session()
 
     if isinstance(project_id, str):
         project_id = [project_id]
+
+    query = session.query(Readset).filter(
+        Readset.deprecated.is_(deprecated),
+        Readset.deleted.is_(deleted)
+    )
 
     if project_id is None and sample_id is None and readset_id is None:
-        stmt = (
-            select(Readset)
-            .where(Readset.deprecated.is_(False))
-            .where(Readset.deleted.is_(False))
-            )
+        # Fetch all readsets
+        return query.all()
     elif project_id and sample_id is None and readset_id is None:
-        stmt = (
-            select(Readset)
-            .where(Readset.deprecated.is_(False))
-            .where(Readset.deleted.is_(False))
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
+        # Fetch readsets by project_id
+        query = query.join(Readset.sample).join(Sample.specimen).join(Specimen.project).filter(
+            Project.id.in_(project_id)
+        )
     elif sample_id and project_id:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
-        stmt = (
-            select(Readset)
-            .where(Readset.deprecated.is_(False))
-            .where(Readset.deleted.is_(False))
-            .join(Readset.sample)
-            .where(Sample.id.in_(sample_id)).where(Project.id.in_(project_id))
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
+        # Fetch readsets by sample_id and project_id
+        query = query.join(Readset.sample).filter(
+            Sample.id.in_(sample_id),
+            Project.id.in_(project_id)
+        ).join(Sample.specimen).join(Specimen.project).filter(
+            Project.id.in_(project_id)
+        )
     elif readset_id and project_id:
         if isinstance(readset_id, int):
             readset_id = [readset_id]
-        stmt = (
-            select(Readset)
-            .where(Readset.deprecated.is_(False))
-            .where(Readset.deleted.is_(False))
-            .where(Readset.id.in_(readset_id))
-            .join(Readset.sample)
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
+        # Fetch readsets by readset_id and project_id
+        query = query.filter(
+            Readset.id.in_(readset_id)
+        ).join(Readset.sample).join(Sample.specimen).join(Specimen.project).filter(
+            Project.id.in_(project_id)
+        )
 
-    return session.scalars(stmt).unique().all()
+    return query.all()
 
 
-def specimen_pair(project_id: str, pair: bool, specimen_id=None, tumor: bool=True):
+def specimen_pair(project_id: str, pair: bool, specimen_id=None, tumor: bool=True, deprecated=False, deleted=False):
     """
     Pair = True: Returns only specimens that have a tumor and a normal sample
-    Pair = False, Tumor = True: Returns specimens that only have a tumor samples
-    Pair = False, Tumor = False: Returns  specimens that only have a normal samples
+    Pair = False, Tumor = True: Returns specimens that only have tumor samples
+    Pair = False, Tumor = False: Returns specimens that only have normal samples
     """
-
     session = database.get_session()
     if isinstance(project_id, str):
         project_id = [project_id]
 
-    if specimen_id is None:
-        stmt1 = (
-            select(Specimen)
-            .where(Specimen.deprecated.is_(False))
-            .where(Specimen.deleted.is_(False))
-            .join(Specimen.samples)
-            .where(Sample.tumour.is_(True))
-            .where(Project.id.in_(project_id))
-            )
-        stmt2 = (
-            select(Specimen)
-            .where(Specimen.deprecated.is_(False))
-            .where(Specimen.deleted.is_(False))
-            .join(Specimen.samples)
-            .where(Sample.tumour.is_(False))
-            .where(Project.id.in_(project_id))
-            )
-    else:
+    query_tumor = session.query(Specimen).filter(
+        Specimen.deprecated.is_(deprecated),
+        Specimen.deleted.is_(deleted)
+    ).join(Specimen.samples).filter(
+        Sample.tumour.is_(True)
+    ).join(Specimen.project).filter(
+        Project.id.in_(project_id)
+    )
+
+    query_normal = session.query(Specimen).filter(
+        Specimen.deprecated.is_(deprecated),
+        Specimen.deleted.is_(deleted)
+    ).join(Specimen.samples).filter(
+        Sample.tumour.is_(False)
+    ).join(Specimen.project).filter(
+        Project.id.in_(project_id)
+    )
+
+    if specimen_id:
         if isinstance(specimen_id, int):
             specimen_id = [specimen_id]
-        stmt1 = (
-            select(Specimen)
-            .where(Specimen.deprecated.is_(False))
-            .where(Specimen.deleted.is_(False))
-            .join(Specimen.samples)
-            .where(Sample.tumour.is_(True))
-            .where(Project.id.in_(project_id))
-            .where(Specimen.id.in_(specimen_id))
-            )
-        stmt2 = (
-            select(Specimen)
-            .where(Specimen.deprecated.is_(False))
-            .where(Specimen.deleted.is_(False))
-            .join(Specimen.samples)
-            .where(Sample.tumour.is_(False))
-            .where(Project.id.in_(project_id))
-            .where(Specimen.id.in_(specimen_id))
-            )
-    s1 = set(session.scalars(stmt1).all())
-    s2 = set(session.scalars(stmt2).all())
+        query_tumor = query_tumor.filter(Specimen.id.in_(specimen_id))
+        query_normal = query_normal.filter(Specimen.id.in_(specimen_id))
+
+    specimens_tumor = set(query_tumor.all())
+    specimens_normal = set(query_normal.all())
+
     if pair:
-        return s2.intersection(s1)
-    elif tumor:
-        return s1.difference(s2)
-    else:
-        return s2.difference(s1)
+        return specimens_normal.intersection(specimens_tumor)
+    if tumor:
+        return specimens_tumor.difference(specimens_normal)
+    return specimens_normal.difference(specimens_tumor)
 
 
-def specimens(project_id=None, specimen_id=None):
+def specimens(project_id=None, specimen_id=None, deprecated=False, deleted=False):
     """
-    Fetching all specimens from projets or selected specimen from id
+    Fetching all specimens from projects or selected specimen by id.
     """
     session = database.get_session()
     if isinstance(project_id, str):
         project_id = [project_id]
+
+    query = session.query(Specimen).filter_by(deprecated=deprecated, deleted=deleted)
 
     if project_id is None and specimen_id is None:
-        stmt = (
-            select(Specimen)
-            .where(Specimen.deprecated.is_(False))
-            .where(Specimen.deleted.is_(False))
-            )
-    elif specimen_id is None and project_id:
-        stmt = (
-            select(Specimen)
-            .where(Specimen.deprecated.is_(False))
-            .where(Specimen.deleted.is_(False))
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
+        # Fetch all specimens
+        return query.all()
+    if specimen_id is None and project_id:
+        # Fetch specimens by project_id
+        query = query.join(Specimen.project).filter(
+            Project.id.in_(project_id)
+        )
     else:
         if isinstance(specimen_id, int):
             specimen_id = [specimen_id]
-        stmt = (
-            select(Specimen)
-            .where(Specimen.deprecated.is_(False))
-            .where(Specimen.deleted.is_(False))
-            .where(Specimen.id.in_(specimen_id))
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
+        # Fetch specimens by specimen_id and project_id
+        query = query.filter(
+            Specimen.id.in_(specimen_id)
+        ).join(Specimen.project).filter(
+            Project.id.in_(project_id)
+        )
 
-    return session.scalars(stmt).unique().all()
+    return query.all()
 
 
-def samples(project_id=None, sample_id=None):
+def samples(project_id=None, sample_id=None, deprecated=False, deleted=False):
     """
     Fetching all projects in database still need to check if sample are part of project when both are provided
     """
@@ -771,35 +598,19 @@ def samples(project_id=None, sample_id=None):
     if isinstance(project_id, str):
         project_id = [project_id]
 
-    if project_id is None:
-        stmt = (
-            select(Sample)
-            .where(Sample.deprecated.is_(False))
-            .where(Sample.deleted.is_(False))
-            )
-    elif sample_id is None:
-        stmt = (
-            select(Sample)
-            .where(Sample.deprecated.is_(False))
-            .where(Sample.deleted.is_(False))
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
-    else:
+    query = session.query(Sample).filter_by(deprecated=deprecated, deleted=deleted)
+
+    if project_id:
+        if isinstance(project_id, str):
+            project_id = [project_id]
+        query = query.join(Sample.specimen).join(Specimen.project).filter(Project.id.in_(project_id))
+
+    if sample_id:
         if isinstance(sample_id, int):
             sample_id = [sample_id]
-        stmt = (
-            select(Sample)
-            .where(Sample.deprecated.is_(False))
-            .where(Sample.deleted.is_(False))
-            .where(Sample.id.in_(sample_id))
-            .join(Sample.specimen)
-            .join(Specimen.project)
-            .where(Project.id.in_(project_id))
-            )
+        query = query.filter(Sample.id.in_(sample_id))
 
-    return session.scalars(stmt).unique().all()
+    return query.all()
 
 
 def create_project(project_name, ext_id=None, ext_src=None, session=None):
@@ -810,18 +621,21 @@ def create_project(project_name, ext_id=None, ext_src=None, session=None):
     if not session:
         session = database.get_session()
 
-    project = Project(name=project_name, ext_id=ext_id, ext_src=ext_src)
+    # Check if the project already exists
+    project = session.query(Project).filter_by(name=project_name).first()
 
-    session.add(project)
+    if not project:
+        # Create a new project if it doesn't exist
+        project = Project(name=project_name, ext_id=ext_id, ext_src=ext_src)
+        session.add(project)
 
-    try:
-        session.commit()
-    except exc.SQLAlchemyError as error:
-        # crash if project does not exist
-        logger.warning(f"Could no commit {project_name}: {error}")
-        session.rollback()
+        try:
+            session.commit()
+        except SQLAlchemyError as error:
+            logger.warning(f"Could not commit {project_name}: {error}")
+            session.rollback()
 
-    return session.scalars(select(Project).where(Project.name == project_name)).one()
+    return project
 
 
 def ingest_run_processing(project_id: str, ingest_data, session=None):
@@ -918,6 +732,7 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                         file_deliverable = False
                     # Need to have the following otherwise assigning extra_metadata to None converts null into json in the db
                     if vb.FILE_EXTRA_METADATA in file_json.keys():
+                        # No need to use .from_attributes because run_processing is ingested ionly one time for a given Readset
                         file = File(
                             name=file_json[vb.FILE_NAME],
                             type=file_type,
@@ -927,6 +742,7 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                             jobs=[job]
                             )
                     else:
+                        # No need to use .from_attributes because run_processing is ingested ionly one time for a given Readset
                         file = File(
                             name=file_json[vb.FILE_NAME],
                             type=file_type,
@@ -934,7 +750,7 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                             readsets=[readset],
                             jobs=[job]
                             )
-                    location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                    _ = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
                 for metric_json in readset_json[vb.METRIC]:
                     if vb.METRIC_DELIVERABLE in metric_json:
                         metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
@@ -944,7 +760,7 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                         metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG])
                     else:
                         metric_flag = None
-                    Metric(
+                    _, warning = Metric.get_or_create(
                         name=metric_json[vb.METRIC_NAME],
                         value=metric_json[vb.METRIC_VALUE],
                         flag=metric_flag,
@@ -952,11 +768,13 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                         job=job,
                         readsets=[readset]
                         )
+                    if warning:
+                        ret["DB_ACTION_WARNING"].append(warning)
 
                 session.add(readset)
             try:
                 session.flush()
-            except exc.IntegrityError as error:
+            except IntegrityError as error:
                 session.rollback()
                 message = unique_constraint_error(session, "run_processing", ingest_data)
                 if not message:
@@ -968,14 +786,14 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
 
     try:
         session.commit()
-    except exc.SQLAlchemyError as error:
+    except SQLAlchemyError as error:
         logger.error("Error: %s", error)
         session.rollback()
 
     # operation
-    operation = session.scalars(select(Operation).where(Operation.id == operation_id)).first()
+    operation = session.query(Operation).filter_by(id=operation_id).first()
     # job
-    job = session.scalars(select(Job).where(Job.id == job_id)).first()
+    job = session.query(Job).filter_by(id=job_id).first()
 
     ret["DB_ACTION_OUTPUT"].append(operation)
     # If no warning
@@ -997,7 +815,7 @@ def ingest_transfer(project_id: str, ingest_data, session=None, check_readset_na
     ret = {
         "DB_ACTION_WARNING": [],
         "DB_ACTION_OUTPUT": []
-        }
+    }
 
     project = projects(project_id=project_id, session=session)[0]
 
@@ -1007,50 +825,38 @@ def ingest_transfer(project_id: str, ingest_data, session=None, check_readset_na
         cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
         status=StatusEnum("COMPLETED"),
         project=project
-        )
+    )
     job = Job(
         name="transfer",
         status=StatusEnum("COMPLETED"),
         start=datetime.now(),
         stop=datetime.now(),
         operation=operation
-        )
+    )
     readset_list = []
     for readset_json in ingest_data[vb.READSET]:
         readset_name = readset_json[vb.READSET_NAME]
-        readset_list.append(
-            session.scalars(
-                select(Readset)
-                .where(Readset.name == readset_name)
-                .where(Readset.deprecated.is_(False))
-                .where(Readset.deleted.is_(False))
-                ).unique().first()
-            )
+        readset = session.query(Readset).filter_by(
+            name=readset_name,
+            deprecated=False,
+            deleted=False
+        ).first()
+        readset_list.append(readset)
         for file_json in readset_json[vb.FILE]:
             src_uri = file_json[vb.SRC_LOCATION_URI]
             dest_uri = file_json[vb.DEST_LOCATION_URI]
             if check_readset_name:
-                file = session.scalars(
-                    select(File)
-                    .where(File.deprecated.is_(False))
-                    .where(File.deleted.is_(False))
-                    .join(File.readsets)
-                    .where(Readset.name == readset_name)
-                    .join(File.locations)
-                    .where(Location.uri == src_uri)
-                    ).unique().first()
+                file = session.query(File).filter(
+                    File.deprecated.is_(False),
+                    File.deleted.is_(False)
+                ).join(File.readsets).filter(Readset.name == readset_name).join(File.locations).filter(Location.uri == src_uri).first()
                 if not file:
                     raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}' and 'Readset' with 'name' '{readset_name}'")
             else:
-                file = session.scalars(
-                    select(File)
-                        .where(File.deprecated.is_(False))
-                        .where(File.deleted.is_(False))
-                        .join(File.readsets)
-                        .where(Readset.name == readset_name)
-                        .join(File.locations)
-                        .where(Location.uri == src_uri)
-                ).unique().first()
+                file = session.query(File).filter(
+                    File.deprecated.is_(False),
+                    File.deleted.is_(False)
+                ).join(File.readsets).filter(Readset.name == readset_name).join(File.locations).filter(Location.uri == src_uri).first()
                 if not file:
                     raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}'")
 
@@ -1067,14 +873,14 @@ def ingest_transfer(project_id: str, ingest_data, session=None, check_readset_na
 
     try:
         session.commit()
-    except exc.SQLAlchemyError as error:
+    except SQLAlchemyError as error:
         logger.error("Error: %s", error)
         session.rollback()
 
     # operation
-    operation = session.scalars(select(Operation).where(Operation.id == operation_id)).first()
+    operation = session.query(Operation).filter_by(id=operation_id).first()
     # job
-    job = session.scalars(select(Job).where(Job.id == job_id)).first()
+    job = session.query(Job).filter_by(id=job_id).first()
 
     ret["DB_ACTION_OUTPUT"].append(operation)
     # If no warning
@@ -1243,36 +1049,36 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
         md5sum=ingest_data[vb.OPERATION_CONFIG_MD5SUM],
         data=bytes(ingest_data[vb.OPERATION_CONFIG_DATA], 'utf-8'),
         session=session
-        )
+    )
 
-    operation = Operation(
+    operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
         name="genpipes",
         cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
         status=StatusEnum("COMPLETED"),
         project=project,
         operation_config=operation_config
-        )
+    )
+    if warning:
+        ret["DB_ACTION_WARNING"].append(warning)
 
     readset_list = []
     if not ingest_data[vb.SAMPLE]:
         raise RequestError("No 'Sample' found, this json won't be ingested.")
     for sample_json in ingest_data[vb.SAMPLE]:
-        sample = session.scalars(
-            select(Sample)
-            .where(Sample.deprecated.is_(False))
-            .where(Sample.deleted.is_(False))
-            .where(Sample.name == sample_json[vb.SAMPLE_NAME])
-            ).unique().first()
+        sample = session.query(Sample).filter_by(
+            deprecated=False,
+            deleted=False,
+            name=sample_json[vb.SAMPLE_NAME]
+        ).first()
         if not sample:
             raise DidNotFindError(f"No Sample named '{sample_json[vb.SAMPLE_NAME]}'")
         for readset_json in sample_json[vb.READSET]:
-            readset = session.scalars(
-                select(Readset)
-                .where(Readset.deprecated.is_(False))
-                .where(Readset.deleted.is_(False))
-                .where(Readset.name == readset_json[vb.READSET_NAME])
-                ).unique().first()
+            readset = session.query(Readset).filter_by(
+                deprecated=False,
+                deleted=False,
+                name=readset_json[vb.READSET_NAME]
+            ).first()
             readset_list.append(readset)
             if not readset:
                 raise DidNotFindError(f"No Readset named '{readset_json[vb.READSET_NAME]}'")
@@ -1294,55 +1100,60 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
                         status=StatusEnum(job_json[vb.JOB_STATUS]),
                         start=job_start,
                         stop=job_stop,
-                        operation=operation
-                        )
-                    for file_json in job_json[vb.FILE]:
-                        suffixes = Path(file_json[vb.FILE_NAME]).suffixes
-                        file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
-                        if ".gz" in suffixes:
-                            index = suffixes.index(".gz")
-                            file_type = "".join(suffixes[index - 1:]).replace(".", "", 1)
-                        if vb.FILE_DELIVERABLE in file_json:
-                            file_deliverable = file_json[vb.FILE_DELIVERABLE]
-                        else:
-                            file_deliverable = False
-                        # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
-                        if vb.FILE_EXTRA_METADATA in file_json.keys():
-                            file = File(
-                                name=file_json[vb.FILE_NAME],
-                                type=file_type,
-                                extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
-                                deliverable=file_deliverable,
-                                readsets=[readset],
-                                jobs=[job]
+                        operation=operation,
+                        readsets=[readset]
+                    )
+                    # Required to lookup with get_or_create
+                    session.add(job)
+                    session.flush()
+                    if vb.FILE in job_json:
+                        for file_json in job_json[vb.FILE]:
+                            suffixes = Path(file_json[vb.FILE_NAME]).suffixes
+                            file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
+                            if ".gz" in suffixes:
+                                index = suffixes.index(".gz")
+                                file_type = "".join(suffixes[index - 1:]).replace(".", "", 1)
+                            file_deliverable = file_json.get(vb.FILE_DELIVERABLE, False)
+                            # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
+                            if vb.FILE_EXTRA_METADATA in file_json:
+                                # Before adding a new file make sure an existing one doesn't exist otherwise update it
+                                file, warning = File.get_or_create(
+                                    name=file_json[vb.FILE_NAME],
+                                    type=file_type,
+                                    extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
+                                    deliverable=file_deliverable,
+                                    readsets=[readset],
+                                    jobs=[job]
                                 )
-                        else:
-                            file = File(
-                                name=file_json[vb.FILE_NAME],
-                                type=file_type,
-                                deliverable=file_deliverable,
-                                readsets=[readset],
-                                jobs=[job]
+                                if warning:
+                                    ret["DB_ACTION_WARNING"].append(warning)
+                            else:
+                                # Before adding a new file make sure an existing one doesn't exist otherwise update it
+                                file, warning = File.get_or_create(
+                                    name=file_json[vb.FILE_NAME],
+                                    type=file_type,
+                                    deliverable=file_deliverable,
+                                    readsets=[readset],
+                                    jobs=[job]
                                 )
-                        location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
-                    if vb.METRIC in job_json.keys():
+                                if warning:
+                                    ret["DB_ACTION_WARNING"].append(warning)
+                            _ = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                    if vb.METRIC in job_json:
                         for metric_json in job_json[vb.METRIC]:
-                            if vb.METRIC_DELIVERABLE in metric_json:
-                                metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
-                            else:
-                                metric_deliverable = False
-                            if vb.METRIC_FLAG in metric_json:
-                                metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG])
-                            else:
-                                metric_flag = None
-                            Metric(
+                            metric_deliverable = metric_json.get(vb.METRIC_DELIVERABLE, False)
+                            metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG]) if vb.METRIC_FLAG in metric_json else None
+                            # Before adding a new metric for the current Readset make sure an existing one doesn't exist otherwise update it
+                            _, warning = Metric.get_or_create(
                                 name=metric_json[vb.METRIC_NAME],
                                 value=metric_json[vb.METRIC_VALUE],
                                 flag=metric_flag,
                                 deliverable=metric_deliverable,
                                 job=job,
                                 readsets=[readset]
-                                )
+                            )
+                            if warning:
+                                ret["DB_ACTION_WARNING"].append(warning)
                 # If job status is null then skip it as we don't want to ingest data not generated
                 else:
                     ret["DB_ACTION_WARNING"].append(f"'Readset' with 'name' '{readset.name}' has 'Job' with 'name' '{job_json[vb.JOB_NAME]}' with no status, skipping.")
@@ -1359,12 +1170,12 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
         raise RequestError("No 'Job' has a status, this json won't be ingested.")
     try:
         session.commit()
-    except exc.SQLAlchemyError as error:
+    except SQLAlchemyError as error:
         logger.error("Error: %s", error)
         session.rollback()
 
     # operation
-    operation = session.scalars(select(Operation).where(Operation.id == operation_id)).first()
+    operation = session.query(Operation).filter_by(id=operation_id).first()
     # jobs
     ret["DB_ACTION_OUTPUT"].append(operation)
     # If no warning
@@ -1400,60 +1211,29 @@ def digest_unanalyzed(project_id: str, digest_data, session=None):
     location_endpoint = digest_data["location_endpoint"]
 
     if sample_name_flag:
-        stmt = (
-            select(Sample.name)
-            .where(Sample.deprecated.is_(False))
-            .where(Sample.deleted.is_(False))
-            .join(Sample.readsets)
-            )
+        query = session.query(Sample.name).filter_by(deprecated=False, deleted=False).join(Sample.readsets)
         key = "sample_name"
     elif sample_id_flag:
-        stmt = (
-            select(Sample.id)
-            .where(Sample.deprecated.is_(False))
-            .where(Sample.deleted.is_(False))
-            .join(Sample.readsets)
-            )
+        query = session.query(Sample.id).filter_by(deprecated=False, deleted=False).join(Sample.readsets)
         key = "sample_id"
     elif readset_name_flag:
-        stmt = (
-            select(Readset.name)
-            .where(Readset.deprecated.is_(False))
-            .where(Readset.deleted.is_(False))
-            )
+        query = session.query(Readset.name).filter_by(deprecated=False, deleted=False)
         key = "readset_name"
     elif readset_id_flag:
-        stmt = (
-            select(Readset.id)
-            .where(Readset.deprecated.is_(False))
-            .where(Readset.deleted.is_(False))
-            )
+        query = session.query(Readset.id).filter_by(deprecated=False, deleted=False)
         key = "readset_id"
 
-    stmt = (
-        stmt.where(Readset.state == StateEnum("VALID"))
-        .join(Readset.operations)
-        .where(Operation.name.notilike("%genpipes%"))
-        .join(Sample.specimen)
-        .join(Specimen.project)
-        .where(Project.id.in_(project_id))
-        )
+    query = query.filter(Readset.state == StateEnum("VALID")).join(Readset.operations).filter(Operation.name.notilike("%genpipes%")).join(Sample.specimen).join(Specimen.project).filter(Project.id.in_(project_id))
 
     if run_id:
-        stmt = (
-            stmt.where(Run.id == run_id)
-            .join(Readset.run)
-            )
+        query = query.filter(Run.id == run_id).join(Readset.run)
     if experiment_nucleic_acid_type:
-        stmt = (
-            stmt.where(Experiment.nucleic_acid_type == experiment_nucleic_acid_type)
-            .join(Readset.experiment)
-            )
+        query = query.filter(Experiment.nucleic_acid_type == experiment_nucleic_acid_type).join(Readset.experiment)
 
     output = {
         "location_endpoint": location_endpoint,
         "experiment_nucleic_acid_type": experiment_nucleic_acid_type,
-        key: session.scalars(stmt).unique().all()
+        key: query.all()
     }
 
     return json.dumps(output)
@@ -1469,17 +1249,17 @@ def digest_delivery(project_id: str, digest_data, session=None):
     if vb.LOCATION_ENDPOINT in digest_data.keys():
         location_endpoint = digest_data[vb.LOCATION_ENDPOINT]
 
+    specimens = []
+    samples = []
     readsets = []
     ret = {
         "DB_ACTION_WARNING": [],
         "DB_ACTION_OUTPUT": {
             "location_endpoint": location_endpoint,
-            "readset": []
+            "experiment_nucleic_acid_type": digest_data[vb.EXPERIMENT_NUCLEIC_ACID_TYPE],
+            "operation": [],
+            "specimen": []
             }
-        }
-    output = {
-        "location_endpoint": location_endpoint,
-        "readset": []
         }
 
     if vb.EXPERIMENT_NUCLEIC_ACID_TYPE in digest_data.keys():
@@ -1491,36 +1271,91 @@ def digest_delivery(project_id: str, digest_data, session=None):
     readsets += select_readsets_from_samples(session, ret, digest_data, nucleic_acid_type)
     readsets += select_readsets_from_readsets(session, ret, digest_data, nucleic_acid_type)
 
+    operation_config_ids = []
     if readsets:
         for readset in readsets:
             readset_files = []
+            readset_metrics = []
+            for operation in readset.operations:
+                operation_cmd_line = getattr(operation, "cmd_line", None)
+                operation_config_data = getattr(operation.operation_config, "data", None)
+                operation_config_id = getattr(operation.operation_config, "id", None)
+                if operation_config_id not in operation_config_ids:
+                    if operation_cmd_line and operation_config_data:
+                        operation_json = {
+                            "cmd_line": operation_cmd_line,
+                            "config_data": operation_config_data.decode("utf-8")
+                            }
+                        ret["DB_ACTION_OUTPUT"]["operation"].append(operation_json)
+                    operation_config_ids.append(operation_config_id)
             for file in readset.files:
-                if file.deliverable:
+                if file.deliverable and file.deleted is False:
                     if location_endpoint:
-                        logger.debug(f"File: {file}")
+                        # logger.debug(f"File: {file}")
                         for location in file.locations:
-                            logger.debug(f"Location: {location}")
+                            # logger.debug(f"Location: {location}")
                             if location_endpoint == location.endpoint:
                                 file_deliverable = location.uri.split("://")[-1]
-                                if not file_deliverable:
-                                    ret["DB_ACTION_WARNING"].append(f"Looking for 'File' with 'name' '{file.name}' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset' with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]}.")
-                                else:
-                                    readset_files.append({
-                                        "name": file.name,
-                                        "location": file_deliverable
-                                        })
-            ret["DB_ACTION_OUTPUT"]["readset"].append({
-                "name": readset.name,
-                "file": readset_files
-                })
+                                if location.deleted is False:
+                                    if not file_deliverable:
+                                        ret["DB_ACTION_WARNING"].append(f"Looking for 'File' with 'name' '{file.name}' for 'Sample' with 'name' '{readset.sample.name}' and 'Readset' with 'name' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]}.")
+                                    else:
+                                        readset_files.append({
+                                            "name": file.name,
+                                            "location": file_deliverable
+                                            })
+            for metric in readset.metrics:
+                if metric.deliverable:
+                    readset_metrics.append({
+                        "name": metric.name,
+                        "value": metric.value,
+                        "aggregate": metric.aggregate,
+                        "flag": metric.flag.to_json()
+                        })
+            sample = {
+                "name": readset.sample.name,
+                "tumour": readset.sample.tumour,
+                "readset": [{
+                    "name": readset.name,
+                    "file": readset_files,
+                    "metric": readset_metrics
+                }]
+            }
+            specimen = {
+                "name": readset.sample.specimen.name,
+                "cohort": readset.sample.specimen.cohort,
+                "institution": readset.sample.specimen.institution,
+                "sample": [sample]
+            }
+            # Check if specimen already exists
+            specimen_exists = False
+            for existing_specimen in ret["DB_ACTION_OUTPUT"]["specimen"]:
+                if existing_specimen["name"] == specimen["name"]:
+                    specimen_exists = True
+                    # Check if sample already exists
+                    sample_exists = False
+                    for existing_sample in existing_specimen["sample"]:
+                        if existing_sample["name"] == sample["name"]:
+                            sample_exists = True
+                            existing_sample["readset"].append(sample["readset"][0])
+                            break
+                    if not sample_exists:
+                        existing_specimen["sample"].append(sample)
+                    break
+
+            if not specimen_exists:
+                ret["DB_ACTION_OUTPUT"]["specimen"].append(specimen)
+            # logger.debug(f"Sample: {readset.sample.name}, Specimen: {readset.sample.specimen.name}")
+            # ret["DB_ACTION_OUTPUT"]["patient"].append({
+            #     "name": readset.name,
+            #     "file": readset_files,
+            #     "metric": readset_metrics
+            #     })
 
     # If no warning
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
-    # if warnings["DB_ACTION_WARNING"]:
-    #     ret = warnings
-    # else:
-    #     ret = output
+
     return json.dumps(ret)
 
 def edit(ingest_data, session=None):
@@ -1543,7 +1378,7 @@ def edit(ingest_data, session=None):
         from . import model
         the_table = getattr(model, table[vb.TABLE].title())
         for current_id in set(table[vb.ID]):
-            selected_table = session.scalars(select(the_table).where(the_table.id == current_id)).unique().first()
+            selected_table = session.query(the_table).filter_by(id=current_id).first()
             if not selected_table:
                 raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
             old = getattr(selected_table, table[vb.COLUMN])
@@ -1558,7 +1393,7 @@ def edit(ingest_data, session=None):
 
     try:
         session.commit()
-    except exc.SQLAlchemyError as error:
+    except SQLAlchemyError as error:
         logger.error("Error: %s", error)
         session.rollback()
 
@@ -1588,18 +1423,18 @@ def delete(ingest_data, session=None):
         from . import model
         the_table = getattr(model, table[vb.TABLE].title())
         for current_id in set(table[vb.ID]):
-            selected_table = session.scalars(select(the_table).where(the_table.id == current_id)).unique().first()
+            selected_table = session.query(the_table).filter_by(id=current_id).first()
             if not selected_table:
                 raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
             if selected_table.deleted is True:
-                ret["DB_ACTION_WARNING"].append(f"'{table[vb.TABLE]}' with id '{current_id}' already deleted.. Skipping...")
+                ret["DB_ACTION_WARNING"].append(f"'{table[vb.TABLE]}' with id '{current_id}' already deleted. Skipping...")
             else:
                 selected_table.deleted = True
                 ret["DB_ACTION_OUTPUT"].append(f"'{table[vb.TABLE]}' with id '{current_id}' deleted.")
 
     try:
         session.commit()
-    except exc.SQLAlchemyError as error:
+    except SQLAlchemyError as error:
         logger.error("Error: %s", error)
         session.rollback()
 
@@ -1629,18 +1464,18 @@ def undelete(ingest_data, session=None):
         from . import model
         the_table = getattr(model, table[vb.TABLE].title())
         for current_id in set(table[vb.ID]):
-            selected_table = session.scalars(select(the_table).where(the_table.id == current_id)).unique().first()
+            selected_table = session.query(the_table).filter_by(id=current_id).first()
             if not selected_table:
                 raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
             if selected_table.deleted is False:
-                ret["DB_ACTION_WARNING"].append(f"'{table[vb.TABLE]}' with id '{current_id}' already undeleted.. Skipping...")
+                ret["DB_ACTION_WARNING"].append(f"'{table[vb.TABLE]}' with id '{current_id}' already undeleted. Skipping...")
             else:
                 selected_table.deleted = False
                 ret["DB_ACTION_OUTPUT"].append(f"'{table[vb.TABLE]}' with id '{current_id}' undeleted.")
 
     try:
         session.commit()
-    except exc.SQLAlchemyError as error:
+    except SQLAlchemyError as error:
         logger.error("Error: %s", error)
         session.rollback()
 
@@ -1670,18 +1505,18 @@ def deprecate(ingest_data, session=None):
         from . import model
         the_table = getattr(model, table[vb.TABLE].title())
         for current_id in set(table[vb.ID]):
-            selected_table = session.scalars(select(the_table).where(the_table.id == current_id)).unique().first()
+            selected_table = session.query(the_table).filter_by(id=current_id).first()
             if not selected_table:
                 raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
             if selected_table.deprecated is True:
-                ret["DB_ACTION_WARNING"].append(f"'{table[vb.TABLE]}' with id '{current_id}' already deprecated.. Skipping...")
+                ret["DB_ACTION_WARNING"].append(f"'{table[vb.TABLE]}' with id '{current_id}' already deprecated. Skipping...")
             else:
                 selected_table.deprecated = True
                 ret["DB_ACTION_OUTPUT"].append(f"'{table[vb.TABLE]}' with id '{current_id}' deprecated.")
 
     try:
         session.commit()
-    except exc.SQLAlchemyError as error:
+    except SQLAlchemyError as error:
         logger.error("Error: %s", error)
         session.rollback()
 
@@ -1711,18 +1546,18 @@ def undeprecate(ingest_data, session=None):
         from . import model
         the_table = getattr(model, table[vb.TABLE].title())
         for current_id in set(table[vb.ID]):
-            selected_table = session.scalars(select(the_table).where(the_table.id == current_id)).unique().first()
+            selected_table = session.query(the_table).filter_by(id=current_id).first()
             if not selected_table:
                 raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
             if selected_table.deprecated is False:
-                ret["DB_ACTION_WARNING"].append(f"'{table[vb.TABLE]}' with id '{current_id}' already undeprecated.. Skipping...")
+                ret["DB_ACTION_WARNING"].append(f"'{table[vb.TABLE]}' with id '{current_id}' already undeprecated. Skipping...")
             else:
                 selected_table.deprecated = False
                 ret["DB_ACTION_OUTPUT"].append(f"'{table[vb.TABLE]}' with id '{current_id}' undeprecated.")
 
     try:
         session.commit()
-    except exc.SQLAlchemyError as error:
+    except SQLAlchemyError as error:
         logger.error("Error: %s", error)
         session.rollback()
 
@@ -1752,7 +1587,7 @@ def curate(ingest_data, session=None):
         from . import model
         the_table = getattr(model, table[vb.TABLE].title())
         for current_id in set(table[vb.ID]):
-            selected_table = session.scalars(select(the_table).where(the_table.id == current_id)).unique().first()
+            selected_table = session.query(the_table).filter_by(id=current_id).first()
             if not selected_table:
                 raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
             session.delete(selected_table)
@@ -1760,9 +1595,36 @@ def curate(ingest_data, session=None):
 
     try:
         session.commit()
-    except exc.SQLAlchemyError as error:
+    except SQLAlchemyError as error:
         logger.error("Error: %s", error)
         session.rollback()
+
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+
+    return ret
+
+def get_location(ingest_data, session=None):
+    """Get the location ID from its endpoint and file name"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+        }
+
+    file_name = ingest_data[vb.FILE_NAME]
+    location_endpoint = ingest_data[vb.LOCATION_ENDPOINT]
+    location_id = session.query(Location.id).filter_by(deleted=False, deprecated=False).join(File.locations).filter(File.name == file_name).filter(Location.endpoint == location_endpoint).first()
+    if not location_id:
+        raise DidNotFindError(f"No 'Location' with 'endpoint' '{location_endpoint}' linked to a 'File' with 'name' '{file_name}'")
+    else:
+        ret["DB_ACTION_OUTPUT"].append(str(location_id[0]))
 
     # If no warning
     if not ret["DB_ACTION_WARNING"]:
