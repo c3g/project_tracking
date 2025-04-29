@@ -766,7 +766,8 @@ def ingest_run_processing(project_id: str, ingest_data, session=None):
                         flag=metric_flag,
                         deliverable=metric_deliverable,
                         job=job,
-                        readsets=[readset]
+                        readsets=[readset],
+                        session=session
                         )
                     if warning:
                         ret["DB_ACTION_WARNING"].append(warning)
@@ -1123,7 +1124,8 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
                                     extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
                                     deliverable=file_deliverable,
                                     readsets=[readset],
-                                    jobs=[job]
+                                    jobs=[job],
+                                    session=session
                                 )
                                 if warning:
                                     ret["DB_ACTION_WARNING"].append(warning)
@@ -1134,7 +1136,8 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
                                     type=file_type,
                                     deliverable=file_deliverable,
                                     readsets=[readset],
-                                    jobs=[job]
+                                    jobs=[job],
+                                    session=session
                                 )
                                 if warning:
                                     ret["DB_ACTION_WARNING"].append(warning)
@@ -1150,7 +1153,8 @@ def ingest_genpipes(project_id: str, ingest_data, session=None):
                                 flag=metric_flag,
                                 deliverable=metric_deliverable,
                                 job=job,
-                                readsets=[readset]
+                                readsets=[readset],
+                                session=session
                             )
                             if warning:
                                 ret["DB_ACTION_WARNING"].append(warning)
