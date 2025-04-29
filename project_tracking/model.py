@@ -786,7 +786,18 @@ class Metric(BaseTable):
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_metric, back_populates="metrics")
 
     @classmethod
-    def get_or_create(cls, name, readsets, value=None, flag=None, deliverable=False, job=None, session=None, deprecated=False, deleted=False):
+    def get_or_create(
+        cls,
+        name,
+        readsets,
+        session
+        value=None,
+        flag=None,
+        deliverable=False,
+        job=None,
+        deprecated=False,
+        deleted=False
+        ):
         """
         Retrieve or create a metric based on the provided name and value.
 
@@ -807,8 +818,6 @@ class Metric(BaseTable):
         Returns:
             tuple: A tuple containing the metric instance and a warning message (if any).
         """
-        if session is None:
-            session = database.get_session()
 
         # Assuming readsets contains a single unique readset
         readset = readsets[0]
@@ -920,11 +929,11 @@ class File(BaseTable):
         name,
         readsets,
         jobs,
+        session,
         type=None,
         md5sum=None,
         deliverable=False,
         extra_metadata=None,
-        session=None,
         deprecated=False,
         deleted=False
         ):
@@ -949,8 +958,6 @@ class File(BaseTable):
         Returns:
             tuple: A tuple containing the file instance and a warning message (if any).
         """
-        if not session:
-            session = database.get_session()
 
         # Assuming readsets and jobs each contain a single unique item
         readset = readsets[0]
