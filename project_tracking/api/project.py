@@ -544,3 +544,19 @@ def digest_delivery(project_id: str):
             return project_id
 
         return db_action.digest_delivery(project_id=project_id, digest_data=ingest_data)
+
+@bp.route('/get_location', methods=['POST'])
+@convcheck_project
+def get_location(project_id: str):
+    """
+    POST: json holding the endpoint and the file name to be searched
+    return: Location ID
+    """
+    if request.method == 'POST':
+        try:
+            ingest_data = request.get_json(force=True)
+        except:
+            flash('Data does not seems to be json')
+            return redirect(request.url)
+
+        return db_action.get_location(ingest_data=ingest_data)
