@@ -790,7 +790,7 @@ class Metric(BaseTable):
         cls,
         name,
         readsets,
-        session
+        session,
         value=None,
         flag=None,
         deliverable=False,
