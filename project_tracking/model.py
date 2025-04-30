@@ -339,6 +339,7 @@ class Specimen(BaseTable):
         if not specimen:
             specimen = cls(name=name, cohort=cohort, institution=institution, project=project)
             session.add(specimen)
+            session.flush()
         else:
             if specimen.project != project:
                 logger.error(f"specimen {specimen.name} already in project {specimen.project}")
@@ -388,6 +389,7 @@ class Sample(BaseTable):
         if not sample:
             sample = cls(name=name, specimen=specimen, tumour=tumour)
             session.add(sample)
+            session.flush()
         else:
             if sample.specimen != specimen:
                 logger.error(f"sample {sample.specimen} already attatched to project {specimen.name}")
@@ -456,6 +458,7 @@ class Experiment(BaseTable):
                 kit_expiration_date=kit_expiration_date
             )
             session.add(experiment)
+            session.flush()
 
         return experiment
 
@@ -507,6 +510,7 @@ class Run(BaseTable):
                 date=date
             )
             session.add(run)
+            session.flush()
 
         return run
 
@@ -570,6 +574,7 @@ class Readset(BaseTable):
         if not readset:
             readset = cls(name=name, alias=alias, sample=sample)
             session.add(readset)
+            session.flush()
         else:
             if readset.sample != sample:
                 logger.error(f"readset {readset.name} already attached to sample {sample.readset}")
@@ -654,6 +659,7 @@ class Operation(BaseTable):
                 status=status
             )
             session.add(operation)
+            session.flush()
 
         return operation, warning
 
@@ -733,6 +739,7 @@ class OperationConfig(BaseTable):
                 data=data
             )
             session.add(operation_config)
+            session.flush()
 
         return operation_config
 
@@ -863,6 +870,7 @@ class Metric(BaseTable):
             # Create a new metric
             metric = cls(name=name, value=value, flag=flag, deliverable=deliverable, job=job, readsets=readsets)
             session.add(metric)
+            session.flush()
 
         return metric, warning
 
@@ -909,6 +917,7 @@ class Location(BaseTable):
                 endpoint = uri.split(':///')[0]
             location = cls(uri=uri, file=file, endpoint=endpoint)
             session.add(location)
+            session.flush()
 
         return location
 
@@ -1009,5 +1018,6 @@ class File(BaseTable):
             # Create a new file
             file = cls(name=name, type=type, md5sum=md5sum, deliverable=deliverable, extra_metadata=extra_metadata, readsets=readsets, jobs=jobs)
             session.add(file)
+            session.flush()
 
         return file, warning
