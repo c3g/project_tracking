@@ -12,7 +12,7 @@ from project_tracking import create_app
 
 logger = logging.getLogger(__name__)
 
-def test_create_api(client, run_processing_json, app):
+def test_create_api(client, run_processing_json, transfer_json, genpipes_json, app):
     project_name = run_processing_json[vb.PROJECT_NAME]
     response = client.get(f'admin/create_project/{project_name}')
     assert response.status_code == 200
@@ -22,6 +22,12 @@ def test_create_api(client, run_processing_json, app):
     assert response.status_code == 200
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['name'] == "run_processing"
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['id'] == 1
+    response = client.post(f'project/{project_name}/ingest_transfer', data=json.dumps(transfer_json))
+    assert response.status_code == 200
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['name'] == "transfer"
+    response = client.post(f'project/{project_name}/ingest_genpipes', data=json.dumps(genpipes_json))
+    assert response.status_code == 200
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['name'] == "genpipes"
     with app.app_context():
         s = database.get_session()
 
