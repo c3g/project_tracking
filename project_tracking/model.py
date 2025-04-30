@@ -338,6 +338,7 @@ class Specimen(BaseTable):
 
         if not specimen:
             specimen = cls(name=name, cohort=cohort, institution=institution, project=project)
+            session.add(specimen)
         else:
             if specimen.project != project:
                 logger.error(f"specimen {specimen.name} already in project {specimen.project}")
@@ -386,6 +387,7 @@ class Sample(BaseTable):
 
         if not sample:
             sample = cls(name=name, specimen=specimen, tumour=tumour)
+            session.add(sample)
         else:
             if sample.specimen != specimen:
                 logger.error(f"sample {sample.specimen} already attatched to project {specimen.name}")
@@ -453,6 +455,8 @@ class Experiment(BaseTable):
                 library_kit=library_kit,
                 kit_expiration_date=kit_expiration_date
             )
+            session.add(experiment)
+
         return experiment
 
 
@@ -502,6 +506,8 @@ class Run(BaseTable):
                 instrument=instrument,
                 date=date
             )
+            session.add(run)
+
         return run
 
 
@@ -563,6 +569,7 @@ class Readset(BaseTable):
 
         if not readset:
             readset = cls(name=name, alias=alias, sample=sample)
+            session.add(readset)
         else:
             if readset.sample != sample:
                 logger.error(f"readset {readset.name} already attached to sample {sample.readset}")
@@ -646,6 +653,8 @@ class Operation(BaseTable):
                 name=name,
                 status=status
             )
+            session.add(operation)
+
         return operation, warning
 
 class Reference(BaseTable):
@@ -715,6 +724,7 @@ class OperationConfig(BaseTable):
             cls.deprecated.is_(deprecated),
             cls.deleted.is_(deleted)
         ).first()
+
         if not operation_config:
             operation_config = cls(
                 name=name,
@@ -722,6 +732,8 @@ class OperationConfig(BaseTable):
                 md5sum=md5sum,
                 data=data
             )
+            session.add(operation_config)
+
         return operation_config
 
 
@@ -896,6 +908,7 @@ class Location(BaseTable):
             if endpoint is None:
                 endpoint = uri.split(':///')[0]
             location = cls(uri=uri, file=file, endpoint=endpoint)
+            session.add(location)
 
         return location
 
