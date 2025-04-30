@@ -24,6 +24,7 @@ jobs:
     - name: Install dependencies
       run: |
         pdm install -d -G testing
+        pdm add pytest
 
     - name: Run Tests
       run: |
