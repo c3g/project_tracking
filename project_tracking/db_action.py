@@ -1296,9 +1296,7 @@ def digest_delivery(project_id: str, digest_data, session=None):
             for file in readset.files:
                 if file.deliverable and file.deleted is False:
                     if location_endpoint:
-                        # logger.debug(f"File: {file}")
                         for location in file.locations:
-                            # logger.debug(f"Location: {location}")
                             if location_endpoint == location.endpoint:
                                 file_deliverable = location.uri.split("://")[-1]
                                 if location.deleted is False:
@@ -1350,12 +1348,6 @@ def digest_delivery(project_id: str, digest_data, session=None):
 
             if not specimen_exists:
                 ret["DB_ACTION_OUTPUT"]["specimen"].append(specimen)
-            # logger.debug(f"Sample: {readset.sample.name}, Specimen: {readset.sample.specimen.name}")
-            # ret["DB_ACTION_OUTPUT"]["patient"].append({
-            #     "name": readset.name,
-            #     "file": readset_files,
-            #     "metric": readset_metrics
-            #     })
 
     # If no warning
     if not ret["DB_ACTION_WARNING"]:
