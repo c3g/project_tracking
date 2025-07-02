@@ -11,11 +11,9 @@ logger = logging.getLogger(__name__)
 from sqlalchemy import (
     Column,
     ForeignKey,
-    Integer,
     JSON,
     Enum,
     DateTime,
-    select,
     Table,
     LargeBinary
     )
@@ -29,9 +27,15 @@ from sqlalchemy.orm import (
     attributes
     )
 
+from sqlalchemy.orm.exc import DetachedInstanceError
+
 from sqlalchemy.sql import func
 
-from sqlalchemy_json import mutable_json_type
+
+from sqlalchemy.ext.mutable import MutableDict, MutableList
+# from sqlalchemy.types import JSON
+
+# from sqlalchemy_json import mutable_json_type
 
 from . import database
 
@@ -206,7 +210,8 @@ class BaseTable(Base):
     deleted: Mapped[bool] = mapped_column(default=False)
     creation: Mapped[DateTime] = Column(DateTime(timezone=True), server_default=func.now())
     modification: Mapped[DateTime] = Column(DateTime(timezone=True), onupdate=func.now())
-    extra_metadata: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
+    # extra_metadata: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
+    extra_metadata: Mapped[dict] = mapped_column(MutableDict.as_mutable(JSON), default=None, nullable=True)
     ext_id: Mapped[int] = mapped_column(default=None, nullable=True)
     ext_src: Mapped[str] = mapped_column(default=None, nullable=True)
 
@@ -226,11 +231,12 @@ class BaseTable(Base):
         """
         dico = {}
         # select the column and the relationship
-        selected_col = (x for x in dir(self.__class__) # loops over all attribute of the class
-                        if not x.startswith('_') and
-                        isinstance(getattr(self.__class__, x), attributes.InstrumentedAttribute) and
-                        getattr(self, x, False)   # To drop ref to join table that do exist in the class
-                        )
+        selected_col = (
+            x for x in dir(self.__class__) # loops over all attribute of the class
+            if not x.startswith('_') and
+            isinstance(getattr(self.__class__, x), attributes.InstrumentedAttribute) and
+            getattr(self, x, False)   # To drop ref to join table that do exist in the class
+        )
         for column in selected_col:
             # check in class if column is instrumented
             key = column
@@ -246,24 +252,36 @@ class BaseTable(Base):
         file where the locations details are also returned
         """
         dumps = {}
-        for key, val in self.dict.items():
-            if isinstance(val, datetime):
-                val = val.isoformat()
-            elif isinstance(val, Decimal):
-                val = float(val)
-            elif isinstance(val, set):
-                val = sorted(val)
-            elif isinstance(val, (list, set, collections.List, collections.Set)):
-                val = sorted([e.id for e in val])
-            elif isinstance(val, DeclarativeBase):
-                val = val.id
-            elif isinstance(val, enum.Enum):
-                val = val.value
-            dumps[key] = val
-            if self.__tablename__ == 'file' and key == 'locations':
-                dumps[key] = [v.flat_dict for v in getattr(self,'locations')]
+        try:
+            loaded_keys = set(self.__dict__.keys())
+            for key, val in self.dict.items():
+                if key not in loaded_keys:
+                    continue # Skip unloaded attributes
 
-        dumps['tablename'] = self.__tablename__
+                if isinstance(val, datetime):
+                    val = val.isoformat()
+                elif isinstance(val, Decimal):
+                    val = float(val)
+                elif isinstance(val, set):
+                    val = sorted(val)
+                elif isinstance(val, (list, set, collections.List, collections.Set)):
+                    val = sorted([e.id for e in val if hasattr(e, 'id')])
+                elif isinstance(val, DeclarativeBase):
+                    val = getattr(val, 'id', None)
+                elif isinstance(val, enum.Enum):
+                    val = val.value
+
+                dumps[key] = val
+
+                if self.__tablename__ == 'file' and key == 'locations' and key in loaded_keys:
+                    dumps[key] = [v.flat_dict for v in getattr(self, 'locations', [])]
+
+            dumps['tablename'] = self.__tablename__
+        except DetachedInstanceError as e:
+            class_name = type(self).__name__
+            obj_address = hex(id(self))
+            dumps = {"DB_ACTION_ERROR": f"DetachedInstanceError: Instance of {class_name} at memory address {obj_address} is not bound to a session. Cannot access unloaded attributes."}
+
         return dumps
 
     @property
@@ -279,7 +297,7 @@ class Project(BaseTable):
     Project:
         id integer [PK]
         name text (unique)
-        alias json
+        alias list
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -289,7 +307,7 @@ class Project(BaseTable):
     __tablename__ = "project"
 
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
+    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
 
     specimens: Mapped[list["Specimen"]] = relationship(back_populates="project", cascade="all, delete")
     operations: Mapped[list["Operation"]] = relationship(back_populates="project", cascade="all, delete")
@@ -301,7 +319,7 @@ class Specimen(BaseTable):
         id integer [PK]
         project_id integer [ref: > project.id]
         name text (unique)
-        alias json
+        alias list
         cohort text
         institution text
         deprecated boolean
@@ -314,7 +332,7 @@ class Specimen(BaseTable):
 
     project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
+    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
     cohort: Mapped[str] = mapped_column(default=None, nullable=True)
     institution: Mapped[str] = mapped_column(default=None, nullable=True)
 
@@ -353,7 +371,7 @@ class Sample(BaseTable):
         id integer [PK]
         specimen_id integer [ref: > specimen.id]
         name text (unique)
-        alias json
+        alias list
         tumour boolean
         deprecated boolean
         deleted boolean
@@ -365,14 +383,14 @@ class Sample(BaseTable):
 
     specimen_id: Mapped[int] = mapped_column(ForeignKey("specimen.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
+    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
     tumour: Mapped[bool] = mapped_column(default=False)
 
     specimen: Mapped["Specimen"] = relationship(back_populates="samples")
     readsets: Mapped[list["Readset"]] = relationship(back_populates="sample", cascade="all, delete")
 
     @classmethod
-    def from_name(cls, name, specimen, tumour=None, session=None, deprecated=False, deleted=False):
+    def from_name(cls, name, specimen, alias=None, tumour=None, session=None, deprecated=False, deleted=False):
         """
         get sample if it exist, set it if it does not exist
         """
@@ -387,10 +405,15 @@ class Sample(BaseTable):
         ).first()
 
         if not sample:
-            sample = cls(name=name, specimen=specimen, tumour=tumour)
+            sample = cls(name=name, specimen=specimen, alias=[alias], tumour=tumour)
             session.add(sample)
             session.flush()
         else:
+            if alias:
+                for a in alias:
+                    if a not in sample.alias:
+                        sample.alias.append(a)
+                session.flush()
             if sample.specimen != specimen:
                 logger.error(f"sample {sample.specimen} already attatched to project {specimen.name}")
 
@@ -523,7 +546,7 @@ class Readset(BaseTable):
         experiment_id  text [ref: > experiment.id]
         run_id integer [ref: > run.id]
         name text (unique)
-        alias json
+        alias list
         lane lane
         adapter1 text
         adapter2 text
@@ -541,7 +564,7 @@ class Readset(BaseTable):
     experiment_id: Mapped[int] = mapped_column(ForeignKey("experiment.id"), default=None)
     run_id: Mapped[int] = mapped_column(ForeignKey("run.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
+    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
     lane: Mapped[LaneEnum]  =  mapped_column(default=None, nullable=True)
     adapter1: Mapped[str] = mapped_column(default=None, nullable=True)
     adapter2: Mapped[str] = mapped_column(default=None, nullable=True)
@@ -667,7 +690,7 @@ class Reference(BaseTable):
     """
     Reference:
         name text // scientific name
-        alias text
+        alias list
         assembly text
         version test
         taxon_id text
@@ -681,7 +704,7 @@ class Reference(BaseTable):
     __tablename__ = "reference"
 
     name: Mapped[str] = mapped_column(default=None, nullable=True)
-    alias: Mapped[str] = mapped_column(default=None, nullable=True)
+    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
     assembly: Mapped[str] = mapped_column(default=None, nullable=True)
     version: Mapped[str] = mapped_column(default=None, nullable=True)
     taxon_id: Mapped[str] = mapped_column(default=None, nullable=True)
@@ -930,6 +953,7 @@ class File(BaseTable):
         type text
         md5sum txt
         deliverable boolean
+        state state
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -942,6 +966,7 @@ class File(BaseTable):
     type: Mapped[str] = mapped_column(default=None, nullable=True)
     md5sum: Mapped[str] = mapped_column(default=None, nullable=True)
     deliverable: Mapped[bool] = mapped_column(default=False)
+    state: Mapped[StateEnum] = mapped_column(default=StateEnum.VALID, nullable=True)
 
     locations: Mapped[list["Location"]] = relationship(back_populates="file", cascade="all, delete")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="files")
