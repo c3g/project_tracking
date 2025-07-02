@@ -1,562 +1,995 @@
-import logging
+"""
+Project API
+"""
 import functools
+import logging
+import json
 
-from flask import Blueprint, jsonify, request, flash, redirect, json, abort
+from flask import Blueprint, request, flash, redirect, jsonify
+from werkzeug.exceptions import BadRequest
 
-from .. import db_action
-from .. import vocabulary as vc
+from .. import db_actions
+from ..database import session_scope
 
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('project', __name__, url_prefix='/project')
 
-def unroll(string):
+def unroll(value):
     """
-    string: includes number in the "1,3-7,9" form
-    return: a list if int of the form [1,3,4,5,6,7,9]
+    Accepts either a string in the form "1,3-7,9" or a list of integers.
+    Returns a list of integers.
+    Raises ValueError if input contains non-integer values.
     """
+    if isinstance(value, list):
+        return value
 
-    elem = [e for e in string.split(',') if e]
+    if not isinstance(value, str):
+        raise ValueError("Input must be a string or list of integers in the form '1,3-7,9'.")
+
+    elem = [e for e in value.split(',') if e]
     unroll_list = []
     for e in elem:
         if '-' in e:
-            first = int(e.split('-')[0])
-            last = int(e.split('-')[-1])
-            for i in range(min(first,last), max(first,last) + 1):
-                unroll_list.append(int(i))
+            try:
+                first, last = map(int, e.split('-'))
+                unroll_list.extend(range(min(first, last), max(first, last) + 1))
+            except ValueError as exc:
+                raise ValueError(f"Invalid range format: '{e}' is not a valid integer range. Accepted format must be similar to '1,3-7,9'.") from exc
         else:
-            unroll_list.append(int(e))
+            try:
+                unroll_list.append(int(e))
+            except ValueError as exc:
+                raise ValueError(f"Invalid value: '{e}' is not an integer.") from exc
 
     return unroll_list
 
+
 def convcheck_project(func):
     """
-    Converting project name to project id and checking if project found
+    Converts project name to project ID if needed and validates existence.
+    Returns standardized DB_ACTION_ERROR if project is not found.
+    If project is None, it passes None to the decorated function.
+    If project is a string, it converts it to an ID using db_actions.
+    If project is a list, it assumes it's already an ID or a list of IDs.
+    If project is a digit, it passes it as is.
+    If project is not found, it returns a JSON response with available projects.
+    Args:
+        func (function): The function to decorate.
+    Returns:
+        function: The decorated function that checks project validity.
     """
     @functools.wraps(func)
-    def wrap(*args, project=None, **kwargs):
+    def wrapper(*args, project=None, **kwargs):
+        project_id = None
+
         if project is None:
             project_id = None
         elif project.isdigit():
             project_id = project
-            if not db_action.projects(project_id):
-                all_available = [f"id: {project.id}, name: {project.name}" for project in db_action.projects()]
-                project_id = {"DB_ACTION_WARNING": f"Requested Project '{project}' doesn't exist. Please try again with one of the following: {all_available}"}
         else:
-            project_id = db_action.name_to_id("Project", project.upper())
-            if not project_id:
-                all_available = [f"id: {project.id}, name: {project.name}" for project in db_action.projects()]
-                project_id = {"DB_ACTION_WARNING": f"Requested Project '{project}' doesn't exist. Please try again with one of the following: {all_available}"}
-            else:
-                # Converting list of 1 project to string
-                project_id = "".join(map(str, project_id))
+            project_id = db_actions.name_to_id("Project", project.upper())
+            # Handle empty list case as non-existent project
+            if isinstance(project_id, list) and not project_id:
+                with session_scope() as session:
+                    _, available = db_actions.project_exists(session, None)
+                    return jsonify({
+                        "DB_ACTION_ERROR": [
+                            f"Project '{project}' not found.",
+                            "Available projects:",
+                            *[
+                                f"id: {p['id']}, name: {p['name']}"
+                                for p in available
+                            ]
+                        ]
+                    }), 404
+            if isinstance(project_id, list) and len(project_id) == 1:
+                project_id = str(project_id[0])
+
+        if project_id is not None:
+            with session_scope() as session:
+                exists, available = db_actions.project_exists(session, project_id)
+                # Handle case where project does not exist
+                if not exists:
+                    return jsonify({
+                        "DB_ACTION_ERROR": [
+                            f"Project with ID '{project_id}' not found.",
+                            "Available projects:",
+                            *[
+                                f"id: {p['id']}, name: {p['name']}"
+                                for p in available
+                            ]
+                        ]
+                    }), 404
+        # Check for warning dicts
+        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
+            return jsonify(project_id)
 
         return func(*args, project_id=project_id, **kwargs)
-    return wrap
+
+    return wrapper
+
 
 def sanity_check(item, action_output):
+    """
+    Sanity check for the action output.
+    If action_output is None or empty, return a warning.
+    If action_output is a list, return the flat_dict of each item.
+    If action_output is a dict with DB_ACTION_WARNING, return it.
+    If action_output is a dict with DB_ACTION_OUTPUT, return the flat_dict of each item.
+    If action_output is a dict with DB_ACTION_ERROR, return it.
+    Args:
+        item (str): The name of the item being checked (e.g., "Project", "Specimen").
+        action_output (dict or list): The output from the database action.
+    Returns:
+        A JSON response with the appropriate message or data.
+    """
     if not action_output:
         ret = {"DB_ACTION_WARNING": f"Requested {item} doesn't exist."}
     else:
-        ret = [i.flat_dict for i in action_output]
-    return ret
+        ret = action_output
+    return jsonify(ret)
+
+def fetch_and_format(query_fn, *args, **kwargs):
+    """
+    Fetch results from the database using the provided query function,
+    and format them into a dictionary with DB_ACTION_OUTPUT and DB_ACTION_WARNING.
+    Args:
+        query_fn: The function to execute the query.
+        *args: Positional arguments to pass to the query function.
+        **kwargs: Keyword arguments to pass to the query function, including session.
+    Returns:
+        A dictionary with keys 'DB_ACTION_OUTPUT' and 'DB_ACTION_WARNING'.
+    """
+    result = {}
+
+    with session_scope() as session:
+        query_result = query_fn(*args, session=session, **kwargs)
+        result["DB_ACTION_OUTPUT"] = [r.flat_dict for r in query_result.get("DB_ACTION_OUTPUT", [])]
+        # Only include DB_ACTION_WARNING if it exists and is non-empty
+        warnings = query_result.get("DB_ACTION_WARNING")
+        if warnings:
+            result["DB_ACTION_WARNING"] = warnings
+
+    return result
 
 
-@bp.route('/')
-@bp.route('/<string:project>')
+def parse_json_input(func):
+    """
+    Decorator to parse JSON input from the request.
+    If the JSON is invalid, flash an error message and redirect to the same URL.
+    Args:
+        func (function): The function to decorate.
+    Returns:
+        function: The decorated function that processes JSON input.
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            ingest_data = request.get_json(force=True)
+        except BadRequest:
+            flash('Data does not seem to be valid JSON')
+            return redirect(request.url)
+
+        kwargs["ingest_data"] = ingest_data
+        return func(*args, **kwargs)
+    return wrapper
+
+def parse_json_get(expected_keys=None):
+    """
+    Decorator to parse JSON input from the request's query parameters.
+    If the JSON is invalid or contains unexpected keys, return a 400 Bad Request response.
+    Args:
+        expected_keys (set, optional): A set of expected keys in the JSON input.
+            If provided, the decorator will check for unexpected keys.
+    Returns:
+        function: The decorated function that processes JSON input from query parameters.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # Check for unexpected query parameters
+            allowed_params = {'json'}
+            unexpected_params = set(request.args.keys()) - allowed_params
+            if unexpected_params:
+                return jsonify({
+                    "DB_ACTION_ERROR": [
+                        f"Unexpected query parameter(s): {', '.join(unexpected_params)}. Allowed: {', '.join(allowed_params)}"
+                    ]
+                }), 400
+            raw_json = request.args.get("json", "{}")
+            try:
+                digest_data = json.loads(raw_json)
+            except json.JSONDecodeError as e:
+                error_position = e.pos
+                pointer_line = " " * error_position + "^"
+
+                return jsonify({
+                    "DB_ACTION_ERROR": [
+                        "Invalid JSON",
+                        f"Error: {str(e)}",
+                        raw_json,
+                        pointer_line
+                    ]
+                }), 400
+
+            if expected_keys is not None:
+                unexpected_keys = set(digest_data.keys()) - expected_keys
+                if unexpected_keys:
+                    return jsonify({
+                        "DB_ACTION_ERROR": [
+                            f"Unexpected keys in JSON: {', '.join(unexpected_keys)}"
+                        ]
+                    }), 400
+
+            kwargs["digest_data"] = digest_data
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+@bp.route('/', methods=['GET'])
+@bp.route('/<string:project>', methods=['GET'])
 @convcheck_project
-def projects(project_id: str = None):
+def projects(project_id=None):
     """
     GET:
-        project: uses the form "/project/1" for project ID and "/project/name" for project name
-    return: list of all the details of the poject with name "project_name" or ID "project_id"
+        project_id: uses the form "1,3-8,9", if not provided all projects are returned
+    return: list all projects or selected projects
+    Query:
+    (project_name):
+    The project_name query allows to get all projects labelled with a specific name
+        (name):
+            return: a subset of projects who have the name
+            Ex: /project?json={"project_name":  "<NAME1>,<NAME2>,..."}
+    If project_id is provided, it will return the project with that ID.
+    If project_name is provided in digest_data, it will convert the name to an ID.
+    If no project_id or project_name is provided, it will return all projects.
+    If the project does not exist, it will return a warning with available projects.
     """
+    # Unroll project_id if it's a string
+    try:
+        if project_id is not None:
+            project_id = unroll(project_id)
+    except ValueError as exc:
+        return jsonify({
+            "DB_ACTION_ERROR": [
+                f"Invalid ID format: {exc}"
+            ]
+        }), 400
 
-    if project_id is None:
-        return {"Project list": [f"id: {project.id}, name: {project.name}" for project in db_action.projects(project_id)]}
-    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-        return project_id
+    # Fetch project details
+    result_dicts = fetch_and_format(
+        db_actions.projects,
+        project_id=project_id
+    )
 
-    return [i.flat_dict for i in db_action.projects(project_id)]
+    return sanity_check("Project", result_dicts)
 
 
-@bp.route('/<string:project>/specimens')
-@bp.route('/<string:project>/specimens/<string:specimen_id>')
+@bp.route('/<string:project>/specimens', methods=['GET'])
+@bp.route('/<string:project>/specimens/<string:specimen_id>', methods=['GET'])
+@bp.route('/<string:project>/samples/<string:sample_id>/specimens', methods=['GET'])
+@bp.route('/<string:project>/readsets/<string:readset_id>/specimens', methods=['GET'])
 @convcheck_project
-def specimens(project_id: str, specimen_id: str = None):
+@parse_json_get(expected_keys={"specimen_name", "sample_name", "readset_name"})
+def specimens(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, digest_data=None):
     """
     GET:
         specimen_id: uses the form "1,3-8,9", if not provided all specimens are returned
     return: list all specimens or selected specimens, belonging to <project>
 
     Query:
-    (pair, tumor):  Default (None, true)
-    The tumor query only have an effect if pair is false
-        (None, true/false):
-            Return: all or selected specimens (Default)
-        (true, true/false):
-            Return: a subset of specimen who have Tumor=False & Tumor=True samples
-        (false, true):
-            return: a subset of specimen who only have Tumor=True samples
-        (false, false):
-            return: a subset of specimen who only have Tumor=false samples
+    (specimen_name):
+    The specimen_name query allows to get all specimens labelled with a specific name
+        (name):
+            return: a subset of specimens who have the name
+            Ex: /project/<project>/specimens?json={"specimen_name":  "<NAME1>,<NAME2>,..."}
+    (sample_name):
+    The sample_name query allows to get all specimens belonging to a specific sample
+        (name):
+            return: a subset of specimens who have the sample name
+            Ex: /project/<project>/specimens?json={"sample_name":  "<NAME1>,<NAME2>,..."}
+    (readset_name):
+    The readset_name query allows to get all specimens belonging to a specific readset
+        (name):
+            return: a subset of specimens who have the readset name
+            Ex: /project/<project>/specimens?json={"readset_name":  "<NAME1>,<NAME2>,..."}
     """
+    # Read digest_data for filtering
+    if digest_data:
+        specimen_name = digest_data.get("specimen_name")
+        sample_name = digest_data.get("sample_name")
+        readset_name = digest_data.get("readset_name")
+        if specimen_name:
+            names = specimen_name.split(',')
+            ids = db_actions.name_to_id("Specimen", names)
+            specimen_id = ids
+        elif sample_name:
+            names = sample_name.split(',')
+            ids = db_actions.name_to_id("Sample", names)
+            sample_id = ids
+        elif readset_name:
+            names = readset_name.split(',')
+            ids = db_actions.name_to_id("Readset", names)
+            readset_id = ids
 
-    query = request.args
-    # valid query
-    pair = None
-    tumor = True
-    name = None
-    if query.get('pair'):
-        if query['pair'].lower() in ['true', '1']:
-            pair = True
-        elif query['pair'].lower() in ['false', '0']:
-            pair = False
-            if query.get('tumor','').lower() in ['false', '0']:
-                tumor=False
+    # Unroll the IDs if they are provided as strings or lists
+    try:
+        if specimen_id is not None:
+            specimen_id = unroll(specimen_id)
+        elif sample_id is not None:
+            sample_id = unroll(sample_id)
+        elif readset_id is not None:
+            readset_id = unroll(readset_id)
+    except ValueError as exc:
+        return jsonify({
+            "DB_ACTION_ERROR": [
+                f"Invalid ID format: {exc}"
+            ]
+        }), 400
 
-    if specimen_id is not None:
-        specimen_id = unroll(specimen_id)
+    result_dicts = fetch_and_format(
+        db_actions.specimens,
+        project_id=project_id,
+        specimen_id=specimen_id,
+        sample_id=sample_id,
+        readset_id=readset_id,
+        )
 
-    if query.get('name'):
-        name = query['name']
-    if name:
-        specimen_id = []
-        for specimen_name in name.split(","):
-            specimen_id.extend(db_action.name_to_id("Specimen", specimen_name))
-
-    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-        return project_id
-
-    # pair being either True or False
-    if pair is not None:
-        action_output = db_action.specimen_pair(
-            project_id,
-            specimen_id=specimen_id,
-            pair=pair,
-            tumor=tumor
-            )
-    else:
-        action_output = db_action.specimens(
-            project_id,
-            specimen_id=specimen_id
-            )
-    return sanity_check("Specimen", action_output)
+    return sanity_check("Specimen", result_dicts)
 
 
-@bp.route('/<string:project>/samples')
-@bp.route('/<string:project>/samples/<string:sample_id>')
+@bp.route('/<string:project>/samples', methods=['GET'])
+@bp.route('/<string:project>/samples/<string:sample_id>', methods=['GET'])
+@bp.route('/<string:project>/specimens/<string:specimen_id>/samples', methods=['GET'])
+@bp.route('/<string:project>/readsets/<string:readset_id>/samples', methods=['GET'])
 @convcheck_project
-def samples(project_id: str, sample_id: str = None):
+@parse_json_get(expected_keys={"pair", "tumour", "tumor", "specimen_name", "sample_name", "readset_name"})
+def samples(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, digest_data=None):
     """
     GET:
         sample_id: uses the form "1,3-8,9", if not provided all samples are returned
-    return: list all specimens or selected samples, belonging to <project>
+            Ex: /project/<project>/samples/<sample_id>
+        specimen_id: uses the form "1,3-8,9", if not provided all samples are returned
+            Ex: /project/<project>/specimens/<specimen_id>/samples
+        readset_id: uses the form "1,3-8,9", if not provided all samples are returned
+            Ex: /project/<project>/readsets/<readset_id>/samples
+    return: list all samples or selected samples, belonging to <project>
+    Query:
+    (sample_name):
+    The sample_name query allows to get all samples labelled with a specific name
+        (name):
+            return: a subset of samples who have the name
+            Ex: /project/<project>/samples?json={"sample_name":  "<NAME1>,<NAME2>,..."}
+    (specimen_name):
+    The specimen_name query allows to get all samples belonging to a specific specimen
+        (name):
+            return: a subset of samples who have the specimen name
+            Ex: /project/<project>/samples?json={"specimen_name":  "<NAME1>,<NAME2>,..."}
+    (readset_name):
+    The readset_name query allows to get all samples belonging to a specific readset
+        (name):
+            return: a subset of samples who have the readset name
+            Ex: /project/<project>/samples?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+    (pair):
+    The pair query allows to get all samples that are paired
+        (true):
+            return: a subset of samples that are paired
+            Ex: /project/<project>/samples?json={"pair": "true"}
+        (false):
+            return: a subset of samples that are not paired
+            Ex: /project/<project>/samples?json={"pair": "false"}
+    (tumour/tumor):
+    The tumour query allows to get all samples that are tumour samples
+        (true):
+            return: a subset of samples that are tumour samples
+            Ex: /project/<project>/samples?json={"tumour": "true"}
+        (false):
+            return: a subset of samples that are not tumour samples
+            Ex: /project/<project>/samples?json={"tumour": "false"}
     """
+    # Read digest_data for filtering
+    pair = None
+    tumour = None
+    if digest_data:
+        pair = bool(digest_data.get("pair"))
+        tumour = bool(digest_data.get("tumour", digest_data.get("tumor")))
+        specimen_name = digest_data.get("specimen_name")
+        sample_name = digest_data.get("sample_name")
+        readset_name = digest_data.get("readset_name")
+        if readset_name:
+            names = readset_name.split(',')
+            ids = db_actions.name_to_id("Readset", names)
+            readset_id = ids
+        elif sample_name:
+            names = sample_name.split(',')
+            ids = db_actions.name_to_id("Sample", names)
+            sample_id = ids
+        elif specimen_name:
+            names = specimen_name.split(',')
+            ids = db_actions.name_to_id("Specimen", names)
+            specimen_id = ids
 
-    query = request.args
-    # valid query
-    name = None
+    # Unroll the IDs if they are provided as strings or lists
+    try:
+        if sample_id is not None:
+            sample_id = unroll(sample_id)
+        elif specimen_id is not None:
+            specimen_id = unroll(specimen_id)
+        elif readset_id is not None:
+            readset_id = unroll(readset_id)
+    except ValueError as exc:
+        return jsonify({
+            "DB_ACTION_ERROR": [
+                f"Invalid ID format: {exc}"
+            ]
+        }), 400
 
-    if sample_id is not None:
-        sample_id = unroll(sample_id)
+    if pair:
+        result_dicts = fetch_and_format(
+            db_actions.samples_pair,
+            project_id=project_id,
+            specimen_id=specimen_id,
+            pair=pair
+            )
+    else:
+        result_dicts = fetch_and_format(
+            db_actions.samples,
+            project_id=project_id,
+            readset_id=readset_id,
+            sample_id=sample_id,
+            specimen_id=specimen_id,
+            tumour=tumour
+            )
 
-    if query.get('name'):
-        name = query['name']
-    if name:
-        sample_id = []
-        for sample_name in name.split(","):
-            sample_id.extend(db_action.name_to_id("Sample", sample_name))
+    return sanity_check("Sample", result_dicts)
 
-    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-        return project_id
-
-    action_output = db_action.samples(project_id, sample_id=sample_id)
-
-    return sanity_check("Sample", action_output)
-
-@bp.route('/<string:project>/readsets')
-@bp.route('/<string:project>/readsets/<string:readset_id>')
+@bp.route('/<string:project>/readsets', methods=['GET'])
+@bp.route('/<string:project>/readsets/<string:readset_id>', methods=['GET'])
+@bp.route('/<string:project>/samples/<string:sample_id>/readsets', methods=['GET'])
+@bp.route('/<string:project>/specimens/<string:specimen_id>/readsets', methods=['GET'])
 @convcheck_project
-def readsets(project_id: str, readset_id: str=None):
+@parse_json_get(expected_keys={"readset_name", "sample_name", "specimen_name"})
+def readsets(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, digest_data=None):
     """
     GET:
         readset_id: uses the form "1,3-8,9", if not provided all readsets are returned
-    return: list all specimens or selected readsets, belonging to <project>
+            Ex: /project/<project>/readsets/<readset_id>
+        specimen_id: uses the form "1,3-8,9", if not provided all readsets are returned
+            Ex: /project/<project>/specimens/<specimen_id>/readsets
+        sample_id: uses the form "1,3-8,9", if not provided all readsets are returned
+            Ex: /project/<project>/samples/<sample_id>/readsets
+    return: list all readsets or selected readsets, belonging to <project>
+    Query:
+    (readset_name):
+    The readset_name query allows to get all readsets labelled with a specific name
+        (name):
+            return: a subset of readsets who have the name
+            Ex: /project/<project>/readsets?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+    (sample_name):
+    The sample_name query allows to get all readsets belonging to a specific sample
+        (name):
+            return: a subset of readsets who have the sample name
+            Ex: /project/<project>/readsets?json={"sample_name":  "<NAME1>,<NAME2>,..."}
+    (specimen_name):
+    The specimen_name query allows to get all readsets belonging to a specific specimen
+        (name):
+            return: a subset of readsets who have the specimen name
+            Ex: /project/<project>/readsets?json={"specimen_name":  "<NAME1>,<NAME2>,..."}
     """
+    # Read digest_data for filtering
+    if digest_data:
+        specimen_name = digest_data.get("specimen_name")
+        sample_name = digest_data.get("sample_name")
+        readset_name = digest_data.get("readset_name")
+        if readset_name:
+            names = readset_name.split(',')
+            ids = db_actions.name_to_id("Readset", names)
+            readset_id = ids
+        elif sample_name:
+            names = sample_name.split(',')
+            ids = db_actions.name_to_id("Sample", names)
+            sample_id = ids
+        elif specimen_name:
+            names = specimen_name.split(',')
+            ids = db_actions.name_to_id("Specimen", names)
+            specimen_id = ids
 
-    query = request.args
-    # valid query
-    name = None
+    # Unroll the IDs if they are provided as strings or lists
+    try:
+        if sample_id is not None:
+            sample_id = unroll(sample_id)
+        elif specimen_id is not None:
+            specimen_id = unroll(specimen_id)
+        elif readset_id is not None:
+            readset_id = unroll(readset_id)
+    except ValueError as exc:
+        return jsonify({
+            "DB_ACTION_ERROR": [
+                f"Invalid ID format: {exc}"
+            ]
+        }), 400
 
-    if readset_id is not None:
-        readset_id = unroll(readset_id)
+    result_dicts = fetch_and_format(
+        db_actions.readsets,
+        project_id=project_id,
+        readset_id=readset_id,
+        sample_id=sample_id,
+        specimen_id=specimen_id
+        )
 
-    if query.get('name'):
-        name = query['name']
-    if name:
-        readset_id = []
-        for readset_name in name.split(","):
-            readset_id.extend(db_action.name_to_id("Readset", readset_name))
-
-    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-        return project_id
-
-    action_output = db_action.readsets(project_id, readset_id=readset_id)
-
-    return sanity_check("Readset", action_output)
+    return sanity_check("Readset", result_dicts)
 
 
-@bp.route('/<string:project>/files/<string:file_id>')
-@bp.route('/<string:project>/specimens/<string:specimen_id>/files')
-@bp.route('/<string:project>/samples/<string:sample_id>/files')
-@bp.route('/<string:project>/readsets/<string:readset_id>/files')
+@bp.route('/<string:project>/operations', methods=['GET'])
+@bp.route('/<string:project>/operations/<string:operation_id>', methods=['GET'])
+@bp.route('/<string:project>/readsets/<string:readset_id>/operations', methods=['GET'])
 @convcheck_project
-def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, file_id: str=None):
+@parse_json_get(expected_keys={"operation_name", "readset_name"})
+def operations(project_id: str, readset_id: str=None, operation_id: str=None, digest_data=None):
+    """
+    GET:
+        operation_id: uses the form "1,3-8,9". Select operation by ids
+            Ex: /project/<project>/operations/<operation_id>
+        readset_id: uses the form "1,3-8,9". Select operation by readset ids
+            Ex: /project/<project>/readsets/<readset_id>/operations
+    return: selected operations, belonging to <project>
+
+    Query:
+    (operation_name):
+    The operation_name query allows to get all operations labelled with a specific name
+        (name):
+            return: a subset of operations who have the name
+            Ex: /project/<project>/operations?json={"operation_name":  "<NAME1>,<NAME2>,..."}
+    (readset_name):
+    The readset_name query allows to get all operations belonging to a specific readset
+        (name):
+            return: a subset of operations who have the readset name
+            Ex: /project/<project>/operations?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+    """
+    # Read digest_data for filtering
+    if digest_data:
+        operation_name = digest_data.get("operation_name")
+        readset_name = digest_data.get("readset_name")
+        if operation_name:
+            names = operation_name.split(',')
+            ids = db_actions.name_to_id("Operation", names)
+            operation_id = ids
+        elif readset_name:
+            names = readset_name.split(',')
+            ids = db_actions.name_to_id("Readset", names)
+            readset_id = ids
+
+    # Unroll the IDs if they are provided as strings or lists
+    try:
+        if readset_id is not None:
+            readset_id = unroll(readset_id)
+        elif operation_id is not None:
+            operation_id = unroll(operation_id)
+    except ValueError as exc:
+        return jsonify({
+            "DB_ACTION_ERROR": [
+                f"Invalid ID format: {exc}"
+            ]
+        }), 400
+
+    result_dicts = fetch_and_format(
+        db_actions.operations,
+        project_id=project_id,
+        readset_id=readset_id,
+        operation_id=operation_id
+        )
+
+    return sanity_check("Operation", result_dicts)
+
+
+@bp.route('/<string:project>/jobs', methods=['GET'])
+@bp.route('/<string:project>/jobs/<string:job_id>', methods=['GET'])
+@bp.route('/<string:project>/readsets/<string:readset_id>/jobs', methods=['GET'])
+@convcheck_project
+@parse_json_get(expected_keys={"job_name", "readset_name"})
+def jobs(project_id: str, readset_id: str=None, job_id: str=None, digest_data=None):
+    """
+    GET:
+        job_id: uses the form "1,3-8,9". Select job by ids
+            Ex: /project/<project>/jobs/<job_id>
+        readset_id: uses the form "1,3-8,9". Select job by readset ids
+            Ex: /project/<project>/readsets/<readset_id>/jobs
+    return: selected jobs, belonging to <project>
+
+    Query:
+    (job_name):
+    The job_name query allows to get all jobs labelled with a specific name
+        (name):
+            return: a subset of jobs who have the name
+            Ex: /project/<project>/jobs?json={"job_name":  "<NAME1>,<NAME2>,..."}
+    (readset_name):
+    The readset_name query allows to get all jobs belonging to a specific readset
+        (name):
+            return: a subset of jobs who have the readset name
+            Ex: /project/<project>/jobs?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+    """
+    # Read digest_data for filtering
+    if digest_data:
+        job_name = digest_data.get("job_name")
+        readset_name = digest_data.get("readset_name")
+        if job_name:
+            names = job_name.split(',')
+            ids = db_actions.name_to_id("Job", names)
+            job_id = ids
+        elif readset_name:
+            names = readset_name.split(',')
+            ids = db_actions.name_to_id("Readset", names)
+            readset_id = ids
+
+    # Unroll the IDs if they are provided as strings or lists
+    try:
+        if readset_id is not None:
+            readset_id = unroll(readset_id)
+        elif job_id is not None:
+            job_id = unroll(job_id)
+    except ValueError as exc:
+        return jsonify({
+            "DB_ACTION_ERROR": [
+                f"Invalid ID format: {exc}"
+            ]
+        }), 400
+
+    result_dicts = fetch_and_format(
+        db_actions.jobs,
+        project_id=project_id,
+        readset_id=readset_id,
+        job_id=job_id
+        )
+
+    return sanity_check("Job", result_dicts)
+
+
+@bp.route('/<string:project>/files', methods=['GET'])
+@bp.route('/<string:project>/files/<string:file_id>', methods=['GET'])
+@bp.route('/<string:project>/specimens/<string:specimen_id>/files', methods=['GET'])
+@bp.route('/<string:project>/samples/<string:sample_id>/files', methods=['GET'])
+@bp.route('/<string:project>/readsets/<string:readset_id>/files', methods=['GET'])
+@convcheck_project
+@parse_json_get(expected_keys={"file_name", "specimen_name", "sample_name", "readset_name", "deliverable"})
+def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, file_id: str=None, digest_data=None):
     """
     GET:
         file_id: uses the form "1,3-8,9". Select file by ids
+            Ex: /project/<project>/files/<file_id>
         specimen_id: uses the form "1,3-8,9". Select file by specimen ids
+            Ex: /project/<project>/specimens/<specimen_id>/files
         sample_id: uses the form "1,3-8,9". Select file by sample ids
+            Ex: /project/<project>/samples/<sample_id>/files
         redeaset_id: uses the form "1,3-8,9". Select file by readset ids
+            Ex: /project/<project>/readsets/<readset_id>/files
     return: selected files, belonging to <project>
 
     Query:
-    (deliverable):  Default (None)
+    (deliverable):
     The deliverable query allows to get all files labelled as deliverable
-        (None):
-            return: all or selected metrics (Default)
         (true):
             return: a subset of metrics who have Deliverable=True
+            Ex: /project/<project>/files?json={"deliverable": "true"}
         (false):
             return: a subset of metrics who have Deliverable=True
+            Ex: /project/<project>/files?json={"deliverable": "false"}
+    (file_name):
+    The file_name query allows to get all files labelled with a specific name
+        (name):
+            return: a subset of files who have the name
+            Ex: /project/<project>/files?json={"file_name":  "<NAME1>,<NAME2>,..."}
+    (specimen_name):
+    The specimen_name query allows to get all files belonging to a specific specimen
+        (name):
+            return: a subset of files who have the specimen name
+            Ex: /project/<project>/files?json={"specimen_name":  "<NAME1>,<NAME2>,..."}
+    (sample_name):
+    The sample_name query allows to get all files belonging to a specific sample
+        (name):
+            return: a subset of files who have the sample name
+            Ex: /project/<project>/files?json={"sample_name":  "<NAME1>,<NAME2>,..."}
+    (readset_name):
+    The readset_name query allows to get all files belonging to a specific readset
+        (name):
+            return: a subset of files who have the readset name
+            Ex: /project/<project>/files?json={"readset_name":  "<NAME1>,<NAME2>,..."}
     """
-
-    query = request.args
-    # valid query
+    # Read digest_data for filtering
     deliverable = None
-    if query.get('deliverable'):
-        if query['deliverable'].lower() in ['true', '1']:
-            deliverable = True
-        elif query['deliverable'].lower() in ['false', '0']:
-            deliverable = False
+    if digest_data:
+        deliverable = bool(digest_data.get("deliverable"))
+        file_name = digest_data.get("file_name")
+        specimen_name = digest_data.get("specimen_name")
+        sample_name = digest_data.get("sample_name")
+        readset_name = digest_data.get("readset_name")
+        if file_name:
+            names = file_name.split(',')
+            ids = db_actions.name_to_id("File", names)
+            file_id = ids
+        elif specimen_name:
+            names = specimen_name.split(',')
+            ids = db_actions.name_to_id("Specimen", names)
+            specimen_id = ids
+        elif sample_name:
+            names = sample_name.split(',')
+            ids = db_actions.name_to_id("Sample", names)
+            sample_id = ids
+        elif readset_name:
+            names = readset_name.split(',')
+            ids = db_actions.name_to_id("Readset", names)
+            readset_id = ids
 
-    if specimen_id is not None:
-        specimen_id = unroll(specimen_id)
-    elif sample_id is not None:
-        sample_id = unroll(sample_id)
-    elif readset_id is not None:
-        readset_id = unroll(readset_id)
-    elif file_id is not None:
-        file_id = unroll(file_id)
+    # Unroll the IDs if they are provided as strings or lists
+    try:
+        if specimen_id is not None:
+            specimen_id = unroll(specimen_id)
+        elif sample_id is not None:
+            sample_id = unroll(sample_id)
+        elif readset_id is not None:
+            readset_id = unroll(readset_id)
+        elif file_id is not None:
+            file_id = unroll(file_id)
+    except ValueError as exc:
+        return jsonify({
+            "DB_ACTION_ERROR": [
+                f"Invalid ID format: {exc}"
+            ]
+        }), 400
 
-    if deliverable is not None:
-        action_output = db_action.files_deliverable(
-            project_id=project_id,
-            specimen_id=specimen_id,
-            sample_id=sample_id,
-            readset_id=readset_id,
-            file_id=file_id,
-            deliverable=deliverable
-            )
-    else:
-        action_output = db_action.files(
-            project_id=project_id,
-            specimen_id=specimen_id,
-            sample_id=sample_id,
-            readset_id=readset_id,
-            file_id=file_id
-            )
+    # Fetch results from the database
+    result_dicts = fetch_and_format(
+        db_actions.files,
+        project_id=project_id,
+        file_id=file_id,
+        specimen_id=specimen_id,
+        sample_id=sample_id,
+        readset_id=readset_id,
+        deliverable=deliverable
+        )
 
-    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-        return project_id
-
-    return sanity_check("File", action_output)
+    return sanity_check("File", result_dicts)
 
 
-
-@bp.route('/<string:project>/metrics', methods=['GET', 'POST'])
-@bp.route('/<string:project>/metrics/<string:metric_id>')
-@bp.route('/<string:project>/specimens/<string:specimen_id>/metrics')
-@bp.route('/<string:project>/samples/<string:sample_id>/metrics')
-@bp.route('/<string:project>/readsets/<string:readset_id>/metrics')
+@bp.route('/<string:project>/metrics', methods=['GET'])
+@bp.route('/<string:project>/metrics/<string:metric_id>', methods=['GET'])
+@bp.route('/<string:project>/specimens/<string:specimen_id>/metrics', methods=['GET'])
+@bp.route('/<string:project>/samples/<string:sample_id>/metrics', methods=['GET'])
+@bp.route('/<string:project>/readsets/<string:readset_id>/metrics', methods=['GET'])
 @convcheck_project
-def metrics(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, metric_id: str=None):
+@parse_json_get(expected_keys={"metric_name", "specimen_name", "sample_name", "readset_name", "deliverable"})
+def metrics(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, metric_id: str=None, digest_data=None):
     """
     GET:
         metric_id: uses the form "1,3-8,9". Select metric by ids
+            Ex: /project/<project>/metrics/<metric_id>
         specimen_id: uses the form "1,3-8,9". Select metric by specimen ids
+            Ex: /project/<project>/specimens/<specimen_id>/metrics
         sample_id: uses the form "1,3-8,9". Select metric by sample ids
+            Ex: /project/<project>/samples/<sample_id>/metrics
         redeaset_id: uses the form "1,3-8,9". Select metric by readset ids
+            Ex: /project/<project>/readsets/<readset_id>/metrics
     return: selected metrics, belonging to <project>
 
-    We also accept POST data with comma separeted list
-    metric_name = <NAME> [,NAME] [...]
-    readset_name = <NAME> [,NAME] [...]
-    sample_name = <NAME> [,NAME] [...]
-    specimen_name = <NAME> [,NAME] [...]
-
     Query:
-    (deliverable):  Default (None)
+    (deliverable):
     The deliverable query allows to get all metrics labelled as deliverable
-        (None):
-            return: all or selected metrics (Default)
         (true):
             return: a subset of metrics who have Deliverable=True
+            Ex: /project/<project>/metrics?json={"deliverable": "true"}
         (false):
-            return: a subset of metrics who have Deliverable=True
+            return: a subset of metrics who have Deliverable=False
+            Ex: /project/<project>/metrics?json={"deliverable": "false"}
+    (metric_name):
+    The metric_name query allows to get all metrics labelled with a specific name
+        (name):
+            return: a subset of metrics who have the name
+            Ex: /project/<project>/metrics?json={"metric_name":  "<NAME1>,<NAME2>,..."}
+    (specimen_name):
+    The specimen_name query allows to get all metrics belonging to a specific specimen
+        (name):
+            return: a subset of metrics who have the specimen name
+            Ex: /project/<project>/metrics?json={"specimen_name":  "<NAME1>,<NAME2>,..."}
+    (sample_name):
+    The sample_name query allows to get all metrics belonging to a specific sample
+        (name):
+            return: a subset of metrics who have the sample name
+            Ex: /project/<project>/metrics?json={"sample_name":  "<NAME1>,<NAME2>,..."}
+    (readset_name):
+    The readset_name query allows to get all metrics belonging to a specific readset
+        (name):
+            return: a subset of metrics who have the readset name
+            Ex: /project/<project>/metrics?json={"readset_name":  "<NAME1>,<NAME2>,..."}
     """
-
-    query = request.args
-    # valid query
+    # Read digest_data for filtering
     deliverable = None
-    if query.get('deliverable'):
-        if query['deliverable'].lower() in ['true', '1']:
-            deliverable = True
-        elif query['deliverable'].lower() in ['false', '0']:
-            deliverable = False
+    if digest_data:
+        deliverable = bool(digest_data.get("deliverable"))
+        metric_name = digest_data.get("metric_name")
+        specimen_name = digest_data.get("specimen_name")
+        sample_name = digest_data.get("sample_name")
+        readset_name = digest_data.get("readset_name")
+        if metric_name:
+            names = metric_name.split(',')
+            ids = db_actions.name_to_id("Metric", names)
+            metric_id = ids
+        elif specimen_name:
+            names = specimen_name.split(',')
+            ids = db_actions.name_to_id("Specimen", names)
+            specimen_id = ids
+        elif sample_name:
+            names = sample_name.split(',')
+            ids = db_actions.name_to_id("Sample", names)
+            sample_id = ids
+        elif readset_name:
+            names = readset_name.split(',')
+            ids = db_actions.name_to_id("Readset", names)
+            readset_id = ids
 
-    if request.method == 'POST':
-        post_data = request.data.decode()
-        post_input = post_data.split('=')
-        if post_input[0] in ["metric_name", "readset_name", "sample_name", "specimen_name"]:
-            model_class = post_input[0].split('_')[0]
-            names = post_input[1].split(',')
-            ids = db_action.name_to_id(model_class.capitalize(), names)
-            if post_input[0] == "metric_name":
-                metric_id = ids
-            elif post_input[0] == "readset_name":
-                readset_id = ids
-            elif post_input[0] == "sample_name":
-                sample_id = ids
-            elif post_input[0] == "specimen_name":
-                specimen_id = ids
-    elif specimen_id is not None:
-        specimen_id = unroll(specimen_id)
-    elif sample_id is not None:
-        sample_id = unroll(sample_id)
-    elif readset_id is not None:
-        readset_id = unroll(readset_id)
-    elif metric_id is not None:
-        metric_id = unroll(metric_id)
+    # Unroll the IDs if they are provided as strings or lists
+    try:
+        if specimen_id is not None:
+            specimen_id = unroll(specimen_id)
+        elif sample_id is not None:
+            sample_id = unroll(sample_id)
+        elif readset_id is not None:
+            readset_id = unroll(readset_id)
+        elif metric_id is not None:
+            metric_id = unroll(metric_id)
+    except ValueError as exc:
+        return jsonify({
+            "DB_ACTION_ERROR": [
+                f"Invalid ID format: {exc}"
+            ]
+        }), 400
 
-    if deliverable is not None:
-        action_output = db_action.metrics_deliverable(
-            project_id=project_id,
-            specimen_id=specimen_id,
-            sample_id=sample_id,
-            readset_id=readset_id,
-            metric_id=metric_id,
-            deliverable=deliverable
-            )
-    else:
-        action_output = db_action.metrics(
-            project_id=project_id,
-            specimen_id=specimen_id,
-            sample_id=sample_id,
-            readset_id=readset_id,
-            metric_id=metric_id
-            )
+    # Fetch results from the database
+    result_dicts = fetch_and_format(
+        db_actions.metrics,
+        project_id=project_id,
+        metric_id=metric_id,
+        specimen_id=specimen_id,
+        sample_id=sample_id,
+        readset_id=readset_id,
+        deliverable=deliverable
+        )
 
-    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-        return project_id
-
-    return sanity_check("Metric", action_output)
-
-@bp.route('/<string:project>/samples/<string:sample_id>/readsets')
-@convcheck_project
-def readsets_from_samples(project_id: str, sample_id: str):
-    """
-    GET:
-        sample_id: uses the form "1,3-8,9"
-    return: selected readsets belonging to <sample_id>
-    """
-
-    query = request.args
-    # valid query
-    name = None
-
-    sample_id = unroll(sample_id)
-
-    if query.get('name'):
-        name = query['name']
-    if name:
-        sample_id = []
-        for sample_name in name.split(","):
-            sample_id.extend(db_action.name_to_id("Sample", sample_name))
-
-    if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-        return project_id
-
-    action_output = db_action.readsets(project_id, sample_id)
-
-    return sanity_check("Readset", action_output)
+    return sanity_check("Metric", result_dicts)
 
 
-@bp.route('/<string:project>/digest_readset_file', methods=['POST'])
-@convcheck_project
-def digest_readset_file(project_id: str):
-    """
-    POST: json holding the list of Specimen/Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type
-    return: all information to create a "Genpipes readset file"
-    """
-
-    if request.method == 'POST':
-        try:
-            ingest_data = request.get_json(force=True)
-        except:
-            flash('Data does not seems to be json')
-            return redirect(request.url)
-
-        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-            return project_id
-
-        return db_action.digest_readset_file(project_id=project_id, digest_data=ingest_data)
-
-
-@bp.route('/<string:project>/digest_pair_file', methods=['POST'])
-@convcheck_project
-def digest_pair_file(project_id: str):
-    """
-    POST: json holding the list of Specimen/Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type
-    return: all information to create a "Genpipes pair file"
-    """
-
-    if request.method == 'POST':
-        try:
-            ingest_data = request.get_json(force=True)
-        except:
-            flash('Data does not seems to be json')
-            return redirect(request.url)
-
-        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-            return project_id
-
-        return db_action.digest_pair_file(project_id=project_id, digest_data=ingest_data)
-
-
+# Ingest routes
 @bp.route('/<string:project>/ingest_run_processing', methods=['POST'])
 @convcheck_project
-def ingest_run_processing(project_id: str):
+@parse_json_input
+def ingest_run_processing(project_id: str, ingest_data):
     """
     POST: json describing run processing
     return: The Operation object
     """
+    # Call the ingest_run_processing function from db_actions
+    with session_scope() as session:
+        result = db_actions.ingest_run_processing(
+            project_id=project_id,
+            ingest_data=ingest_data,
+            session=session
+            )
+        # Convert the output to flat_dict format
+        result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
 
-    if request.method == 'POST':
-        try:
-            ingest_data = request.get_json(force=True)
-        except:
-            flash('Data does not seems to be json')
-            return redirect(request.url)
-
-        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-            return project_id
-
-        out = db_action.ingest_run_processing(project_id=project_id, ingest_data=ingest_data)
-        logger.debug(f"ingest_run_processing: {out}")
-        out["DB_ACTION_OUTPUT"] = [i.flat_dict for i in out["DB_ACTION_OUTPUT"]]
-
-        return out
+    return jsonify(result)
 
 
 @bp.route('/<string:project>/ingest_transfer', methods=['POST'])
 @convcheck_project
-def ingest_transfer(project_id: str):
+@parse_json_input
+def ingest_transfer(project_id: str, ingest_data):
     """
     POST: json describing a transfer
     return: The Operation object
     """
-    if request.method == 'POST':
-        try:
-            ingest_data = request.get_json(force=True)
-        except:
-            flash('Data does not seems to be json')
-            return redirect(request.url)
+    # Call the ingest_transfer function from db_actions
+    with session_scope() as session:
+        result = db_actions.ingest_transfer(
+            project_id=project_id,
+            ingest_data=ingest_data,
+            session=session
+        )
+        # Convert the output to flat_dict format
+        result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
 
-        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-            return project_id
-
-        out = db_action.ingest_transfer(project_id=project_id, ingest_data=ingest_data)
-        out["DB_ACTION_OUTPUT"] = [i.flat_dict for i in out["DB_ACTION_OUTPUT"]]
-
-        return out
+    return jsonify(result)
 
 
 @bp.route('/<string:project>/ingest_genpipes', methods=['POST'])
 @convcheck_project
-def ingest_genpipes(project_id: str):
+@parse_json_input
+def ingest_genpipes(project_id: str, ingest_data):
     """
     POST: json describing genpipes analysis
     return: The Operation object and Jobs associated
     """
+    # Call the ingest_genpipes function from db_actions
+    with session_scope() as session:
+        result = db_actions.ingest_genpipes(
+            project_id=project_id,
+            ingest_data=ingest_data,
+            session=session
+        )
+        # Convert the output to flat_dict format
+        result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
 
-    if request.method == 'POST':
-        try:
-            ingest_data = request.get_json(force=True)
-        except:
-            flash('Data does not seems to be json')
-            return redirect(request.url)
+    return jsonify(result)
 
-        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-            return project_id
 
-        out = db_action.ingest_genpipes(project_id=project_id, ingest_data=ingest_data)
-        out["DB_ACTION_OUTPUT"] = [i.flat_dict for i in out["DB_ACTION_OUTPUT"]]
-
-        return out
-
-@bp.route('/<string:project>/digest_unanalyzed', methods=['POST'])
+# Digest routes
+@bp.route('/<string:project>/digest_readset_file', methods=['GET'])
 @convcheck_project
-def digest_unanalyzed(project_id: str):
+@parse_json_get()
+def digest_readset_file(project_id: str, digest_data):
     """
-    POST: json holding the list of Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type
+    GET: JSON holding the list of Specimen/Sample/Readset Name or ID AND location endpoint + experiment_nucleic_acid_type
+    Return: all information to create a "GenPipes readset file"
+    """
+    # Call the digest_readset_file function from db_actions
+    with session_scope() as session:
+        result = db_actions.digest_readset_file(
+            project_id=project_id,
+            digest_data=digest_data,
+            session=session
+        )
+    return jsonify(result)
+
+
+@bp.route('/<string:project>/digest_pair_file', methods=['GET'])
+@convcheck_project
+@parse_json_get()
+def digest_pair_file(project_id: str, digest_data):
+    """
+    GET: json holding the list of Specimen/Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type
+    return: all information to create a "Genpipes pair file"
+    """
+    # Call the digest_pair_file function from db_actions
+    with session_scope() as session:
+        result = db_actions.digest_pair_file(
+            project_id=project_id,
+            digest_data=digest_data,
+            session=session
+        )
+    return jsonify(result)
+
+
+@bp.route('/<string:project>/digest_unanalyzed', methods=['GET'])
+@convcheck_project
+@parse_json_get()
+def digest_unanalyzed(project_id: str, digest_data):
+    """
+    GET: json holding the list of Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type
     return: Samples/Readsets unanalyzed with location endpoint + experiment nucleic_acid_type
     """
-    if request.method == 'POST':
-        try:
-            ingest_data = request.get_json(force=True)
-        except:
-            flash('Data does not seems to be json')
-            return redirect(request.url)
-
-        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-            return project_id
-
-        return db_action.digest_unanalyzed(project_id=project_id, digest_data=ingest_data)
+    # Call the digest_unanalyzed function from db_actions
+    with session_scope() as session:
+        result = db_actions.digest_unanalyzed(
+            project_id=project_id,
+            digest_data=digest_data,
+            session=session
+        )
+    return jsonify(result)
 
 
-@bp.route('/<string:project>/digest_delivery', methods=['POST'])
+@bp.route('/<string:project>/digest_delivery', methods=['GET'])
 @convcheck_project
-def digest_delivery(project_id: str):
+@parse_json_get()
+def digest_delivery(project_id: str, digest_data):
     """
-    POST: json holding the list of Specimen/Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type (optional)
+    GET: json holding the list of Specimen/Sample/Readset Name or id AND location endpoint + experiment nucleic_acid_type (optional)
     return: Samples/Readsets unanalyzed with location endpoint + experiment nucleic_acid_type
     """
-    if request.method == 'POST':
-        try:
-            ingest_data = request.get_json(force=True)
-        except:
-            flash('Data does not seems to be json')
-            return redirect(request.url)
-
-        if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
-            return project_id
-
-        return db_action.digest_delivery(project_id=project_id, digest_data=ingest_data)
-
-@bp.route('/get_location', methods=['POST'])
-@convcheck_project
-def get_location(project_id: str):
-    """
-    POST: json holding the endpoint and the file name to be searched
-    return: Location ID
-    """
-    if request.method == 'POST':
-        try:
-            ingest_data = request.get_json(force=True)
-        except:
-            flash('Data does not seems to be json')
-            return redirect(request.url)
-
-        return db_action.get_location(ingest_data=ingest_data)
+    # Call the digest_delivery function from db_actions
+    with session_scope() as session:
+        result = db_actions.digest_delivery(
+            project_id=project_id,
+            digest_data=digest_data,
+            session=session
+        )
+    return jsonify(result)

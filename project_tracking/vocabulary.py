@@ -9,6 +9,9 @@ OLD = "old"
 NEW = "new"
 ID = "id"
 MODIFICATION = "modification"
+CASCADE = "cascade"
+CASCADE_DOWN = "cascade_down"
+CASCADE_UP = "cascade_up"
 
 # project table
 PROJECT_EXT_ID = "project_ext_id"
@@ -30,6 +33,7 @@ SAMPLE_ID = "sample_id"
 SAMPLE_EXT_ID = "sample_ext_id"
 SAMPLE_EXT_SRC = "sample_ext_src"
 SAMPLE_NAME = "sample_name"
+SAMPLE_ALIAS = "sample_alias"
 SAMPLE_TUMOUR = "sample_tumour"
 
 # experiment table
@@ -41,6 +45,8 @@ EXPERIMENT_KIT_EXPIRATION_DATE = "experiment_kit_expiration_date"
 EXPERIMENT_TYPE_LIST = ["PCR-FREE", "RNASEQ"]
 
 # run table
+RUN = "run"
+RUN_ID = "run_id"
 RUN_EXT_ID = "run_ext_id"
 RUN_EXT_SRC = "run_ext_src"
 RUN_NAME = "run_name"

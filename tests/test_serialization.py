@@ -1,5 +1,5 @@
 from sqlalchemy import select
-from project_tracking import database, model
+from project_tracking import model
 
 
 def test_serialization(not_app_db):
