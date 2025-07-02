@@ -1,15 +1,15 @@
 """Module providing database tables and operations support."""
 import logging
 import os
-import click
+from contextlib import contextmanager
 
+import click
 import flask
 from sqlalchemy import (
     create_engine,
     )
 
 from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.ext.declarative import declarative_base
 
 
 class Engine:
@@ -59,6 +59,18 @@ def get_session(no_app=False, db_uri=None):
         from .model import Base
         Base.query = flask.g.session.query_property()
     return flask.g.session
+
+@contextmanager
+def session_scope(no_app=False, db_uri=None):
+    session = get_session(no_app=no_app, db_uri=db_uri)
+    try:
+        yield session
+        session.commit()
+    except:
+        session.rollback()
+        raise
+    finally:
+        session.close()  # Works for both scoped_session and regular session
 
 
 def init_db(db_uri=None, flush=False):
