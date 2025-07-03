@@ -22,6 +22,7 @@ from ..model import (
     SequencingTypeEnum,
     StatusEnum,
     FlagEnum,
+    StateEnum,
     Specimen,
     Sample,
     Experiment,
@@ -480,4 +481,108 @@ def ingest_genpipes(project_id: str, ingest_data, session):
     # If no warning
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
+    return ret
+
+def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=True):
+    """Ingesting delivery"""
+    if not isinstance(ingest_data, dict):
+        ingest_data = json.loads(ingest_data)
+
+    if not session:
+        session = database.get_session()
+
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+    }
+
+    project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
+
+    operation = Operation(
+        platform=ingest_data[vb.OPERATION_PLATFORM],
+        name="delivery",
+        cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
+        status=StatusEnum("COMPLETED"),
+        project=project
+    )
+    job = Job(
+        name="delivery",
+        status=StatusEnum("COMPLETED"),
+        start=datetime.now(),
+        stop=datetime.now(),
+        operation=operation
+    )
+    session.add(job)
+
+    readset_list = []
+    for readset_json in ingest_data[vb.READSET]:
+        readset_name = readset_json[vb.READSET_NAME]
+        stmt = select(Readset).where(
+            Readset.name == readset_name,
+            Readset.deprecated.is_(False),
+            Readset.deleted.is_(False)
+        )
+        readset = session.execute(stmt).scalar_one_or_none()
+        readset_list.append(readset)
+        for file_json in readset_json[vb.FILE]:
+            src_uri = file_json[vb.SRC_LOCATION_URI]
+            dest_uri = file_json[vb.DEST_LOCATION_URI]
+            if check_readset_name:
+                stmt = (
+                    select(File)
+                    .where(File.deprecated.is_(False), File.deleted.is_(False))
+                    .join(File.readsets)
+                    .where(Readset.name == readset_name)
+                    .join(File.locations)
+                    .where(Location.uri == src_uri)
+                )
+                file = session.execute(stmt).scalar_one_or_none()
+                file.state = StateEnum("DELIVERED")
+                if not file:
+                    raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}' and 'Readset' with 'name' '{readset_name}'")
+            else:
+                stmt = (
+                    select(File)
+                    .where(File.deprecated.is_(False), File.deleted.is_(False))
+                    .join(File.locations)
+                    .where(Location.uri == src_uri)
+                )
+                file = session.execute(stmt).scalar_one_or_none()
+                file.state = StateEnum("DELIVERED")
+                if not file:
+                    raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}'")
+
+            # TODO: Should we tag as deleted old location as once delivered we then rm old location
+            # or should it be done as a second step using the modification route?
+
+            new_location = Location.from_uri(uri=dest_uri, file=file, session=session)
+            file.jobs.append(job)
+            session.add(new_location)
+    operation.readsets = readset_list
+    job.readsets = readset_list
+
+    session.add(job)
+    session.flush()
+
+    operation_id = operation.id
+    job_id = job.id
+
+    try:
+        session.commit()
+    except SQLAlchemyError as error:
+        logger.error("Error: %s", error)
+        session.rollback()
+
+    # operation
+    stmt = select(Operation).where(Operation.id == operation_id)
+    operation = session.execute(stmt).scalar_one_or_none()
+    # job
+    stmt = select(Job).where(Job.id == job_id)
+    job = session.execute(stmt).scalar_one_or_none()
+
+    ret["DB_ACTION_OUTPUT"].append(operation)
+    # If no warning
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+
     return ret
