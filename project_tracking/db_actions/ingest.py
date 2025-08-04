@@ -206,8 +206,8 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
     try:
         session.commit()
     except SQLAlchemyError as error:
-        logger.error("Error: %s", error)
         session.rollback()
+        logger.error("Error: %s", error)
 
     # operation
     stmt = select(Operation).where(Operation.id == operation_id)
@@ -304,8 +304,8 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
     try:
         session.commit()
     except SQLAlchemyError as error:
-        logger.error("Error: %s", error)
         session.rollback()
+        logger.error("Error: %s", error)
 
     # operation
     stmt = select(Operation).where(Operation.id == operation_id)
@@ -470,8 +470,8 @@ def ingest_genpipes(project_id: str, ingest_data, session):
     try:
         session.commit()
     except SQLAlchemyError as error:
-        logger.error("Error: %s", error)
         session.rollback()
+        logger.error("Error: %s", error)
 
     # operation
     stmt = select(Operation).where(Operation.id == operation_id)
@@ -497,6 +497,8 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
     }
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
+
+    delete = ingest_data.get(vb.DELETE, True)
 
     operation = Operation(
         platform=ingest_data[vb.OPERATION_PLATFORM],
@@ -552,8 +554,13 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
                 if not file:
                     raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}'")
 
-            # TODO: Should we tag as deleted old location as once delivered we then rm old location
-            # or should it be done as a second step using the modification route?
+            if delete:
+                stmt = (
+                    select(Location)
+                    .where(Location.uri == src_uri)
+                )
+                location = session.execute(stmt).scalar_one_or_none()
+                location.deleted = True
 
             new_location = Location.from_uri(uri=dest_uri, file=file, session=session)
             file.jobs.append(job)
@@ -570,8 +577,8 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
     try:
         session.commit()
     except SQLAlchemyError as error:
-        logger.error("Error: %s", error)
         session.rollback()
+        logger.error("Error: %s", error)
 
     # operation
     stmt = select(Operation).where(Operation.id == operation_id)

@@ -921,7 +921,27 @@ def ingest_genpipes(project_id: str, ingest_data):
 
     return jsonify(result)
 
-# TODO: Add ingest_delivery route
+
+@bp.route('/<string:project>/ingest_delivery', methods=['POST'])
+@convcheck_project
+@parse_json_input
+def ingest_delivery(project_id: str, ingest_data):
+    """
+    POST: json describing a delivery
+    return: The Operation object and Files associated
+    """
+    # Call the ingest_delivery function from db_actions
+    with session_scope() as session:
+        result = db_actions.ingest_delivery(
+            project_id=project_id,
+            ingest_data=ingest_data,
+            session=session
+        )
+        # Convert the output to flat_dict format
+        result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
+
+    return jsonify(result)
+
 
 
 # Digest routes
