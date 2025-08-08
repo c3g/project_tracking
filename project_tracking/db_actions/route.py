@@ -123,7 +123,7 @@ def metrics(project_id, session, deliverable=None, specimen_id=None, sample_id=N
             f"deleted={deleted}"
         )
     else:
-        ret["DB_ACTION_OUTPUT"].append(result)
+        ret["DB_ACTION_OUTPUT"].extend(result)
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
 
@@ -188,7 +188,7 @@ def files(project_id, session, deliverable=None, specimen_id=None, sample_id=Non
             f"deleted={deleted}"
         )
     else:
-        ret["DB_ACTION_OUTPUT"].append(result)
+        ret["DB_ACTION_OUTPUT"].extend(result)
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
 
@@ -236,7 +236,7 @@ def operations(project_id, session, operation_id=None, readset_id=None, deprecat
             f"deleted={deleted}"
         )
     else:
-        ret["DB_ACTION_OUTPUT"].append(result)
+        ret["DB_ACTION_OUTPUT"].extend(result)
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
 
@@ -285,7 +285,7 @@ def jobs(project_id, session, job_id=None, readset_id=None, deprecated=False, de
             f"deleted={deleted}"
         )
     else:
-        ret["DB_ACTION_OUTPUT"].append(result)
+        ret["DB_ACTION_OUTPUT"].extend(result)
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
 
@@ -343,7 +343,7 @@ def readsets(project_id, session, specimen_id=None, sample_id=None, readset_id=N
             f"deleted={deleted}"
         )
     else:
-        ret["DB_ACTION_OUTPUT"].append(result)
+        ret["DB_ACTION_OUTPUT"].extend(result)
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
 
@@ -399,7 +399,7 @@ def specimens(project_id, session, specimen_id=None, sample_id=None, readset_id=
             f"deleted={deleted}"
         )
     else:
-        ret["DB_ACTION_OUTPUT"].append(result)
+        ret["DB_ACTION_OUTPUT"].extend(result)
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
 
@@ -461,7 +461,7 @@ def samples(project_id, session, specimen_id=None, sample_id=None, readset_id=No
             f"deleted={deleted}"
         )
     else:
-        ret["DB_ACTION_OUTPUT"].append(result)
+        ret["DB_ACTION_OUTPUT"].extend(result)
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
 
@@ -511,7 +511,7 @@ def samples_pair(project_id, session, pair: bool, specimen_id=None, deprecated=F
             f"deleted={deleted}"
         )
     else:
-        ret["DB_ACTION_OUTPUT"].append(result)
+        ret["DB_ACTION_OUTPUT"].extend(result)
         if not ret["DB_ACTION_WARNING"]:
             ret.pop("DB_ACTION_WARNING")
         if pair and len(result) == 2:
@@ -552,7 +552,7 @@ def create_project(project_name, session, ext_id=None, ext_src=None):
         # Re-query to get the project newly created
         result = session.scalars(stmt).first()
 
-    ret["DB_ACTION_OUTPUT"].append(result)
+    ret["DB_ACTION_OUTPUT"].extend(result)
 
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
