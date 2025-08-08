@@ -246,6 +246,7 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
         status=StatusEnum("COMPLETED"),
         project=project
     )
+    session.add(operation)
     job = Job(
         name="transfer",
         status=StatusEnum("COMPLETED"),
@@ -253,6 +254,7 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
         stop=datetime.now(),
         operation=operation
     )
+    session.add(job)
     readset_list = []
     for readset_json in ingest_data[vb.READSET]:
         readset_name = readset_json[vb.READSET_NAME]

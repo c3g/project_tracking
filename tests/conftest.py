@@ -202,3 +202,16 @@ def genpipes_json():
     with open(os.path.join(os.path.dirname(__file__), 'data/genpipes_rnaseqlight.json'), 'r') as file:
         data = json.load(file)
     return data
+
+@pytest.fixture()
+def delivery_json():
+    """
+    Load the delivery JSON data from a file for testing.
+    This fixture reads the JSON data from a file located in the 'data' directory
+    relative to the current file's directory and returns it as a Python dictionary.
+    Returns:
+        dict: The JSON data loaded from the file.
+    """
+    with open(os.path.join(os.path.dirname(__file__), 'data/delivery.json'), 'r') as file:
+        data = json.load(file)
+    return data
