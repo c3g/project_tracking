@@ -5,6 +5,7 @@ import logging
 import os
 import datetime
 from collections import defaultdict
+from datetime import datetime, timezone
 
 from flask import Flask, request, Response, make_response, json, jsonify, g
 
@@ -70,7 +71,7 @@ def create_app(test_config=None):
         logger.info(
             "%s [%s] %s %s %s %s %s %s %s [source_file=%s]",
             request.remote_addr,
-            datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")[:-3],
+            datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")[:-3],
             request.method,
             request.path,
             request.scheme,

@@ -1,0 +1,25 @@
+{
+    "operation_platform": "beluga",
+    "operation_cmd_line": "bucket_delivery.py -i MoHQ-JG-9-23_DNA_2022-06-25T19.04.54.json -l Delivery_MoHQ-JG-9-23_DNA_2025-06-25T19.04.54.list",
+    "delete": true,
+    "readset": [
+        {
+            "readset_name": "MoHQ-JG-9-23-15000863775-19933DT.A01433_0157_1",
+            "file": [
+                {
+                    "src_location_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Aligned.1/alignment/MoHQ-JG-9-23-15000863775-19933DT/runA01433_0157_1/MoHQ-JG-9-23-15000863775-19933DT_2-2224210.sorted.bam",
+                    "dest_location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/raw_reads/MoHQ-JG-9-23-15000863775-19933DT/MoHQ-JG-9-23-15000863775-19933DT_2-2224210.sorted.bam"
+                }
+            ]
+        },
+        {
+            "readset_name": "MoHQ-JG-9-23-15000936286-19866DN.A01433_0157_2",
+            "file": [
+                {
+                    "src_location_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Aligned.2/alignment/MoHQ-JG-9-23-15000936286-19866DN/runA01433_0157_2/MoHQ-JG-9-23-15000936286-19866DN_2-2224220.sorted.bam",
+                    "dest_location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/raw_reads/MoHQ-JG-9-23-15000936286-19866DN/MoHQ-JG-9-23-15000936286-19866DN_2-2224220.sorted.bam"
+                }
+            ]
+        }
+    ]
+}

@@ -85,6 +85,7 @@ class StateEnum(enum.Enum):
     VALID = "VALID"
     ON_HOLD = "ON_HOLD"
     INVALID = "INVALID"
+    DELIVERED = "DELIVERED"
 
     def to_json(self):
         """Serialize the enum to json"""

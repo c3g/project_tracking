@@ -12,25 +12,49 @@ from project_tracking import create_app
 
 logger = logging.getLogger(__name__)
 
-def test_create_api(client, run_processing_json, transfer_json, genpipes_json, app):
+def test_create_api(client, run_processing_json, transfer_json, genpipes_json, delivery_json):
+    # First create the project using the admin API
     project_name = run_processing_json[vb.PROJECT_NAME]
     response = client.post(f'admin/create_project/{project_name}')
     assert response.status_code == 200
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['name'] == f"{project_name}"
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['id'] == 1
+    # Test ingesting run processing
     response = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
-    print(response.text)
     assert response.status_code == 200
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['name'] == "run_processing"
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['id'] == 1
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['platform'] == "abacus"
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['project_id'] == 1
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['status'] == "COMPLETED"
+    # Test ingesting transfer
     response = client.post(f'project/{project_name}/ingest_transfer', data=json.dumps(transfer_json))
     assert response.status_code == 200
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['cmd_line'] == "globus transfer --submission-id $sub_id --label MoHQ-JG-9-23 --batch /lb/project/mugqic/projects/MOH/TEMP/2023-01-13T14.21.42_transfer_log.txt 6c66d53d-a79d-11e8-96fa-0a6d4e044368 278b9bfe-24da-11e9-9fa2-0a06afd4a22e"
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['id'] == 2
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['name'] == "transfer"
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['platform'] == "beluga"
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['project_id'] == 1
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['status'] == "COMPLETED"
+    # Test ingesting genpipes
     response = client.post(f'project/{project_name}/ingest_genpipes', data=json.dumps(genpipes_json))
     assert response.status_code == 200
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['cmd_line'] == "module purge\nmodule load python/3.10.2 mugqic/genpipes/4.2.0\nrnaseq_light.py \n    -j slurm \n    -r readset.txt \n    -s 1-5 \n    -c $MUGQIC_PIPELINES_HOME/pipelines/rnaseq_light/rnaseq_light.base.ini \n        $MUGQIC_PIPELINES_HOME/pipelines/common_ini/beluga.ini \n        $MUGQIC_PIPELINES_HOME/resources/genomes/config/Homo_sapiens.GRCh38.ini \n        RNA_light.custom.ini \n  > RNASeq_light_run.sh\nrm -r RNA_CHUNKS;\nmkdir RNA_CHUNKS;\n$MUGQIC_PIPELINES_HOME/utils/chunk_genpipes.sh -n 100 RNASeq_light_run.sh RNA_CHUNKS"
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['id'] == 3
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['name'] == "genpipes"
-    with app.app_context():
-        s = database.get_session()
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['operation_config_id'] == 1
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['platform'] == "beluga"
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['project_id'] == 1
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['status'] == "COMPLETED"
+    # Test ingesting delivery
+    response = client.post(f'project/{project_name}/ingest_delivery', data=json.dumps(delivery_json))
+    assert response.status_code == 200
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['cmd_line'] == "bucket_delivery.py -i MoHQ-JG-9-23_DNA_2022-06-25T19.04.54.json -l Delivery_MoHQ-JG-9-23_DNA_2025-06-25T19.04.54.list"
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['id'] == 4
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['name'] == "delivery"
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['platform'] == "beluga"
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['project_id'] == 1
+    assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['status'] == "COMPLETED"
 
 
 def test_create(not_app_db, run_processing_json, transfer_json, genpipes_json):
@@ -41,7 +65,6 @@ def test_create(not_app_db, run_processing_json, transfer_json, genpipes_json):
     run_processing_out = db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
 
     assert isinstance(run_processing_out["DB_ACTION_OUTPUT"][0], model.Operation)
-    # assert isinstance(run_processing_job, model.Job)
     assert not_app_db.scalars(select(model.Project)).first().name == project_name
 
     for specimen_json in run_processing_json[vb.SPECIMEN]:
@@ -52,12 +75,7 @@ def test_create(not_app_db, run_processing_json, transfer_json, genpipes_json):
                 assert not_app_db.scalars(select(model.Readset).where(model.Readset.name == readset_json[vb.READSET_NAME])).first().name == readset_json[vb.READSET_NAME]
 
     transfer_out = db_actions.ingest_transfer(project_id, transfer_json, not_app_db)
-
     assert isinstance(transfer_out["DB_ACTION_OUTPUT"][0], model.Operation)
-    # assert isinstance(transfer_job, model.Job)
 
     genpipes_out = db_actions.ingest_genpipes(project_id, genpipes_json, not_app_db)
-
     assert isinstance(genpipes_out["DB_ACTION_OUTPUT"][0], model.Operation)
-    # for job in genpipes_jobs:
-    #     assert isinstance(job, model.Job)
