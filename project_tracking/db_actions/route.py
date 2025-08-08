@@ -40,8 +40,8 @@ def projects(project_id, session, deprecated=False, deleted=False):
 
     stmt = (
         select(Project)
-        .distinct(Project.id)
         .where(Project.deprecated.is_(deprecated), Project.deleted.is_(deleted))
+        .group_by(Project.id)
     )
 
     if project_id:
@@ -79,13 +79,13 @@ def metrics(project_id, session, deliverable=None, specimen_id=None, sample_id=N
 
     stmt = (
         select(Metric)
-        .distinct(Metric.id)
         .where(Metric.deprecated.is_(deprecated), Metric.deleted.is_(deleted))
         .join(Metric.readsets)
         .join(Readset.sample)
         .join(Sample.specimen)
         .join(Specimen.project)
         .where(Project.id.in_(project_id))
+        .group_by(Metric.id)
     )
 
     if metric_id:
@@ -144,13 +144,13 @@ def files(project_id, session, deliverable=None, specimen_id=None, sample_id=Non
 
     stmt = (
         select(File)
-        .distinct(File.id)
         .where(File.deprecated.is_(deprecated), File.deleted.is_(deleted))
         .join(File.readsets)
         .join(Readset.sample)
         .join(Sample.specimen)
         .join(Specimen.project)
         .where(Project.id.in_(project_id))
+        .group_by(File.id)
     )
 
     if file_id:
@@ -209,10 +209,10 @@ def operations(project_id, session, operation_id=None, readset_id=None, deprecat
 
     stmt = (
         select(Operation)
-        .distinct(Operation.id)
         .where(Operation.deprecated.is_(deprecated), Operation.deleted.is_(deleted))
         .join(Operation.project)
         .where(Project.id.in_(project_id))
+        .group_by(Operation.id)
     )
 
     if operation_id:
@@ -257,11 +257,11 @@ def jobs(project_id, session, job_id=None, readset_id=None, deprecated=False, de
 
     stmt = (
         select(Job)
-        .distinct(Job.id)
         .where(Job.deprecated.is_(deprecated), Job.deleted.is_(deleted))
         .join(Job.operation)
         .join(Operation.project)
         .where(Project.id.in_(project_id))
+        .group_by(Job.id)
     )
 
     if job_id:
@@ -306,12 +306,12 @@ def readsets(project_id, session, specimen_id=None, sample_id=None, readset_id=N
 
     stmt = (
         select(Readset)
-        .distinct(Readset.id)
         .where(Readset.deprecated.is_(deprecated), Readset.deleted.is_(deleted))
         .join(Readset.sample)
         .join(Sample.specimen)
         .join(Specimen.project)
         .where(Project.id.in_(project_id))
+        .group_by(Readset.id)
     )
 
     if specimen_id:
@@ -364,10 +364,10 @@ def specimens(project_id, session, specimen_id=None, sample_id=None, readset_id=
 
     stmt = (
         select(Specimen)
-        .distinct(Specimen.id)
         .where(Specimen.deprecated.is_(deprecated), Specimen.deleted.is_(deleted))
         .join(Specimen.project)
         .where(Project.id.in_(project_id))
+        .group_by(Specimen.id)
     )
 
     if specimen_id:
@@ -419,12 +419,12 @@ def samples(project_id, session, specimen_id=None, sample_id=None, readset_id=No
         project_id = [project_id]
 
     stmt = (
-        select(Sample).
-        distinct(Sample.id)
+        select(Sample)
         .where(Sample.deprecated.is_(deprecated), Sample.deleted.is_(deleted))
         .join(Sample.specimen)
         .join(Specimen.project)
         .where(Project.id.in_(project_id))
+        .group_by(Sample.id)
     )
 
     if tumour is not None:
@@ -484,7 +484,6 @@ def samples_pair(project_id, session, pair: bool, specimen_id=None, deprecated=F
 
     stmt = (
         select(Sample)
-        .distinct(Sample.id)
         .where(Sample.deprecated.is_(deprecated), Sample.deleted.is_(deleted))
         .join(Sample.readsets)
         .join(Readset.experiment)
@@ -492,6 +491,7 @@ def samples_pair(project_id, session, pair: bool, specimen_id=None, deprecated=F
         .join(Sample.specimen)
         .join(Specimen.project)
         .where(Project.id.in_(project_id))
+        .group_by(Sample.id)
     )
 
     if specimen_id:
