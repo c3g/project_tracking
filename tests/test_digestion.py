@@ -98,7 +98,7 @@ UNALYZED = {"DB_ACTION_OUTPUT": [
 DELIVERY = {"DB_ACTION_OUTPUT": [
     {
         "experiment_nucleic_acid_type": "DNA",
-        "location_endpoint": None,
+        "location_endpoint": "abacus",
         "operation":[],
         "specimen": [
             {
@@ -110,8 +110,26 @@ DELIVERY = {"DB_ACTION_OUTPUT": [
                         "name":"MoHQ-JG-9-23-15000863775-19933DT",
                         "readset": [
                             {
-                                "file":[],
-                                "metric":[],
+                                "file": [
+                                    {
+                                    "location":"/lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Aligned.1/alignment/MoHQ-JG-9-23-15000863775-19933DT/runA01433_0157_1/MoHQ-JG-9-23-15000863775-19933DT_2-2224210.sorted.bam",
+                                    "name":"MoHQ-JG-9-23-15000863775-19933DT_2-2224210.sorted.bam"
+                                    }
+                                ],
+                                "metric": [
+                                    {
+                                    "aggregate":None,
+                                    "flag":"PASS",
+                                    "name":"raw_reads_count",
+                                    "value":"822429243"
+                                    },
+                                    {
+                                    "aggregate":None,
+                                    "flag":"PASS",
+                                    "name":"raw_duplication_rate",
+                                    "value":"9.0"
+                                    }
+                                ],
                                 "name":"MoHQ-JG-9-23-15000863775-19933DT.A01433_0157_1"
                             }],
                         "tumour":True
@@ -120,8 +138,26 @@ DELIVERY = {"DB_ACTION_OUTPUT": [
                         "name":"MoHQ-JG-9-23-15000936286-19866DN",
                         "readset": [
                             {
-                                "file":[],
-                                "metric":[],
+                                "file":[
+                                    {
+                                    "location":"/lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Aligned.2/alignment/MoHQ-JG-9-23-15000936286-19866DN/runA01433_0157_2/MoHQ-JG-9-23-15000936286-19866DN_2-2224220.sorted.bam",
+                                    "name":"MoHQ-JG-9-23-15000936286-19866DN_2-2224220.sorted.bam"
+                                    }
+                                ],
+                                "metric":[
+                                    {
+                                    "aggregate":None,
+                                    "flag":"PASS",
+                                    "name":"raw_reads_count",
+                                    "value":"940464718"
+                                    },
+                                    {
+                                    "aggregate":None,
+                                    "flag":"WARNING",
+                                    "name":"raw_duplication_rate",
+                                    "value":"9.8"
+                                    }
+                                ],
                                 "name":"MoHQ-JG-9-23-15000936286-19866DN.A01433_0157_2"
                             }],
                         "tumour":False
@@ -163,6 +199,7 @@ def test_digest_api(client, run_processing_json, readset_file_json, app):
 
     # Digest delivery
     delivery_json = {
+        'location_endpoint': 'abacus',
         'experiment_nucleic_acid_type': 'DNA',
         'readset_id': [1, 2]
     }

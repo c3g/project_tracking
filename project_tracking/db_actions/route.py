@@ -7,6 +7,7 @@ import logging
 # Third-party
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import selectinload
 
 # Local modules
 from ..model import (
@@ -59,7 +60,7 @@ def projects(project_id, session, deprecated=False, deleted=False):
             f"deleted={deleted}"
         )
     else:
-        ret["DB_ACTION_OUTPUT"] = result
+        ret["DB_ACTION_OUTPUT"].extend(result)
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
 
@@ -79,14 +80,33 @@ def metrics(project_id, session, deliverable=None, specimen_id=None, sample_id=N
 
     stmt = (
         select(Metric)
-        .where(Metric.deprecated.is_(deprecated), Metric.deleted.is_(deleted))
+        .options(
+            selectinload(Metric.readsets)
+            .selectinload(Readset.sample)
+            .selectinload(Sample.specimen)
+            .selectinload(Specimen.project)
+        )
         .join(Metric.readsets)
         .join(Readset.sample)
         .join(Sample.specimen)
         .join(Specimen.project)
-        .where(Project.id.in_(project_id))
-        .group_by(Metric.id)
+        .where(
+            Metric.deprecated.is_(deprecated),
+            Metric.deleted.is_(deleted),
+            Project.id.in_(project_id)
+        )
     )
+
+    # stmt = (
+    #     select(Metric)
+    #     .where(Metric.deprecated.is_(deprecated), Metric.deleted.is_(deleted))
+    #     .join(Metric.readsets)
+    #     .join(Readset.sample)
+    #     .join(Sample.specimen)
+    #     .join(Specimen.project)
+    #     .where(Project.id.in_(project_id))
+    #     .group_by(Metric.id)
+    # )
 
     if metric_id:
         if isinstance(metric_id, int):
@@ -144,13 +164,21 @@ def files(project_id, session, deliverable=None, specimen_id=None, sample_id=Non
 
     stmt = (
         select(File)
-        .where(File.deprecated.is_(deprecated), File.deleted.is_(deleted))
+        .options(
+            selectinload(File.readsets)
+            .selectinload(Readset.sample)
+            .selectinload(Sample.specimen)
+            .selectinload(Specimen.project)
+        )
         .join(File.readsets)
         .join(Readset.sample)
         .join(Sample.specimen)
         .join(Specimen.project)
-        .where(Project.id.in_(project_id))
-        .group_by(File.id)
+        .where(
+            File.deprecated.is_(deprecated),
+            File.deleted.is_(deleted),
+            Project.id.in_(project_id)
+        )
     )
 
     if file_id:
@@ -172,6 +200,8 @@ def files(project_id, session, deliverable=None, specimen_id=None, sample_id=Non
     if deliverable is not None:
         # Filter files based on deliverable status
         stmt = stmt.where(File.deliverable.is_(deliverable))
+
+    # logger.debug(str(stmt.compile(compile_kwargs={"literal_binds": True})))
 
     result = session.execute(stmt).scalars().all()
 
@@ -552,7 +582,7 @@ def create_project(project_name, session, ext_id=None, ext_src=None):
         # Re-query to get the project newly created
         result = session.scalars(stmt).first()
 
-    ret["DB_ACTION_OUTPUT"].extend(result)
+    ret["DB_ACTION_OUTPUT"].append(result)
 
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
