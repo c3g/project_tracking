@@ -35,7 +35,7 @@ class RequestError(Error):
         if message:
             self.message = message
         else:
-            self.message = f"For current request '{argument}' is required"
+            self.message = f"For current request, '{argument}' is required"
 
 class UniqueConstraintError(Error):
     """UniqueConstraintError"""
@@ -45,3 +45,12 @@ class UniqueConstraintError(Error):
             self.message = message
         else:
             self.message = f"'{entity}' with '{attribute}' '{value}' already exists in the database and '{attribute}' has to be unique"
+
+class EnumValueError(Error):
+    """EnumValueError"""
+    def __init__(self, message=None, enum=None, value=None):
+        super().__init__(message)
+        if message:
+            self.message = message
+        else:
+            self.message = f"'{value}' is not a valid value for '{enum}'. Valid values are: {', '.join(enum.__members__.keys())}"
