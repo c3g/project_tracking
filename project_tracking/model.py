@@ -340,6 +340,27 @@ class Specimen(BaseTable):
     project: Mapped["Project"] = relationship(back_populates="specimens")
     samples: Mapped[list["Sample"]] = relationship(back_populates="specimen", cascade="all, delete")
 
+    @property
+    def readset_ids(self) -> list[int]:
+        """
+        Get all readset ids associated with the specimen.
+        """
+        return [r.id for s in self.samples for r in s.readsets]
+    @property
+    def sample_ids(self) -> list[int]:
+        """
+        Get all sample ids associated with the specimen.
+        """
+        return [s.id for s in self.samples]
+    @property
+    def flat_dict(self):
+        base = super().flat_dict
+        base.update({
+            "readsets": self.readset_ids,
+            "samples": self.sample_ids
+        })
+        return base
+
     @classmethod
     def from_name(cls, name, project, cohort=None, institution=None, session=None, deprecated=False, deleted=False):
         """
@@ -389,6 +410,21 @@ class Sample(BaseTable):
 
     specimen: Mapped["Specimen"] = relationship(back_populates="samples")
     readsets: Mapped[list["Readset"]] = relationship(back_populates="sample", cascade="all, delete")
+
+    @property
+    def readset_ids(self) -> list[int]:
+        """
+        Get all readset ids associated with the sample.
+        """
+        return [r.id for r in self.readsets]
+    @property
+    def flat_dict(self):
+        base = super().flat_dict
+        base.update({
+            "tumour": self.tumour,
+            "readsets": self.readset_ids
+        })
+        return base
 
     @classmethod
     def from_name(cls, name, specimen, alias=None, tumour=None, session=None, deprecated=False, deleted=False):
@@ -580,6 +616,20 @@ class Readset(BaseTable):
     jobs: Mapped[list["Job"]] = relationship(secondary=readset_job, back_populates="readsets")
     metrics: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readsets")
 
+    @property
+    def specimen_id(self):
+        """
+        Get the specimen id associated with the readset.
+        """
+        return self.sample.specimen.id if self.sample and self.sample.specimen else None
+    @property
+    def flat_dict(self):
+        base = super().flat_dict
+        base.update({
+            "specimen_id": self.specimen_id
+        })
+        return base
+
     @classmethod
     def from_name(cls, name, sample, alias=None, session=None, deprecated=False, deleted=False):
         """
@@ -637,6 +687,20 @@ class Operation(BaseTable):
     project: Mapped["Project"] = relationship(back_populates="operations")
     jobs: Mapped[list["Job"]] = relationship(back_populates="operation", cascade="all, delete")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operations")
+
+    @property
+    def readset_ids(self) -> list[int]:
+        """
+        Get all readset ids associated with the operation.
+        """
+        return [r.id for r in self.readsets]
+    @property
+    def flat_dict(self):
+        base = super().flat_dict
+        base.update({
+            "readsets": self.readset_ids
+        })
+        return base
 
     @classmethod
     def from_attributes(
@@ -799,6 +863,20 @@ class Job(BaseTable):
     files: Mapped[list["File"]] = relationship(secondary=job_file,back_populates="jobs")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="jobs")
 
+    @property
+    def readset_ids(self) -> list[int]:
+        """
+        Get all readset ids associated with the job.
+        """
+        return [r.id for r in self.readsets]
+    @property
+    def flat_dict(self):
+        base = super().flat_dict
+        base.update({
+            "readsets": self.readset_ids
+        })
+        return base
+
 
 class Metric(BaseTable):
     """
@@ -827,6 +905,37 @@ class Metric(BaseTable):
 
     job: Mapped["Job"] = relationship(back_populates="metrics")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_metric, back_populates="metrics")
+
+    @property
+    def readset_ids(self) -> list[int]:
+        """
+        List of readset ids associated with the metric
+        """
+        return [r.id for r in self.readsets]
+
+    @property
+    def sample_ids(self) -> list[int]:
+        """
+        List of sample ids associated with the metric through readsets
+        """
+        return [r.sample.id for r in self.readsets if r.sample]
+
+    @property
+    def specimen_ids(self) -> list[int]:
+        """
+        List of specimen ids associated with the metric through readsets and samples
+        """
+        return [r.sample.specimen.id for r in self.readsets if r.sample and r.sample.specimen]
+
+    @property
+    def flat_dict(self):
+        base = super().flat_dict
+        base.update({
+            "readsets": self.readset_ids,
+            "samples": self.sample_ids,
+            "specimens": self.specimen_ids,
+        })
+        return base
 
     @classmethod
     def get_or_create(
@@ -972,6 +1081,27 @@ class File(BaseTable):
     locations: Mapped[list["Location"]] = relationship(back_populates="file", cascade="all, delete")
     readsets: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="files")
     jobs: Mapped[list["Job"]] = relationship(secondary=job_file, back_populates="files")
+
+    @property
+    def sample_ids(self) -> list[int]:
+        """
+        List of sample ids associated with the file through readsets
+        """
+        return [r.sample.id for r in self.readsets if r.sample]
+    @property
+    def specimen_ids(self) -> list[int]:
+        """
+        List of specimen ids associated with the file through readsets and samples
+        """
+        return [r.sample.specimen.id for r in self.readsets if r.sample and r.sample.specimen]
+    @property
+    def flat_dict(self):
+        base = super().flat_dict
+        base.update({
+            "samples": self.sample_ids,
+            "specimens": self.specimen_ids,
+        })
+        return base
 
     @classmethod
     def get_or_create(

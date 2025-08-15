@@ -3,14 +3,13 @@ Digesting data from the database
 """
 # Standard library
 import logging
-import json
 
 # Third-party modules
 from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
 
 # Local modules
-from .errors import DidNotFindError, RequestError
+from .errors import DidNotFindError, RequestError, EnumValueError
 from .utils import name_to_id
 from .. import vocabulary as vb
 from ..model import (
@@ -24,10 +23,34 @@ from ..model import (
     Readset,
     Operation,
     Job,
-    File
+    File,
+    Location
     )
 
 logger = logging.getLogger(__name__)
+
+
+def endpoint_exists(session, endpoint):
+    """
+    Check if a location endpoint exists in the database.
+    """
+    stmt = select(Location).where(Location.endpoint == endpoint)
+    result = session.execute(stmt).first()
+    if result is None:
+        raise RequestError(message=f"'endpoint' '{endpoint}' doesn't exist in the database.")
+
+
+def nucleic_acid_type_exists(nucleic_acid_type):
+    """
+    Check if a nucleic acid type exists in the database.
+    """
+    if not nucleic_acid_type:
+        raise RequestError(argument="experiment_nucleic_acid_type")
+    try:
+        nucleic_acid_type =  NucleicAcidTypeEnum(nucleic_acid_type)
+    except ValueError:
+        raise EnumValueError(value=nucleic_acid_type, enum=NucleicAcidTypeEnum)
+    return nucleic_acid_type
 
 
 def select_samples_from_specimens(session, ret, digest_data, nucleic_acid_type, project_id):
@@ -364,10 +387,10 @@ def digest_readset_file(project_id: str, digest_data, session):
     }
 
     location_endpoint = digest_data.get(vb.LOCATION_ENDPOINT)
-    nucleic_acid_type = NucleicAcidTypeEnum(digest_data.get(vb.EXPERIMENT_NUCLEIC_ACID_TYPE))
+    nucleic_acid_type = digest_data.get(vb.EXPERIMENT_NUCLEIC_ACID_TYPE)
 
-    if not nucleic_acid_type:
-        raise RequestError(argument="experiment_nucleic_acid_type")
+    # Check if the nucleic acid type is valid
+    nucleic_acid_type = nucleic_acid_type_exists(nucleic_acid_type)
 
     readsets = (
         select_readsets_from_specimens(session, ret, digest_data, nucleic_acid_type, project_id) +
@@ -444,10 +467,9 @@ def digest_pair_file(project_id: str, digest_data, session):
         "DB_ACTION_OUTPUT": []
     }
 
-    if vb.EXPERIMENT_NUCLEIC_ACID_TYPE in digest_data:
-        nucleic_acid_type = NucleicAcidTypeEnum(digest_data[vb.EXPERIMENT_NUCLEIC_ACID_TYPE])
-    else:
-        raise RequestError(argument="experiment_nucleic_acid_type")
+    nucleic_acid_type = digest_data.get(vb.EXPERIMENT_NUCLEIC_ACID_TYPE)
+    # Check if the nucleic acid type is valid
+    nucleic_acid_type = nucleic_acid_type_exists(nucleic_acid_type)
 
     # Collect samples from all sources
     samples = (
@@ -505,8 +527,11 @@ def digest_unanalyzed(project_id: str, digest_data, session):
     readset_id_flag = digest_data.get(vb.READSET_ID)
     run_id = digest_data.get(vb.RUN_ID)
     run_name = digest_data.get(vb.RUN_NAME)
-    experiment_nucleic_acid_type = NucleicAcidTypeEnum(digest_data.get(vb.EXPERIMENT_NUCLEIC_ACID_TYPE))
+    experiment_nucleic_acid_type = digest_data.get(vb.EXPERIMENT_NUCLEIC_ACID_TYPE)
     location_endpoint = digest_data.get(vb.LOCATION_ENDPOINT)
+
+    # Check if the location endpoint exists in the database
+    experiment_nucleic_acid_type = nucleic_acid_type_exists(experiment_nucleic_acid_type)
 
     # Resolve run_name to run_id if needed
     if run_name and not run_id:
@@ -598,12 +623,12 @@ def digest_delivery(project_id: str, digest_data, session):
         - Structured delivery information including files, metrics, and operations
     """
     location_endpoint = digest_data.get(vb.LOCATION_ENDPOINT)
+    # Check if the location endpoint exists in the database
+    endpoint_exists(session, location_endpoint)
+
     nucleic_acid_type = digest_data.get(vb.EXPERIMENT_NUCLEIC_ACID_TYPE)
-
-    if not nucleic_acid_type:
-        raise RequestError(argument="experiment_nucleic_acid_type")
-
-    nucleic_acid_type = NucleicAcidTypeEnum(nucleic_acid_type)
+    # Check if the nucleic acid type is valid
+    nucleic_acid_type = nucleic_acid_type_exists(nucleic_acid_type)
 
     ret = {
         "DB_ACTION_WARNING": [],
@@ -690,6 +715,10 @@ def digest_delivery(project_id: str, digest_data, session):
             }
             specimen_entry["sample"].append(sample_entry)
 
+        if not readset_files:
+            ret["DB_ACTION_WARNING"].append(
+                f"No deliverable files found for 'Sample' '{sample_name}' and 'Readset' '{readset.name}' on 'LocationEndpoint' '{location_endpoint}'."
+            )
         # Append readset info
         sample_entry["readset"].append({
             "name": readset.name,
