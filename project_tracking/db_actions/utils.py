@@ -6,6 +6,7 @@ Utility functions for db_actions package.
 from sqlalchemy import select
 
 # Local modules
+from .errors import DidNotFindError
 from .. import database
 from .. import model
 from ..model import Project
@@ -26,7 +27,7 @@ def name_to_id(model_class, name, session=None):
     ids = session.execute(stmt).scalars().all()
 
     if not ids:
-        return []
+        raise DidNotFindError(table=model_class, attribute="name", query=", ".join(name))
 
     return ids
 
