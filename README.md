@@ -1,13 +1,12 @@
 # Tracking the C3G projects
-[![Test suite](https://github.com/c3g/project_tracking/actions/workflows/run_test.yml/badge.svg?branch=main)](https://github.com/c3g/project_tracking/actions/workflows/run_test.yml) on main branch  
-[![Test suite](https://github.com/c3g/project_tracking/actions/workflows/run_test.yml/badge.svg?branch=dev)](https://github.com/c3g/project_tracking/actions/workflows/run_test.yml) on dev branch
+[![Test suite](https://github.com/c3g/project_tracking/actions/workflows/PyTest.yml/badge.svg?branch=main)](https://github.com/c3g/project_tracking/actions/workflows/PyTest.yml) on main branch  
+[![Test suite](https://github.com/c3g/project_tracking/actions/workflows/PyTest.yml/badge.svg?branch=dev)](https://github.com/c3g/project_tracking/actions/workflows/PyTest.yml) on dev branch
 
 This is an API to access and modify the C3G data processing tracking database.
 
-
 ## Install
 We recommend using postgress in producton, but the project is fully compatible with sqlite.
-We also publish container on quay.io and test or system using podman.
+We also publish container on GitHub reposityory (ghcr.io) and test or system using podman.
 ### From GitHub with sqlite (best for developer):
 Sqlite needs to be installed on your machine.
 Here, you will deploy a development instance of the app and be able to modify the code in the repo with auto-reload 
@@ -53,11 +52,11 @@ flask  --app project_tracking init-db --flush --db-uri "sqlite:////tmp/my_test_d
 ```
 
 ### Using podman and sqlite:
-We have a [quay.io repo for the project](https://quay.io/repository/c3genomics/project_tracking)
-There are a dev release and version releases. The `latest` tag relates to the latest release.
+We have a [ghcr.io repo for the project](https://github.com/c3g/project_tracking/pkgs/container/project_tracking)
+There are version releases and `latest` tag relates to the latest release.
 ```bash
 SQLITE_DB_FOLDER=<folder on host with WR access>
-podman run -v $SQLITE_DB_FOLDER:/sqlite:Z -it --rm -p 8000:8000 -e C3G_INIT_DB=1 quay.io/c3genomics/project_tracking:dev
+podman run -v $SQLITE_DB_FOLDER:/sqlite:Z -it --rm -p 8000:8000 -e C3G_INIT_DB=1 ghcr.io/c3g/project_tracking:latest
 ```
 The app runs on port 8000 inside the container, the `-e C3G_INIT_DB=1` option will the db in 
 `$SQLITE_DB_FOLDER/tracking_db.sql`. 
@@ -85,10 +84,10 @@ options makes it so that the host `127.0.0.1` interface is
 reachable with the `10.0.2.2` adress inside the container. That is why the C3G_SQLALCHEMY_DATABASE_URI
 is set to that value.
 ```bash
-podman pull quay.io/c3genomics/project_tracking:dev
+podman pull ghcr.io/c3g/project_tracking:latest
 export C3G_SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://<POSTGRESS_USER>:<POSTGRESS_PW>@10.0.2.2/<POSTGRESS_DB_NAME>?client_encoding=utf8"
 podman secret create --env C3G_SQLALCHEMY_DATABASE_URI C3G_SQLALCHEMY_DATABASE_URI
-podman run --secret C3G_SQLALCHEMY_DATABASE_URI,type=env -p 8000:8000 -e C3G_INIT_DB=1 --network slirp4netns:allow_host_loopback=true quay.io/c3genomics/project_tracking:dev
+podman run --secret C3G_SQLALCHEMY_DATABASE_URI,type=env -p 8000:8000 -e C3G_INIT_DB=1 --network slirp4netns:allow_host_loopback=true ghcr.io/c3g/project_tracking:latest
 ```
 
 ## Install from pypi:
