@@ -276,6 +276,8 @@ def create_job_schema(include_relationships=True, **kwargs):
             """
             Get associated readset IDs.
             """
+            # Not used for now but if the property readset_ids is too slow use this as it might be faster
+            # return Job.get_readset_ids(self.context["session"], obj.id)
             return obj.readset_ids
 
     return JobSchema(**kwargs)
@@ -413,14 +415,14 @@ def serialize(obj, include_relationships=False, context=None):
             context=context or {}
         )
         return schema.dump(obj)
-    else:
-        model_cls = type(obj)
-        schema_factory = SCHEMA_FACTORIES.get(model_cls)
-        if not schema_factory:
-            raise ValueError(f"No schema factory found for type {model_cls}")
-        schema = schema_factory(
-            many=False,
-            include_relationships=include_relationships,
-            context=context or {}
-        )
-        return schema.dump(obj)
+    # implicit else as there is a return in the if so no need for an explicit one
+    model_cls = type(obj)
+    schema_factory = SCHEMA_FACTORIES.get(model_cls)
+    if not schema_factory:
+        raise ValueError(f"No schema factory found for type {model_cls}")
+    schema = schema_factory(
+        many=False,
+        include_relationships=include_relationships,
+        context=context or {}
+    )
+    return schema.dump(obj)

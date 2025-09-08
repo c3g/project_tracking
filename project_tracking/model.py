@@ -824,8 +824,9 @@ class Job(BaseTable):
     files: Mapped[list[File]] = relationship(secondary=job_file,back_populates="jobs")
     readsets: Mapped[list[Readset]] = relationship(secondary=readset_job, back_populates="jobs")
 
+    # Not used for now but if the property readset_ids is too slow this classmethod might be faster
     @classmethod
-    def get_readset_ids(cls, session: Session, job_id: int) -> list[int]:
+    def get_readset_ids(cls, session, job_id):
         """
         Get all readset ids associated with the job.
         """
