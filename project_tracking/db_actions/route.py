@@ -5,7 +5,7 @@ This module contains functions to interact with the database for project trackin
 import logging
 
 # Third-party
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
@@ -239,10 +239,16 @@ def operations(project_id, session, operation_id=None, readset_id=None, deprecat
 
     stmt = (
         select(Operation)
-        .where(Operation.deprecated.is_(deprecated), Operation.deleted.is_(deleted))
+        .options(
+            selectinload(Operation.project),
+            selectinload(Operation.readsets)
+        )
         .join(Operation.project)
-        .where(Project.id.in_(project_id))
-        .group_by(Operation.id)
+        .where(
+            Operation.deprecated.is_(deprecated),
+            Operation.deleted.is_(deleted),
+            Project.id.in_(project_id)
+        )
     )
 
     if operation_id:
@@ -287,11 +293,16 @@ def jobs(project_id, session, job_id=None, readset_id=None, deprecated=False, de
 
     stmt = (
         select(Job)
-        .where(Job.deprecated.is_(deprecated), Job.deleted.is_(deleted))
+        .options(
+            selectinload(Job.operation).selectinload(Operation.project)
+        )
         .join(Job.operation)
         .join(Operation.project)
-        .where(Project.id.in_(project_id))
-        .group_by(Job.id)
+        .where(
+            Job.deprecated.is_(deprecated),
+            Job.deleted.is_(deleted),
+            Project.id.in_(project_id)
+        )
     )
 
     if job_id:
@@ -336,13 +347,31 @@ def readsets(project_id, session, specimen_id=None, sample_id=None, readset_id=N
 
     stmt = (
         select(Readset)
-        .where(Readset.deprecated.is_(deprecated), Readset.deleted.is_(deleted))
         .join(Readset.sample)
         .join(Sample.specimen)
         .join(Specimen.project)
-        .where(Project.id.in_(project_id))
-        .group_by(Readset.id)
+        .options(
+            selectinload(Readset.sample)
+            .selectinload(Sample.specimen)
+            .selectinload(Specimen.project)
+        )
+        .where(
+            Readset.deprecated.is_(deprecated),
+            Readset.deleted.is_(deleted),
+            Project.id.in_(project_id)
+        )
     )
+
+
+    # stmt = (
+    #     select(Readset)
+    #     .where(Readset.deprecated.is_(deprecated), Readset.deleted.is_(deleted))
+    #     .join(Readset.sample)
+    #     .join(Sample.specimen)
+    #     .join(Specimen.project)
+    #     .where(Project.id.in_(project_id))
+    #     .group_by(Readset.id)
+    # )
 
     if specimen_id:
         if isinstance(specimen_id, int):

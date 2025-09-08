@@ -1,9 +1,10 @@
 from sqlalchemy import select
 from project_tracking import model
-
+from project_tracking.schema import serialize
 
 def test_serialization(not_app_db):
-
+    """Test serialization of various models using Marshmallow schemas."""
+    # Create instances with relationships
     project_name = 'Conglomerat of Good Health'
     op_config_version = 0.1
     op_config_name = 'generic_index'
@@ -41,26 +42,25 @@ def test_serialization(not_app_db):
     location1 = model.Location.from_uri(uri=b1_uri+'/my.fastq', file=file1, session=not_app_db)
     location2 = model.Location.from_uri(uri=b2_uri+'/my.fastq', file=file1, session=not_app_db)
 
-
-
-
+    # Add to session and commit
     with not_app_db as db:
         db.add(re1)
         db.add(re2)
         db.commit()
 
-
+    # Fetch instances
     p = not_app_db.scalar(select(model.Project))
     readset = not_app_db.scalars(select(model.Readset)).first()
     locations = not_app_db.scalars(select(model.Location)).all()
     jobs = not_app_db.scalars(select(model.Job)).all()
     files = not_app_db.scalars(select(model.File)).all()
 
-    assert isinstance(p.dumps, str)  # minimal
-    assert isinstance(readset.dumps, str)   # join reference
+    # Marshmallow serialization
+    assert isinstance(serialize(p), dict)
+    assert isinstance(serialize(readset), dict)
     for l in locations:
-        assert isinstance(l.dumps, str)  # Auto reference
+        assert isinstance(serialize(l), dict)
     for j in jobs:
-        assert isinstance(j.dumps, str)  # enum type
+        assert isinstance(serialize(j), dict)
     for f in files:
-        assert isinstance(f.dumps, str)  # also dump location
+        assert isinstance(serialize(f), dict)

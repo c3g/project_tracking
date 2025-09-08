@@ -511,19 +511,22 @@ def edit(ingest_data, session, cascade_mode=None, dry_run=False):
 
     for table in ingest_data[vb.MODIFICATION]:
         the_table = getattr(model, table[vb.TABLE].title())
-        for current_id in set(table[vb.ID]):
-            stmt = select(the_table).where(the_table.id == current_id)
-            selected_entry = session.execute(stmt).scalar_one_or_none()
-            if not selected_entry:
-                raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
-            old = getattr(selected_entry, table[vb.COLUMN])
-            # Skip the edit if the new value is the same as the old one
-            if old == table[vb.NEW]:
-                ret["DB_ACTION_WARNING"].append(f"Table '{table[vb.TABLE]}' with id '{current_id}' already has '{table[vb.COLUMN]}' with value '{old}'. Skipping...")
-            else:
-                setattr(selected_entry, table[vb.COLUMN], table[vb.NEW])
-                new = getattr(selected_entry, table[vb.COLUMN])
-                ret["DB_ACTION_OUTPUT"].append(f"Table '{table[vb.TABLE]}' edited: column '{table[vb.COLUMN]}' with id '{current_id}' changes from '{old}' to '{new}'.")
+        if table[vb.ID]:
+            for current_id in set(table[vb.ID]):
+                stmt = select(the_table).where(the_table.id == current_id)
+                selected_entry = session.execute(stmt).scalar_one_or_none()
+                if not selected_entry:
+                    raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
+                old = getattr(selected_entry, table[vb.COLUMN])
+                # Skip the edit if the new value is the same as the old one
+                if old == table[vb.NEW]:
+                    ret["DB_ACTION_WARNING"].append(f"Table '{table[vb.TABLE]}' with id '{current_id}' already has '{table[vb.COLUMN]}' with value '{old}'. Skipping...")
+                else:
+                    setattr(selected_entry, table[vb.COLUMN], table[vb.NEW])
+                    new = getattr(selected_entry, table[vb.COLUMN])
+                    ret["DB_ACTION_OUTPUT"].append(f"Table '{table[vb.TABLE]}' edited: column '{table[vb.COLUMN]}' with id '{current_id}' changes from '{old}' to '{new}'.")
+        else:
+            ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table[vb.TABLE]}'. Skipping...")
 
     if not dry_run:
         try:
@@ -554,22 +557,25 @@ def delete(ingest_data, session, cascade_mode=None, dry_run=False):
     for table in ingest_data[vb.MODIFICATION]:
         table_name = table[vb.TABLE].title()
         the_table = getattr(model, table_name.title())
-        for current_id in set(table[vb.ID]):
-            stmt = select(the_table).where(the_table.id == current_id)
-            selected_entry = session.execute(stmt).scalar_one_or_none()
-            if not selected_entry:
-                raise DidNotFindError(table=table_name, attribute="id", query=current_id)
-            if selected_entry.deleted:
-                ret["DB_ACTION_WARNING"].append(f"'{table_name}' with id '{current_id}' already deleted. Skipping...")
-            else:
-                selected_entry.deleted = True
-                ret["DB_ACTION_OUTPUT"].append(f"'{table_name}' with id '{current_id}' deleted.")
+        if table[vb.ID]:
+            for current_id in set(table[vb.ID]):
+                stmt = select(the_table).where(the_table.id == current_id)
+                selected_entry = session.execute(stmt).scalar_one_or_none()
+                if not selected_entry:
+                    raise DidNotFindError(table=table_name, attribute="id", query=current_id)
+                if selected_entry.deleted:
+                    ret["DB_ACTION_WARNING"].append(f"'{table_name}' with id '{current_id}' already deleted. Skipping...")
+                else:
+                    selected_entry.deleted = True
+                    ret["DB_ACTION_OUTPUT"].append(f"'{table_name}' with id '{current_id}' deleted.")
 
-                # Handle cascading based on cascade_mode
-                if cascade_mode in ('cascade', 'cascade_down'):
-                    cascade_action(selected_entry, table_name.lower(), session, ret, 'delete', direction='children')
-                if cascade_mode in ('cascade', 'cascade_up'):
-                    cascade_action(selected_entry, table_name.lower(), session, ret, 'delete', direction='parents')
+                    # Handle cascading based on cascade_mode
+                    if cascade_mode in ('cascade', 'cascade_down'):
+                        cascade_action(selected_entry, table_name.lower(), session, ret, 'delete', direction='children')
+                    if cascade_mode in ('cascade', 'cascade_up'):
+                        cascade_action(selected_entry, table_name.lower(), session, ret, 'delete', direction='parents')
+        else:
+            ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table[vb.TABLE]}'. Skipping...")
 
     if not dry_run:
         try:
@@ -600,22 +606,25 @@ def undelete(ingest_data, session, cascade_mode=None, dry_run=False):
     for table in ingest_data[vb.MODIFICATION]:
         table_name = table[vb.TABLE].title()
         the_table = getattr(model, table_name.title())
-        for current_id in set(table[vb.ID]):
-            stmt = select(the_table).where(the_table.id == current_id)
-            selected_entry = session.execute(stmt).scalar_one_or_none()
-            if not selected_entry:
-                raise DidNotFindError(table=table_name, attribute="id", query=current_id)
-            if not selected_entry.deleted:
-                ret["DB_ACTION_WARNING"].append(f"'{table_name}' with id '{current_id}' already undeleted. Skipping...")
-            else:
-                selected_entry.deleted = False
-                ret["DB_ACTION_OUTPUT"].append(f"'{table_name}' with id '{current_id}' undeleted.")
+        if table[vb.ID]:
+            for current_id in set(table[vb.ID]):
+                stmt = select(the_table).where(the_table.id == current_id)
+                selected_entry = session.execute(stmt).scalar_one_or_none()
+                if not selected_entry:
+                    raise DidNotFindError(table=table_name, attribute="id", query=current_id)
+                if not selected_entry.deleted:
+                    ret["DB_ACTION_WARNING"].append(f"'{table_name}' with id '{current_id}' already undeleted. Skipping...")
+                else:
+                    selected_entry.deleted = False
+                    ret["DB_ACTION_OUTPUT"].append(f"'{table_name}' with id '{current_id}' undeleted.")
 
-                # Handle cascading based on cascade_mode
-                if cascade_mode in ('cascade', 'cascade_down'):
-                    cascade_undelete(selected_entry, table_name.lower(), session, ret, direction='children')
-                if cascade_mode in ('cascade', 'cascade_up'):
-                    cascade_undelete(selected_entry, table_name.lower(), session, ret, direction='parents')
+                    # Handle cascading based on cascade_mode
+                    if cascade_mode in ('cascade', 'cascade_down'):
+                        cascade_undelete(selected_entry, table_name.lower(), session, ret, direction='children')
+                    if cascade_mode in ('cascade', 'cascade_up'):
+                        cascade_undelete(selected_entry, table_name.lower(), session, ret, direction='parents')
+        else:
+            ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table[vb.TABLE]}'. Skipping...")
 
     if not dry_run:
         try:
@@ -688,22 +697,25 @@ def deprecate(ingest_data, session, cascade_mode=None, dry_run=False):
     for table in ingest_data[vb.MODIFICATION]:
         table_name = table[vb.TABLE].title()
         the_table = getattr(model, table_name)
-        for current_id in set(table[vb.ID]):
-            stmt = select(the_table).where(the_table.id == current_id)
-            selected_entry = session.execute(stmt).scalar_one_or_none()
-            if not selected_entry:
-                raise DidNotFindError(table=table_name, attribute="id", query=current_id)
-            if selected_entry.deprecated:
-                ret["DB_ACTION_WARNING"].append(f"'{table_name}' with id '{current_id}' already deprecated. Skipping...")
-            else:
-                selected_entry.deprecated = True
-                ret["DB_ACTION_OUTPUT"].append(f"'{table_name}' with id '{current_id}' deprecated.")
+        if table[vb.ID]:
+            for current_id in set(table[vb.ID]):
+                stmt = select(the_table).where(the_table.id == current_id)
+                selected_entry = session.execute(stmt).scalar_one_or_none()
+                if not selected_entry:
+                    raise DidNotFindError(table=table_name, attribute="id", query=current_id)
+                if selected_entry.deprecated:
+                    ret["DB_ACTION_WARNING"].append(f"'{table_name}' with id '{current_id}' already deprecated. Skipping...")
+                else:
+                    selected_entry.deprecated = True
+                    ret["DB_ACTION_OUTPUT"].append(f"'{table_name}' with id '{current_id}' deprecated.")
 
-                # Handle cascading based on cascade_mode
-                if cascade_mode in ('cascade', 'cascade_down'):
-                    cascade_action(selected_entry, table_name.lower(), session, ret, 'deprecate', direction='children')
-                if cascade_mode in ('cascade', 'cascade_up'):
-                    cascade_action(selected_entry, table_name.lower(), session, ret, 'deprecate', direction='parents')
+                    # Handle cascading based on cascade_mode
+                    if cascade_mode in ('cascade', 'cascade_down'):
+                        cascade_action(selected_entry, table_name.lower(), session, ret, 'deprecate', direction='children')
+                    if cascade_mode in ('cascade', 'cascade_up'):
+                        cascade_action(selected_entry, table_name.lower(), session, ret, 'deprecate', direction='parents')
+        else:
+            ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table[vb.TABLE]}'. Skipping...")
 
     if not dry_run:
         try:
@@ -735,22 +747,25 @@ def undeprecate(ingest_data, session, cascade_mode=None, dry_run=False):
     for table in ingest_data[vb.MODIFICATION]:
         table_name = table[vb.TABLE].title()
         the_table = getattr(model, table_name)
-        for current_id in set(table[vb.ID]):
-            stmt = select(the_table).where(the_table.id == current_id)
-            selected_entry = session.execute(stmt).scalar_one_or_none()
-            if not selected_entry:
-                raise DidNotFindError(table=table_name, attribute="id", query=current_id)
-            if selected_entry.deprecated is False:
-                ret["DB_ACTION_WARNING"].append(f"'{table_name}' with id '{current_id}' already undeprecated. Skipping...")
-            else:
-                selected_entry.deprecated = False
-                ret["DB_ACTION_OUTPUT"].append(f"'{table_name}' with id '{current_id}' undeprecated.")
+        if table[vb.ID]:
+            for current_id in set(table[vb.ID]):
+                stmt = select(the_table).where(the_table.id == current_id)
+                selected_entry = session.execute(stmt).scalar_one_or_none()
+                if not selected_entry:
+                    raise DidNotFindError(table=table_name, attribute="id", query=current_id)
+                if selected_entry.deprecated is False:
+                    ret["DB_ACTION_WARNING"].append(f"'{table_name}' with id '{current_id}' already undeprecated. Skipping...")
+                else:
+                    selected_entry.deprecated = False
+                    ret["DB_ACTION_OUTPUT"].append(f"'{table_name}' with id '{current_id}' undeprecated.")
 
-                # Handle cascading based on cascade_mode
-                if cascade_mode in ('cascade', 'cascade_down'):
-                    cascade_undeprecate(selected_entry, table_name.lower(), session, ret, direction='children')
-                if cascade_mode in ('cascade', 'cascade_up'):
-                    cascade_undeprecate(selected_entry, table_name.lower(), session, ret, direction='parents')
+                    # Handle cascading based on cascade_mode
+                    if cascade_mode in ('cascade', 'cascade_down'):
+                        cascade_undeprecate(selected_entry, table_name.lower(), session, ret, direction='children')
+                    if cascade_mode in ('cascade', 'cascade_up'):
+                        cascade_undeprecate(selected_entry, table_name.lower(), session, ret, direction='parents')
+        else:
+            ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table[vb.TABLE]}'. Skipping...")
 
     if not dry_run:
         try:
@@ -824,20 +839,23 @@ def curate(ingest_data, session, cascade_mode=None, dry_run=False):
     for table in ingest_data[vb.MODIFICATION]:
         table_name = table[vb.TABLE].title()
         the_table = getattr(model, table_name)
-        for current_id in set(table[vb.ID]):
-            stmt = select(the_table).where(the_table.id == current_id)
-            selected_entry = session.execute(stmt).scalar_one_or_none()
-            if not selected_entry:
-                raise DidNotFindError(table=table_name, attribute="id", query=current_id)
+        if table[vb.ID]:
+            for current_id in set(table[vb.ID]):
+                stmt = select(the_table).where(the_table.id == current_id)
+                selected_entry = session.execute(stmt).scalar_one_or_none()
+                if not selected_entry:
+                    raise DidNotFindError(table=table_name, attribute="id", query=current_id)
 
-            session.delete(selected_entry)
-            ret["DB_ACTION_OUTPUT"].append(f"'{table_name}' with id '{current_id}' permanently deleted.")
+                session.delete(selected_entry)
+                ret["DB_ACTION_OUTPUT"].append(f"'{table_name}' with id '{current_id}' permanently deleted.")
 
-            # Handle cascading based on cascade_mode
-            if cascade_mode in ('cascade', 'cascade_down'):
-                cascade_curate(selected_entry, table_name.lower(), session, ret, direction='children')
-            if cascade_mode in ('cascade', 'cascade_up'):
-                cascade_curate(selected_entry, table_name.lower(), session, ret, direction='parents')
+                # Handle cascading based on cascade_mode
+                if cascade_mode in ('cascade', 'cascade_down'):
+                    cascade_curate(selected_entry, table_name.lower(), session, ret, direction='children')
+                if cascade_mode in ('cascade', 'cascade_up'):
+                    cascade_curate(selected_entry, table_name.lower(), session, ret, direction='parents')
+        else:
+            ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table_name}'. Skipping...")
 
     if not dry_run:
         try:
