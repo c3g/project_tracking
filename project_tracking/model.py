@@ -1,10 +1,9 @@
+"""Models for the database using SQLAlchemy ORM."""
 from __future__ import annotations
 
-import json
 import enum
 import logging
 from datetime import datetime
-from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
@@ -15,27 +14,20 @@ from sqlalchemy import (
     Enum,
     DateTime,
     Table,
-    LargeBinary
+    LargeBinary,
+    select
     )
 
 from sqlalchemy.orm import (
     relationship,
     DeclarativeBase,
     Mapped,
-    mapped_column,
-    collections,
-    attributes
+    mapped_column
     )
-
-from sqlalchemy.orm.exc import DetachedInstanceError
 
 from sqlalchemy.sql import func
 
-
 from sqlalchemy.ext.mutable import MutableDict, MutableList
-# from sqlalchemy.types import JSON
-
-# from sqlalchemy_json import mutable_json_type
 
 from . import database
 
@@ -225,72 +217,72 @@ class BaseTable(Base):
         dico[self.__tablename__] = {c.key: getattr(self, c.key) for c in self.__table__.columns}
         return dico.__repr__()
 
-    @property
-    def dict(self):
-        """
-        Dictionary of table columns *and* of the relation columns
-        """
-        dico = {}
-        # select the column and the relationship
-        selected_col = (
-            x for x in dir(self.__class__) # loops over all attribute of the class
-            if not x.startswith('_') and
-            isinstance(getattr(self.__class__, x), attributes.InstrumentedAttribute) and
-            getattr(self, x, False)   # To drop ref to join table that do exist in the class
-        )
-        for column in selected_col:
-            # check in class if column is instrumented
-            key = column
-            val = getattr(self, column)
-            dico[key] = val
-        return dico
+    # @property
+    # def dict(self):
+    #     """
+    #     Dictionary of table columns *and* of the relation columns
+    #     """
+    #     dico = {}
+    #     # select the column and the relationship
+    #     selected_col = (
+    #         x for x in dir(self.__class__) # loops over all attribute of the class
+    #         if not x.startswith('_') and
+    #         isinstance(getattr(self.__class__, x), attributes.InstrumentedAttribute) and
+    #         getattr(self, x, False)   # To drop ref to join table that do exist in the class
+    #     )
+    #     for column in selected_col:
+    #         # check in class if column is instrumented
+    #         key = column
+    #         val = getattr(self, column)
+    #         dico[key] = val
+    #     return dico
 
-    @property
-    def flat_dict(self):
-        """
-        Flat casting of object, to be used in flask responses
-        Returning only ids of the referenced objects except for
-        file where the locations details are also returned
-        """
-        dumps = {}
-        try:
-            loaded_keys = set(self.__dict__.keys())
-            for key, val in self.dict.items():
-                if key not in loaded_keys:
-                    continue # Skip unloaded attributes
+    # @property
+    # def flat_dict(self):
+    #     """
+    #     Flat casting of object, to be used in flask responses
+    #     Returning only ids of the referenced objects except for
+    #     file where the locations details are also returned
+    #     """
+    #     dumps = {}
+    #     try:
+    #         loaded_keys = set(self.__dict__.keys())
+    #         for key, val in self.dict.items():
+    #             if key not in loaded_keys:
+    #                 continue # Skip unloaded attributes
 
-                if isinstance(val, datetime):
-                    val = val.isoformat()
-                elif isinstance(val, Decimal):
-                    val = float(val)
-                elif isinstance(val, set):
-                    val = sorted(val)
-                elif isinstance(val, (list, set, collections.List, collections.Set)):
-                    val = sorted([e.id for e in val if hasattr(e, 'id')])
-                elif isinstance(val, DeclarativeBase):
-                    val = getattr(val, 'id', None)
-                elif isinstance(val, enum.Enum):
-                    val = val.value
+    #             if isinstance(val, datetime):
+    #                 val = val.isoformat()
+    #             elif isinstance(val, Decimal):
+    #                 val = float(val)
+    #             elif isinstance(val, set):
+    #                 val = sorted(val)
+    #             elif isinstance(val, (list, set, collections.List, collections.Set)):
+    #                 val = sorted([e.id for e in val if hasattr(e, 'id')])
+    #             elif isinstance(val, DeclarativeBase):
+    #                 val = getattr(val, 'id', None)
+    #             elif isinstance(val, enum.Enum):
+    #                 val = val.value
 
-                dumps[key] = val
+    #             dumps[key] = val
 
-                if self.__tablename__ == 'file' and key == 'locations' and key in loaded_keys:
-                    dumps[key] = [v.flat_dict for v in getattr(self, 'locations', [])]
+    #             if self.__tablename__ == 'file' and key == 'locations' and key in loaded_keys:
+    #                 dumps[key] = [v.flat_dict for v in getattr(self, 'locations', [])]
 
-            dumps['tablename'] = self.__tablename__
-        except DetachedInstanceError as e:
-            class_name = type(self).__name__
-            obj_address = hex(id(self))
-            dumps = {"DB_ACTION_ERROR": f"DetachedInstanceError: Instance of {class_name} at memory address {obj_address} is not bound to a session. Cannot access unloaded attributes."}
+    #         dumps['tablename'] = self.__tablename__
+    #     except DetachedInstanceError as e:
+    #         class_name = type(self).__name__
+    #         obj_address = hex(id(self))
+    #         dumps = {"DB_ACTION_ERROR": f"DetachedInstanceError: Instance of {class_name} at memory address {obj_address} is not bound to a session. Cannot access unloaded attributes."}
 
-        return dumps
+    #     return dumps
 
-    @property
-    def dumps(self):
-        """
-        Dumping the flat_dict
-        """
-        return json.dumps(self.flat_dict)
+    # @property
+    # def dumps(self):
+    #     """
+    #     Dumping the flat_dict
+    #     """
+    #     return json.dumps(self.flat_dict)
 
 
 class Project(BaseTable):
@@ -310,9 +302,8 @@ class Project(BaseTable):
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
     alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
 
-    specimens: Mapped[list["Specimen"]] = relationship(back_populates="project", cascade="all, delete")
-    operations: Mapped[list["Operation"]] = relationship(back_populates="project", cascade="all, delete")
-
+    specimens: Mapped[list[Specimen]] = relationship(back_populates="project", cascade="all, delete")
+    operations: Mapped[list[Operation]] = relationship(back_populates="project", cascade="all, delete")
 
 class Specimen(BaseTable):
     """
@@ -337,29 +328,22 @@ class Specimen(BaseTable):
     cohort: Mapped[str] = mapped_column(default=None, nullable=True)
     institution: Mapped[str] = mapped_column(default=None, nullable=True)
 
-    project: Mapped["Project"] = relationship(back_populates="specimens")
-    samples: Mapped[list["Sample"]] = relationship(back_populates="specimen", cascade="all, delete")
+    project: Mapped[Project] = relationship(back_populates="specimens")
+    samples: Mapped[list[Sample]] = relationship(back_populates="specimen", cascade="all, delete")
 
     @property
     def readset_ids(self) -> list[int]:
         """
-        Get all readset ids associated with the specimen.
+        Get all readset ids associated with the sample.
         """
-        return [r.id for s in self.samples for r in s.readsets]
+        return [r.id if not r.deprecated or not r.deleted else None for s in self.samples for r in s.readsets]
+
     @property
     def sample_ids(self) -> list[int]:
         """
         Get all sample ids associated with the specimen.
         """
-        return [s.id for s in self.samples]
-    @property
-    def flat_dict(self):
-        base = super().flat_dict
-        base.update({
-            "readsets": self.readset_ids,
-            "samples": self.sample_ids
-        })
-        return base
+        return [s.id if not s.deprecated or not s.deleted else None for s in self.samples]
 
     @classmethod
     def from_name(cls, name, project, cohort=None, institution=None, session=None, deprecated=False, deleted=False):
@@ -408,23 +392,15 @@ class Sample(BaseTable):
     alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
     tumour: Mapped[bool] = mapped_column(default=False)
 
-    specimen: Mapped["Specimen"] = relationship(back_populates="samples")
-    readsets: Mapped[list["Readset"]] = relationship(back_populates="sample", cascade="all, delete")
+    specimen: Mapped[Specimen] = relationship(back_populates="samples")
+    readsets: Mapped[list[Readset]] = relationship(back_populates="sample", cascade="all, delete")
 
     @property
     def readset_ids(self) -> list[int]:
         """
         Get all readset ids associated with the sample.
         """
-        return [r.id for r in self.readsets]
-    @property
-    def flat_dict(self):
-        base = super().flat_dict
-        base.update({
-            "tumour": self.tumour,
-            "readsets": self.readset_ids
-        })
-        return base
+        return [r.id if not r.deprecated or not r.deleted else None for r in self.readsets]
 
     @classmethod
     def from_name(cls, name, specimen, alias=None, tumour=None, session=None, deprecated=False, deleted=False):
@@ -480,7 +456,7 @@ class Experiment(BaseTable):
     library_kit: Mapped[str] = mapped_column(default=None, nullable=True)
     kit_expiration_date: Mapped[datetime] = mapped_column(default=None, nullable=True)
 
-    readsets: Mapped[list["Readset"]] = relationship(back_populates="experiment", cascade="all, delete")
+    readsets: Mapped[list[Readset]] = relationship(back_populates="experiment", cascade="all, delete")
 
     @classmethod
     def from_attributes(
@@ -522,7 +498,6 @@ class Experiment(BaseTable):
 
         return experiment
 
-
 class Run(BaseTable):
     """
     Specimen:
@@ -542,7 +517,7 @@ class Run(BaseTable):
     instrument: Mapped[str] = mapped_column(default=None, nullable=True)
     date: Mapped[datetime] = mapped_column(default=None, nullable=True)
 
-    readsets: Mapped[list["Readset"]] = relationship(back_populates="run", cascade="all, delete")
+    readsets: Mapped[list[Readset]] = relationship(back_populates="run", cascade="all, delete")
 
     @classmethod
     def from_attributes(cls, ext_id=None, ext_src=None, name=None, instrument=None, date=None, session=None, deprecated=False, deleted=False):
@@ -608,27 +583,20 @@ class Readset(BaseTable):
     sequencing_type: Mapped[SequencingTypeEnum] = mapped_column(default=None, nullable=True)
     state: Mapped[StateEnum] = mapped_column(default=StateEnum.VALID, nullable=True)
 
-    sample: Mapped["Sample"] = relationship(back_populates="readsets")
-    experiment: Mapped["Experiment"] = relationship(back_populates="readsets")
-    run: Mapped["Run"] = relationship(back_populates="readsets")
-    files: Mapped[list["File"]] = relationship(secondary=readset_file, back_populates="readsets")
-    operations: Mapped[list["Operation"]] = relationship(secondary=readset_operation, back_populates="readsets")
-    jobs: Mapped[list["Job"]] = relationship(secondary=readset_job, back_populates="readsets")
-    metrics: Mapped[list["Metric"]] = relationship(secondary=readset_metric, back_populates="readsets")
+    sample: Mapped[Sample] = relationship(back_populates="readsets")
+    experiment: Mapped[Experiment] = relationship(back_populates="readsets")
+    run: Mapped[Run] = relationship(back_populates="readsets")
+    files: Mapped[list[File]] = relationship(secondary=readset_file, back_populates="readsets")
+    operations: Mapped[list[Operation]] = relationship(secondary=readset_operation, back_populates="readsets")
+    jobs: Mapped[list[Job]] = relationship(secondary=readset_job, back_populates="readsets")
+    metrics: Mapped[list[Metric]] = relationship(secondary=readset_metric, back_populates="readsets")
 
     @property
     def specimen_id(self):
         """
         Get the specimen id associated with the readset.
         """
-        return self.sample.specimen.id if self.sample and self.sample.specimen else None
-    @property
-    def flat_dict(self):
-        base = super().flat_dict
-        base.update({
-            "specimen_id": self.specimen_id
-        })
-        return base
+        return self.sample.specimen.id if self.sample and self.sample.specimen and (not self.sample.specimen.deprecated or not self.sample.specimen.deleted) else None
 
     @classmethod
     def from_name(cls, name, sample, alias=None, session=None, deprecated=False, deleted=False):
@@ -654,7 +622,6 @@ class Readset(BaseTable):
                 logger.error(f"readset {readset.name} already attached to sample {sample.readset}")
 
         return readset
-
 
 class Operation(BaseTable):
     """
@@ -682,25 +649,18 @@ class Operation(BaseTable):
     name: Mapped[str] = mapped_column(default=None, nullable=True)
     status: Mapped[StatusEnum] = mapped_column(default=StatusEnum.PENDING)
 
-    operation_config: Mapped["OperationConfig"] = relationship(back_populates="operations")
-    reference: Mapped["Reference"] = relationship(back_populates="operations")
-    project: Mapped["Project"] = relationship(back_populates="operations")
-    jobs: Mapped[list["Job"]] = relationship(back_populates="operation", cascade="all, delete")
-    readsets: Mapped[list["Readset"]] = relationship(secondary=readset_operation, back_populates="operations")
+    operation_config: Mapped[OperationConfig] = relationship(back_populates="operations")
+    reference: Mapped[Reference] = relationship(back_populates="operations")
+    project: Mapped[Project] = relationship(back_populates="operations")
+    jobs: Mapped[list[Job]] = relationship(back_populates="operation", cascade="all, delete")
+    readsets: Mapped[list[Readset]] = relationship(secondary=readset_operation, back_populates="operations")
 
     @property
     def readset_ids(self) -> list[int]:
         """
         Get all readset ids associated with the operation.
         """
-        return [r.id for r in self.readsets]
-    @property
-    def flat_dict(self):
-        base = super().flat_dict
-        base.update({
-            "readsets": self.readset_ids
-        })
-        return base
+        return [r.id if not r.deleted or not r.deprecated else None for r in self.readsets]
 
     @classmethod
     def from_attributes(
@@ -751,6 +711,7 @@ class Operation(BaseTable):
 
         return operation, warning
 
+
 class Reference(BaseTable):
     """
     Reference:
@@ -775,7 +736,7 @@ class Reference(BaseTable):
     taxon_id: Mapped[str] = mapped_column(default=None, nullable=True)
     source: Mapped[str] = mapped_column(default=None, nullable=True)
 
-    operations: Mapped[list["Operation"]] = relationship(back_populates="reference", cascade="all, delete")
+    operations: Mapped[list[Operation]] = relationship(back_populates="reference", cascade="all, delete")
 
 
 class OperationConfig(BaseTable):
@@ -800,7 +761,7 @@ class OperationConfig(BaseTable):
     md5sum: Mapped[str] = mapped_column(unique=True, default=None, nullable=True)
     data: Mapped[bytes] = mapped_column(LargeBinary, default=None, nullable=True)
 
-    operations: Mapped[list["Operation"]] = relationship(back_populates="operation_config", cascade="all, delete")
+    operations: Mapped[list[Operation]] = relationship(back_populates="operation_config", cascade="all, delete")
 
     @classmethod
     def from_attributes(cls, name=None, version=None, md5sum=None, data=None, session=None, deprecated=False, deleted=False):
@@ -858,24 +819,29 @@ class Job(BaseTable):
     status: Mapped[StatusEnum] = mapped_column(default=None, nullable=True)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
 
-    operation: Mapped["Operation"] = relationship(back_populates="jobs")
-    metrics: Mapped[list["Metric"]] = relationship(back_populates="job", cascade="all, delete")
-    files: Mapped[list["File"]] = relationship(secondary=job_file,back_populates="jobs")
-    readsets: Mapped[list["Readset"]] = relationship(secondary=readset_job, back_populates="jobs")
+    operation: Mapped[Operation] = relationship(back_populates="jobs")
+    metrics: Mapped[list[Metric]] = relationship(back_populates="job", cascade="all, delete")
+    files: Mapped[list[File]] = relationship(secondary=job_file,back_populates="jobs")
+    readsets: Mapped[list[Readset]] = relationship(secondary=readset_job, back_populates="jobs")
+
+    @classmethod
+    def get_readset_ids(cls, session: Session, job_id: int) -> list[int]:
+        """
+        Get all readset ids associated with the job.
+        """
+        stmt = (
+            select(Readset.id)
+            .join(readset_job, Readset.id == readset_job.c.readset_id)
+            .where(readset_job.c.job_id == job_id)
+        )
+        return [row[0] for row in session.execute(stmt)]
 
     @property
     def readset_ids(self) -> list[int]:
         """
         Get all readset ids associated with the job.
         """
-        return [r.id for r in self.readsets]
-    @property
-    def flat_dict(self):
-        base = super().flat_dict
-        base.update({
-            "readsets": self.readset_ids
-        })
-        return base
+        return [r.id if not r.deprecated or not r.deleted else None for r in self.readsets]
 
 
 class Metric(BaseTable):
@@ -903,39 +869,29 @@ class Metric(BaseTable):
     deliverable: Mapped[bool] = mapped_column(default=False)
     aggregate: Mapped[AggregateEnum] = mapped_column(default=None, nullable=True)
 
-    job: Mapped["Job"] = relationship(back_populates="metrics")
-    readsets: Mapped[list["Readset"]] = relationship(secondary=readset_metric, back_populates="metrics")
+    job: Mapped[Job] = relationship(back_populates="metrics")
+    readsets: Mapped[list[Readset]] = relationship(secondary=readset_metric, back_populates="metrics")
 
     @property
     def readset_ids(self) -> list[int]:
         """
         List of readset ids associated with the metric
         """
-        return [r.id for r in self.readsets]
+        return [r.id if not r.deprecated or not r.deleted else None for r in self.readsets]
 
     @property
     def sample_ids(self) -> list[int]:
         """
         List of sample ids associated with the metric through readsets
         """
-        return [r.sample.id for r in self.readsets if r.sample]
+        return [r.sample.id if not r.sample.deprecated or not r.sample.deleted else None for r in self.readsets if r.sample]
 
     @property
     def specimen_ids(self) -> list[int]:
         """
         List of specimen ids associated with the metric through readsets and samples
         """
-        return [r.sample.specimen.id for r in self.readsets if r.sample and r.sample.specimen]
-
-    @property
-    def flat_dict(self):
-        base = super().flat_dict
-        base.update({
-            "readsets": self.readset_ids,
-            "samples": self.sample_ids,
-            "specimens": self.specimen_ids,
-        })
-        return base
+        return [r.sample.specimen.id if not r.sample.specimen.deprecated or not r.sample.specimen.deleted else None for r in self.readsets if r.sample and r.sample.specimen]
 
     @classmethod
     def get_or_create(
@@ -1029,7 +985,7 @@ class Location(BaseTable):
     endpoint: Mapped[str] = mapped_column(nullable=False)
     deliverable: Mapped[bool] = mapped_column(default=False)
 
-    file: Mapped["File"] = relationship(back_populates="locations")
+    file: Mapped[File] = relationship(back_populates="locations")
 
     @classmethod
     def from_uri(cls, uri, file, endpoint=None, session=None, deprecated=False, deleted=False):
@@ -1078,9 +1034,9 @@ class File(BaseTable):
     deliverable: Mapped[bool] = mapped_column(default=False)
     state: Mapped[StateEnum] = mapped_column(default=StateEnum.VALID, nullable=True)
 
-    locations: Mapped[list["Location"]] = relationship(back_populates="file", cascade="all, delete")
-    readsets: Mapped[list["Readset"]] = relationship(secondary=readset_file, back_populates="files")
-    jobs: Mapped[list["Job"]] = relationship(secondary=job_file, back_populates="files")
+    locations: Mapped[list[Location]] = relationship(back_populates="file", cascade="all, delete")
+    readsets: Mapped[list[Readset]] = relationship(secondary=readset_file, back_populates="files")
+    jobs: Mapped[list[Job]] = relationship(secondary=job_file, back_populates="files")
 
     @property
     def sample_ids(self) -> list[int]:
@@ -1094,14 +1050,6 @@ class File(BaseTable):
         List of specimen ids associated with the file through readsets and samples
         """
         return [r.sample.specimen.id for r in self.readsets if r.sample and r.sample.specimen]
-    @property
-    def flat_dict(self):
-        base = super().flat_dict
-        base.update({
-            "samples": self.sample_ids,
-            "specimens": self.specimen_ids,
-        })
-        return base
 
     @classmethod
     def get_or_create(

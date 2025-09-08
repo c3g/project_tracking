@@ -1,6 +1,5 @@
-"""
-Project API
-"""
+"""Project API"""
+import time
 import functools
 import logging
 import json
@@ -10,6 +9,7 @@ from werkzeug.exceptions import BadRequest
 
 from .. import db_actions
 from ..database import session_scope
+from ..schema import serialize
 
 logger = logging.getLogger(__name__)
 
@@ -130,14 +130,31 @@ def sanity_check(item, action_output):
         ret = action_output
     return jsonify(ret)
 
-def fetch_and_format(query_fn, *args, **kwargs):
+def get_all_subclasses(cls):
+    """
+    Recursively get all subclasses of a given class.
+    Args:
+        cls: The class to get subclasses for.
+    Returns:
+        A set of all subclasses.
+    """
+    subclasses = set()
+    for subclass in cls.__subclasses__():
+        subclasses.add(subclass)
+        subclasses.update(get_all_subclasses(subclass))
+    return subclasses
+
+def fetch_and_format(query_fn, *args, include_relationships=False, **kwargs):
     """
     Fetch results from the database using the provided query function,
-    and format them into a dictionary with DB_ACTION_OUTPUT and DB_ACTION_WARNING.
+    and format them using Marshmallow serialization.
+
     Args:
         query_fn: The function to execute the query.
         *args: Positional arguments to pass to the query function.
+        include_relationships: Whether to include relationship fields in the schema.
         **kwargs: Keyword arguments to pass to the query function, including session.
+
     Returns:
         A dictionary with keys 'DB_ACTION_OUTPUT' and 'DB_ACTION_WARNING'.
     """
@@ -145,14 +162,39 @@ def fetch_and_format(query_fn, *args, **kwargs):
 
     with session_scope() as session:
         query_result = query_fn(*args, session=session, **kwargs)
-        result["DB_ACTION_OUTPUT"] = [r.flat_dict for r in query_result.get("DB_ACTION_OUTPUT", [])]
-        # Only include DB_ACTION_WARNING if it exists and is non-empty
+        start_flatten = time.time()
+
+        output = query_result.get("DB_ACTION_OUTPUT", [])
+
+        if output:
+            try:
+                result["DB_ACTION_OUTPUT"] = serialize(
+                    output,
+                    include_relationships=include_relationships,
+                    context={"session": session}
+                )
+            except ValueError as e:
+                logger.warning(str(e))
+                result["DB_ACTION_OUTPUT"] = []
+        else:
+            result["DB_ACTION_OUTPUT"] = []
+
+        end_flatten = time.time()
+        logger.debug(f"Flattening took {end_flatten - start_flatten:.4f} seconds")
+
         warnings = query_result.get("DB_ACTION_WARNING")
         if warnings:
             result["DB_ACTION_WARNING"] = warnings
 
     return result
 
+
+def parse_names(raw):
+    """
+    Splits a comma-separated string into a list of stripped names.
+    Ignores empty entries.
+    """
+    return [n.strip() for n in raw.split(',') if n.strip()]
 
 def parse_json_input(func):
     """
@@ -272,7 +314,7 @@ def projects(project_id=None):
 @bp.route('/<string:project>/samples/<string:sample_id>/specimens', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/specimens', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"specimen_name", "sample_name", "readset_name"})
+@parse_json_get(expected_keys={"specimen_name", "sample_name", "readset_name", "include_relationships"})
 def specimens(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, digest_data=None):
     """
     GET:
@@ -295,22 +337,33 @@ def specimens(project_id: str, specimen_id: str=None, sample_id: str=None, reads
         (name):
             return: a subset of specimens who have the readset name
             Ex: /project/<project>/specimens?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+    (include_relationships):
+    The include_relationships query allows to include related entities in the output
+        (true):
+            return: specimens with related entities included
+            Ex: /project/<project>/specimens?json={"include_relationships":  true}
+        (false):
+            return: specimens without related entities (default behavior)
+            Ex: /project/<project>/specimens?json={"include_relationships":  false}
     """
+    # Don't serialize relationships by default aka when requesting all specimens
+    include_relationships = False
     # Read digest_data for filtering
     if digest_data:
         specimen_name = digest_data.get("specimen_name")
         sample_name = digest_data.get("sample_name")
         readset_name = digest_data.get("readset_name")
+        include_relationships = bool(digest_data.get("include_relationships", False))
         if specimen_name:
-            names = specimen_name.split(',')
+            names = parse_names(specimen_name)
             ids = db_actions.name_to_id("Specimen", names)
             specimen_id = ids
         elif sample_name:
-            names = sample_name.split(',')
+            names = parse_names(sample_name)
             ids = db_actions.name_to_id("Sample", names)
             sample_id = ids
         elif readset_name:
-            names = readset_name.split(',')
+            names = parse_names(readset_name)
             ids = db_actions.name_to_id("Readset", names)
             readset_id = ids
 
@@ -318,10 +371,13 @@ def specimens(project_id: str, specimen_id: str=None, sample_id: str=None, reads
     try:
         if specimen_id is not None:
             specimen_id = unroll(specimen_id)
+            include_relationships = True
         elif sample_id is not None:
             sample_id = unroll(sample_id)
+            include_relationships = True
         elif readset_id is not None:
             readset_id = unroll(readset_id)
+            include_relationships = True
     except ValueError as exc:
         return jsonify({
             "DB_ACTION_ERROR": [
@@ -335,6 +391,7 @@ def specimens(project_id: str, specimen_id: str=None, sample_id: str=None, reads
         specimen_id=specimen_id,
         sample_id=sample_id,
         readset_id=readset_id,
+        include_relationships=include_relationships
         )
 
     return sanity_check("Specimen", result_dicts)
@@ -345,7 +402,7 @@ def specimens(project_id: str, specimen_id: str=None, sample_id: str=None, reads
 @bp.route('/<string:project>/specimens/<string:specimen_id>/samples', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/samples', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"pair", "tumour", "tumor", "specimen_name", "sample_name", "readset_name"})
+@parse_json_get(expected_keys={"pair", "tumour", "tumor", "specimen_name", "sample_name", "readset_name", "include_relationships"})
 def samples(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, digest_data=None):
     """
     GET:
@@ -388,7 +445,17 @@ def samples(project_id: str, specimen_id: str=None, sample_id: str=None, readset
         (false):
             return: a subset of samples that are not tumour samples
             Ex: /project/<project>/samples?json={"tumour": "false"}
+    (include_relationships):
+    The include_relationships query allows to include related entities in the output
+        (true):
+            return: samples with related entities included
+            Ex: /project/<project>/samples?json={"include_relationships":  true}
+        (false):
+            return: samples without related entities (default behavior)
+            Ex: /project/<project>/samples?json={"include_relationships":  false}
     """
+    # Don't serialize relationships by default aka when requesting all samples
+    include_relationships = False
     # Read digest_data for filtering
     pair = None
     tumour = None
@@ -398,26 +465,30 @@ def samples(project_id: str, specimen_id: str=None, sample_id: str=None, readset
         specimen_name = digest_data.get("specimen_name")
         sample_name = digest_data.get("sample_name")
         readset_name = digest_data.get("readset_name")
+        include_relationships = bool(digest_data.get("include_relationships", False))
         if readset_name:
-            names = readset_name.split(',')
+            names = parse_names(readset_name)
             ids = db_actions.name_to_id("Readset", names)
             readset_id = ids
         elif sample_name:
-            names = sample_name.split(',')
+            names = parse_names(sample_name)
             ids = db_actions.name_to_id("Sample", names)
             sample_id = ids
         elif specimen_name:
-            names = specimen_name.split(',')
+            names = parse_names(specimen_name)
             ids = db_actions.name_to_id("Specimen", names)
             specimen_id = ids
 
     # Unroll the IDs if they are provided as strings or lists
     try:
         if sample_id is not None:
+            include_relationships = True
             sample_id = unroll(sample_id)
         elif specimen_id is not None:
+            include_relationships = True
             specimen_id = unroll(specimen_id)
         elif readset_id is not None:
+            include_relationships = True
             readset_id = unroll(readset_id)
     except ValueError as exc:
         return jsonify({
@@ -431,7 +502,8 @@ def samples(project_id: str, specimen_id: str=None, sample_id: str=None, readset
             db_actions.samples_pair,
             project_id=project_id,
             specimen_id=specimen_id,
-            pair=pair
+            pair=pair,
+            include_relationships=include_relationships
             )
     else:
         result_dicts = fetch_and_format(
@@ -440,7 +512,8 @@ def samples(project_id: str, specimen_id: str=None, sample_id: str=None, readset
             readset_id=readset_id,
             sample_id=sample_id,
             specimen_id=specimen_id,
-            tumour=tumour
+            tumour=tumour,
+            include_relationships=include_relationships
             )
 
     return sanity_check("Sample", result_dicts)
@@ -450,7 +523,7 @@ def samples(project_id: str, specimen_id: str=None, sample_id: str=None, readset
 @bp.route('/<string:project>/samples/<string:sample_id>/readsets', methods=['GET'])
 @bp.route('/<string:project>/specimens/<string:specimen_id>/readsets', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"readset_name", "sample_name", "specimen_name"})
+@parse_json_get(expected_keys={"readset_name", "sample_name", "specimen_name", "include_relationships"})
 def readsets(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, digest_data=None):
     """
     GET:
@@ -477,32 +550,46 @@ def readsets(project_id: str, specimen_id: str=None, sample_id: str=None, readse
         (name):
             return: a subset of readsets who have the specimen name
             Ex: /project/<project>/readsets?json={"specimen_name":  "<NAME1>,<NAME2>,..."}
+    (include_relationships):
+    The include_relationships query allows to include related entities in the output
+        (true):
+            return: readsets with related entities included
+            Ex: /project/<project>/readsets?json={"include_relationships":  true}
+        (false):
+            return: readsets without related entities (default behavior)
+            Ex: /project/<project>/readsets?json={"include_relationships":  false}
     """
+    # Don't serialize relationships by default aka when requesting all readsets
+    include_relationships = False
     # Read digest_data for filtering
     if digest_data:
         specimen_name = digest_data.get("specimen_name")
         sample_name = digest_data.get("sample_name")
         readset_name = digest_data.get("readset_name")
+        include_relationships = bool(digest_data.get("include_relationships", False))
         if readset_name:
-            names = readset_name.split(',')
+            names = parse_names(readset_name)
             ids = db_actions.name_to_id("Readset", names)
             readset_id = ids
         elif sample_name:
-            names = sample_name.split(',')
+            names = parse_names(sample_name)
             ids = db_actions.name_to_id("Sample", names)
             sample_id = ids
         elif specimen_name:
-            names = specimen_name.split(',')
+            names = parse_names(specimen_name)
             ids = db_actions.name_to_id("Specimen", names)
             specimen_id = ids
 
     # Unroll the IDs if they are provided as strings or lists
     try:
         if sample_id is not None:
+            include_relationships = True
             sample_id = unroll(sample_id)
         elif specimen_id is not None:
+            include_relationships = True
             specimen_id = unroll(specimen_id)
         elif readset_id is not None:
+            include_relationships = True
             readset_id = unroll(readset_id)
     except ValueError as exc:
         return jsonify({
@@ -516,7 +603,8 @@ def readsets(project_id: str, specimen_id: str=None, sample_id: str=None, readse
         project_id=project_id,
         readset_id=readset_id,
         sample_id=sample_id,
-        specimen_id=specimen_id
+        specimen_id=specimen_id,
+        include_relationships=include_relationships
         )
 
     return sanity_check("Readset", result_dicts)
@@ -526,7 +614,7 @@ def readsets(project_id: str, specimen_id: str=None, sample_id: str=None, readse
 @bp.route('/<string:project>/operations/<string:operation_id>', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/operations', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"operation_name", "readset_name"})
+@parse_json_get(expected_keys={"operation_name", "readset_name", "include_relationships"})
 def operations(project_id: str, readset_id: str=None, operation_id: str=None, digest_data=None):
     """
     GET:
@@ -546,26 +634,39 @@ def operations(project_id: str, readset_id: str=None, operation_id: str=None, di
     The readset_name query allows to get all operations belonging to a specific readset
         (name):
             return: a subset of operations who have the readset name
-            Ex: /project/<project>/operations?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/operations?json={"readset_name":  "<NAME1>,<NAME2>,..."}\
+    (include_relationships):
+    The include_relationships query allows to include related entities in the output
+        (true):
+            return: operations with related entities included
+            Ex: /project/<project>/operations?json={"include_relationships":  true}
+        (false):
+            return: operations without related entities (default behavior)
+            Ex: /project/<project>/operations?json={"include_relationships":  false}
     """
+    # Don't serialize relationships by default aka when requesting all operations
+    include_relationships = False
     # Read digest_data for filtering
     if digest_data:
         operation_name = digest_data.get("operation_name")
         readset_name = digest_data.get("readset_name")
+        include_relationships = bool(digest_data.get("include_relationships", False))
         if operation_name:
-            names = operation_name.split(',')
+            names = parse_names(operation_name)
             ids = db_actions.name_to_id("Operation", names)
             operation_id = ids
         elif readset_name:
-            names = readset_name.split(',')
+            names = parse_names(readset_name)
             ids = db_actions.name_to_id("Readset", names)
             readset_id = ids
 
     # Unroll the IDs if they are provided as strings or lists
     try:
         if readset_id is not None:
+            include_relationships = True
             readset_id = unroll(readset_id)
         elif operation_id is not None:
+            include_relationships = True
             operation_id = unroll(operation_id)
     except ValueError as exc:
         return jsonify({
@@ -578,7 +679,8 @@ def operations(project_id: str, readset_id: str=None, operation_id: str=None, di
         db_actions.operations,
         project_id=project_id,
         readset_id=readset_id,
-        operation_id=operation_id
+        operation_id=operation_id,
+        include_relationships=include_relationships
         )
 
     return sanity_check("Operation", result_dicts)
@@ -588,7 +690,7 @@ def operations(project_id: str, readset_id: str=None, operation_id: str=None, di
 @bp.route('/<string:project>/jobs/<string:job_id>', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/jobs', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"job_name", "readset_name"})
+@parse_json_get(expected_keys={"job_name", "readset_name", "include_relationships"})
 def jobs(project_id: str, readset_id: str=None, job_id: str=None, digest_data=None):
     """
     GET:
@@ -609,25 +711,38 @@ def jobs(project_id: str, readset_id: str=None, job_id: str=None, digest_data=No
         (name):
             return: a subset of jobs who have the readset name
             Ex: /project/<project>/jobs?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+    (include_relationships):
+    The include_relationships query allows to include related entities in the output
+        (true):
+            return: jobs with related entities included
+            Ex: /project/<project>/jobs?json={"include_relationships":  true}
+        (false):
+            return: jobs without related entities (default behavior)
+            Ex: /project/<project>/jobs?json={"include_relationships":  false}
     """
+    # Don't serialize relationships by default aka when requesting all jobs
+    include_relationships = False
     # Read digest_data for filtering
     if digest_data:
         job_name = digest_data.get("job_name")
         readset_name = digest_data.get("readset_name")
+        include_relationships = bool(digest_data.get("include_relationships", False))
         if job_name:
-            names = job_name.split(',')
+            names = parse_names(job_name)
             ids = db_actions.name_to_id("Job", names)
             job_id = ids
         elif readset_name:
-            names = readset_name.split(',')
+            names = parse_names(readset_name)
             ids = db_actions.name_to_id("Readset", names)
             readset_id = ids
 
     # Unroll the IDs if they are provided as strings or lists
     try:
         if readset_id is not None:
+            include_relationships = True
             readset_id = unroll(readset_id)
         elif job_id is not None:
+            include_relationships = True
             job_id = unroll(job_id)
     except ValueError as exc:
         return jsonify({
@@ -640,7 +755,8 @@ def jobs(project_id: str, readset_id: str=None, job_id: str=None, digest_data=No
         db_actions.jobs,
         project_id=project_id,
         readset_id=readset_id,
-        job_id=job_id
+        job_id=job_id,
+        include_relationships=include_relationships
         )
 
     return sanity_check("Job", result_dicts)
@@ -652,7 +768,7 @@ def jobs(project_id: str, readset_id: str=None, job_id: str=None, digest_data=No
 @bp.route('/<string:project>/samples/<string:sample_id>/files', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/files', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"file_name", "specimen_name", "sample_name", "readset_name", "deliverable"})
+@parse_json_get(expected_keys={"file_name", "specimen_name", "sample_name", "readset_name", "deliverable", "include_relationships"})
 def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, file_id: str=None, digest_data=None):
     """
     GET:
@@ -695,7 +811,17 @@ def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_i
         (name):
             return: a subset of files who have the readset name
             Ex: /project/<project>/files?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+    (include_relationships):
+    The include_relationships query allows to include related entities in the output
+        (true):
+            return: files with related entities included
+            Ex: /project/<project>/files?json={"include_relationships":  true}
+        (false):
+            return: files without related entities (default behavior)
+            Ex: /project/<project>/files?json={"include_relationships":  false}
     """
+    # Don't serialize relationships by default aka when requesting all files
+    include_relationships = False
     # Read digest_data for filtering
     deliverable = None
     if digest_data:
@@ -704,32 +830,37 @@ def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_i
         specimen_name = digest_data.get("specimen_name")
         sample_name = digest_data.get("sample_name")
         readset_name = digest_data.get("readset_name")
+        include_relationships = bool(digest_data.get("include_relationships", False))
         if file_name:
-            names = file_name.split(',')
+            names = parse_names(file_name)
             ids = db_actions.name_to_id("File", names)
             file_id = ids
         elif specimen_name:
-            names = specimen_name.split(',')
+            names = parse_names(specimen_name)
             ids = db_actions.name_to_id("Specimen", names)
             specimen_id = ids
         elif sample_name:
-            names = sample_name.split(',')
+            names = parse_names(sample_name)
             ids = db_actions.name_to_id("Sample", names)
             sample_id = ids
         elif readset_name:
-            names = readset_name.split(',')
+            names = parse_names(readset_name)
             ids = db_actions.name_to_id("Readset", names)
             readset_id = ids
 
     # Unroll the IDs if they are provided as strings or lists
     try:
         if specimen_id is not None:
+            include_relationships = True
             specimen_id = unroll(specimen_id)
         elif sample_id is not None:
+            include_relationships = True
             sample_id = unroll(sample_id)
         elif readset_id is not None:
+            include_relationships = True
             readset_id = unroll(readset_id)
         elif file_id is not None:
+            include_relationships = True
             file_id = unroll(file_id)
     except ValueError as exc:
         return jsonify({
@@ -746,7 +877,8 @@ def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_i
         specimen_id=specimen_id,
         sample_id=sample_id,
         readset_id=readset_id,
-        deliverable=deliverable
+        deliverable=deliverable,
+        include_relationships=include_relationships
         )
 
     return sanity_check("File", result_dicts)
@@ -758,7 +890,7 @@ def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_i
 @bp.route('/<string:project>/samples/<string:sample_id>/metrics', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/metrics', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"metric_name", "specimen_name", "sample_name", "readset_name", "deliverable"})
+@parse_json_get(expected_keys={"metric_name", "specimen_name", "sample_name", "readset_name", "deliverable", "include_relationships"})
 def metrics(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, metric_id: str=None, digest_data=None):
     """
     GET:
@@ -801,7 +933,16 @@ def metrics(project_id: str, specimen_id: str=None, sample_id: str=None, readset
         (name):
             return: a subset of metrics who have the readset name
             Ex: /project/<project>/metrics?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+    (include_relationships):
+    The include_relationships query allows to include related entities in the output
+        (true):
+            return: metrics with related entities included
+            Ex: /project/<project>/metrics?json={"include_relationships":  true}
+        (false):
+            return: metrics without related entities (default behavior)
     """
+    # Don't serialize relationships by default aka when requesting all metrics
+    include_relationships = False
     # Read digest_data for filtering
     deliverable = None
     if digest_data:
@@ -810,32 +951,37 @@ def metrics(project_id: str, specimen_id: str=None, sample_id: str=None, readset
         specimen_name = digest_data.get("specimen_name")
         sample_name = digest_data.get("sample_name")
         readset_name = digest_data.get("readset_name")
+        include_relationships = bool(digest_data.get("include_relationships"))
         if metric_name:
-            names = metric_name.split(',')
+            names = parse_names(metric_name)
             ids = db_actions.name_to_id("Metric", names)
             metric_id = ids
         elif specimen_name:
-            names = specimen_name.split(',')
+            names = parse_names(specimen_name)
             ids = db_actions.name_to_id("Specimen", names)
             specimen_id = ids
         elif sample_name:
-            names = sample_name.split(',')
+            names = parse_names(sample_name)
             ids = db_actions.name_to_id("Sample", names)
             sample_id = ids
         elif readset_name:
-            names = readset_name.split(',')
+            names = parse_names(readset_name)
             ids = db_actions.name_to_id("Readset", names)
             readset_id = ids
 
     # Unroll the IDs if they are provided as strings or lists
     try:
         if specimen_id is not None:
+            include_relationships = True
             specimen_id = unroll(specimen_id)
         elif sample_id is not None:
+            include_relationships = True
             sample_id = unroll(sample_id)
         elif readset_id is not None:
+            include_relationships = True
             readset_id = unroll(readset_id)
         elif metric_id is not None:
+            include_relationships = True
             metric_id = unroll(metric_id)
     except ValueError as exc:
         return jsonify({
@@ -852,7 +998,8 @@ def metrics(project_id: str, specimen_id: str=None, sample_id: str=None, readset
         specimen_id=specimen_id,
         sample_id=sample_id,
         readset_id=readset_id,
-        deliverable=deliverable
+        deliverable=deliverable,
+        include_relationships=include_relationships
         )
 
     return sanity_check("Metric", result_dicts)
@@ -868,16 +1015,23 @@ def ingest_run_processing(project_id: str, ingest_data):
     return: The Operation object
     """
     # Call the ingest_run_processing function from db_actions
-    with session_scope() as session:
-        result = db_actions.ingest_run_processing(
-            project_id=project_id,
-            ingest_data=ingest_data,
-            session=session
-            )
-        # Convert the output to flat_dict format
-        result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
+    result = fetch_and_format(
+        db_actions.ingest_run_processing,
+        project_id=project_id,
+        ingest_data=ingest_data
+        )
 
     return jsonify(result)
+    # with session_scope() as session:
+    #     result = db_actions.ingest_run_processing(
+    #         project_id=project_id,
+    #         ingest_data=ingest_data,
+    #         session=session
+    #         )
+    #     # Convert the output to flat_dict format
+    #     result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
+
+    # return jsonify(result)
 
 
 @bp.route('/<string:project>/ingest_transfer', methods=['POST'])
@@ -888,17 +1042,25 @@ def ingest_transfer(project_id: str, ingest_data):
     POST: json describing a transfer
     return: The Operation object
     """
-    # Call the ingest_transfer function from db_actions
-    with session_scope() as session:
-        result = db_actions.ingest_transfer(
-            project_id=project_id,
-            ingest_data=ingest_data,
-            session=session
+    result = fetch_and_format(
+        db_actions.ingest_transfer,
+        project_id=project_id,
+        ingest_data=ingest_data,
+        include_relationships=False
         )
-        # Convert the output to flat_dict format
-        result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
 
     return jsonify(result)
+    # Call the ingest_transfer function from db_actions
+    # with session_scope() as session:
+    #     result = db_actions.ingest_transfer(
+    #         project_id=project_id,
+    #         ingest_data=ingest_data,
+    #         session=session
+    #     )
+    #     # Convert the output to flat_dict format
+    #     result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
+
+    # return jsonify(result)
 
 
 @bp.route('/<string:project>/ingest_genpipes', methods=['POST'])
@@ -909,17 +1071,24 @@ def ingest_genpipes(project_id: str, ingest_data):
     POST: json describing genpipes analysis
     return: The Operation object and Jobs associated
     """
-    # Call the ingest_genpipes function from db_actions
-    with session_scope() as session:
-        result = db_actions.ingest_genpipes(
-            project_id=project_id,
-            ingest_data=ingest_data,
-            session=session
+    result = fetch_and_format(
+        db_actions.ingest_genpipes,
+        project_id=project_id,
+        ingest_data=ingest_data
         )
-        # Convert the output to flat_dict format
-        result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
 
     return jsonify(result)
+    # # Call the ingest_genpipes function from db_actions
+    # with session_scope() as session:
+    #     result = db_actions.ingest_genpipes(
+    #         project_id=project_id,
+    #         ingest_data=ingest_data,
+    #         session=session
+    #     )
+    #     # Convert the output to flat_dict format
+    #     result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
+
+    # return jsonify(result)
 
 
 @bp.route('/<string:project>/ingest_delivery', methods=['POST'])
@@ -930,17 +1099,24 @@ def ingest_delivery(project_id: str, ingest_data):
     POST: json describing a delivery
     return: The Operation object and Files associated
     """
-    # Call the ingest_delivery function from db_actions
-    with session_scope() as session:
-        result = db_actions.ingest_delivery(
-            project_id=project_id,
-            ingest_data=ingest_data,
-            session=session
+    result = fetch_and_format(
+        db_actions.ingest_delivery,
+        project_id=project_id,
+        ingest_data=ingest_data
         )
-        # Convert the output to flat_dict format
-        result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
 
     return jsonify(result)
+    # # Call the ingest_delivery function from db_actions
+    # with session_scope() as session:
+    #     result = db_actions.ingest_delivery(
+    #         project_id=project_id,
+    #         ingest_data=ingest_data,
+    #         session=session
+    #     )
+    #     # Convert the output to flat_dict format
+    #     result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
+
+    # return jsonify(result)
 
 
 

@@ -273,7 +273,7 @@ def test_jobs_route(client, app, run_processing_json):
     with app.app_context():
         session = database.get_session()
         project_id = reset_database(session, run_processing_json)
-        response = client.get(f"/project/{project_id}/jobs")
+        response = client.get(f"""/project/{project_id}/jobs""")
         assert response.status_code == 200
         data = response.json
         assert "DB_ACTION_OUTPUT" in data
@@ -296,5 +296,3 @@ def test_jobs_route(client, app, run_processing_json):
                 )
             assert "start" in returned
             assert "stop" in returned
-            assert isinstance(returned.get("readsets", []), list)
-            assert len(returned["readsets"]) > 0

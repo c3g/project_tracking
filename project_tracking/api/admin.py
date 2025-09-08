@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify
 from .. import db_actions
 
 from ..database import session_scope
+from ..schema import serialize
 
 log = logging.getLogger(__name__)
 
@@ -25,15 +26,23 @@ def admin_root():
 @bp.route('/create_project/<string:project_name>', methods=['POST'])
 def create_project(project_name: str):
     """
-    Create new project
-    Project name are capitalized by the platform
+    Create new project.
+    Project names are capitalized by the platform.
     """
     with session_scope() as session:
         result = db_actions.create_project(
             project_name=project_name.upper(),
             session=session
         )
-        # Convert the output to flat_dict format
-        result["DB_ACTION_OUTPUT"] = [i.flat_dict for i in result["DB_ACTION_OUTPUT"]]
+
+        output = result.get("DB_ACTION_OUTPUT", [])
+        if output:
+            result["DB_ACTION_OUTPUT"] = serialize(
+                output,
+                include_relationships=False,
+                context={"session": session}
+            )
+        else:
+            result["DB_ACTION_OUTPUT"] = []
 
     return jsonify(result)
