@@ -34,7 +34,9 @@ dependencies = [
     "alembic>=1.13.1",
     "alembic-utils",
     "alembic-postgresql-enum",
-    "gunicorn>=20.1.0"
+    "gunicorn>=20.1.0",
+    "marshmallow",
+    "marshmallow-sqlalchemy"
 ]
 
 [project.urls]
