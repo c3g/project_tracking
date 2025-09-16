@@ -150,7 +150,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                         file_deliverable = False
                     # Need to have the following otherwise assigning extra_metadata to None converts null into json in the db
                     if vb.FILE_EXTRA_METADATA in file_json.keys():
-                        # No need to use .from_attributes because run_processing is ingested ionly one time for a given Readset
+                        # No need to use .from_attributes because run_processing is ingested only one time for a given Readset
                         file = File(
                             name=file_json[vb.FILE_NAME],
                             type=file_type,
@@ -160,7 +160,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                             jobs=[job]
                             )
                     else:
-                        # No need to use .from_attributes because run_processing is ingested ionly one time for a given Readset
+                        # No need to use .from_attributes because run_processing is ingested only one time for a given Readset
                         file = File(
                             name=file_json[vb.FILE_NAME],
                             type=file_type,
@@ -168,7 +168,10 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                             readsets=[readset],
                             jobs=[job]
                             )
-                    _ = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                    location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                    # Before adding a new location for the current File make sure an existing one doesn't exist otherwise update it
+                    if location not in file.locations:
+                        file.locations.append(location)
                 for metric_json in readset_json[vb.METRIC]:
                     if vb.METRIC_DELIVERABLE in metric_json:
                         metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
@@ -393,17 +396,18 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                     job_stop = None
                 # Check if job_status exists otherwise skip it
                 if job_json[vb.JOB_STATUS]:
-                    job = Job(
+                    job = Job.from_attributes(
                         name=job_json[vb.JOB_NAME],
                         status=StatusEnum(job_json[vb.JOB_STATUS]),
                         start=job_start,
                         stop=job_stop,
                         operation=operation,
-                        readsets=[readset]
+                        session=session
                     )
+                    job.readsets = [readset]
                     # Required to lookup with get_or_create
-                    session.add(job)
-                    session.flush()
+                    # session.add(job)
+                    # session.flush()
                     if vb.FILE in job_json:
                         for file_json in job_json[vb.FILE]:
                             suffixes = Path(file_json[vb.FILE_NAME]).suffixes
@@ -412,7 +416,7 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                                 index = suffixes.index(".gz")
                                 file_type = "".join(suffixes[index - 1:]).replace(".", "", 1)
                             file_deliverable = file_json.get(vb.FILE_DELIVERABLE, False)
-                            # Need to have an the following otherwise assigning extra_metadata to None converts null into json in the db
+                            # Need to have the following otherwise assigning extra_metadata to None converts null into json in the db
                             if vb.FILE_EXTRA_METADATA in file_json:
                                 # Before adding a new file make sure an existing one doesn't exist otherwise update it
                                 file, warning = File.get_or_create(
@@ -438,7 +442,10 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                                 )
                                 if warning:
                                     ret["DB_ACTION_WARNING"].append(warning)
-                            _ = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                            location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                            # Before adding a new location for the current File make sure an existing one doesn't exist otherwise update it
+                            if location not in file.locations:
+                                file.locations.append(location)
                     if vb.METRIC in job_json:
                         for metric_json in job_json[vb.METRIC]:
                             metric_deliverable = metric_json.get(vb.METRIC_DELIVERABLE, False)
