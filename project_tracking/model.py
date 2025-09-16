@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 from sqlalchemy import (
     Column,
+    Index,
     ForeignKey,
     JSON,
     Enum,
@@ -149,6 +150,8 @@ readset_file = Table(
     Base.metadata,
     Column("readset_id", ForeignKey("readset.id"), primary_key=True),
     Column("file_id", ForeignKey("file.id"), primary_key=True),
+    Index("ix_readset_file_file_id", "file_id"),
+    Index("ix_readset_file_readset_id_file_id", "readset_id", "file_id"),
 )
 
 
@@ -157,6 +160,8 @@ readset_metric = Table(
     Base.metadata,
     Column("readset_id", ForeignKey("readset.id"), primary_key=True),
     Column("metric_id", ForeignKey("metric.id"), primary_key=True),
+    Index("ix_readset_metric_metric_id", "metric_id"),
+    Index("ix_readset_metric_readset_id_metric_id", "readset_id", "metric_id"),
 )
 
 
@@ -165,6 +170,8 @@ readset_job = Table(
     Base.metadata,
     Column("readset_id", ForeignKey("readset.id"), primary_key=True),
     Column("job_id", ForeignKey("job.id"), primary_key=True),
+    Index("ix_readset_job_job_id", "job_id"),
+    Index("ix_readset_job_readset_id_job_id", "readset_id", "job_id"),
 )
 
 
@@ -173,13 +180,18 @@ readset_operation = Table(
     Base.metadata,
     Column("readset_id", ForeignKey("readset.id"), primary_key=True),
     Column("operation_id", ForeignKey("operation.id"), primary_key=True),
+    Index("ix_readset_operation_operation_id", "operation_id"),
+    Index("ix_readset_operation_readset_id_operation_id", "readset_id", "operation_id"),
 )
+
 
 job_file = Table(
     "job_file",
     Base.metadata,
-    Column("file_id", ForeignKey("file.id"), primary_key=True),
     Column("job_id", ForeignKey("job.id"), primary_key=True),
+    Column("file_id", ForeignKey("file.id"), primary_key=True),
+    Index("ix_job_file_file_id", "file_id"),
+    Index("ix_job_file_job_id_file_id", "job_id", "file_id"),
 )
 
 
@@ -298,6 +310,9 @@ class Project(BaseTable):
         extra_metadata json
     """
     __tablename__ = "project"
+    __table_args__ = (
+        Index("ix_project_name", "name"),
+    )
 
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
     alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
@@ -321,6 +336,10 @@ class Specimen(BaseTable):
         extra_metadata json
     """
     __tablename__ = "specimen"
+    __table_args__ = (
+        Index("ix_specimen_project_id", "project_id"),
+        Index("ix_specimen_name", "name"),
+    )
 
     project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
@@ -386,6 +405,10 @@ class Sample(BaseTable):
         extra_metadata json
     """
     __tablename__ = "sample"
+    __table_args__ = (
+        Index("ix_sample_specimen_id", "specimen_id"),
+        Index("ix_sample_name", "name"),
+    )
 
     specimen_id: Mapped[int] = mapped_column(ForeignKey("specimen.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
@@ -571,6 +594,12 @@ class Readset(BaseTable):
         extra_metadata json
     """
     __tablename__ = "readset"
+    __table_args__ = (
+        Index("ix_readset_sample_id", "sample_id"),
+        Index("ix_readset_experiment_id", "experiment_id"),
+        Index("ix_readset_run_id", "run_id"),
+        Index("ix_readset_name", "name"),
+    )
 
     sample_id: Mapped[int] = mapped_column(ForeignKey("sample.id"), default=None)
     experiment_id: Mapped[int] = mapped_column(ForeignKey("experiment.id"), default=None)
@@ -640,6 +669,11 @@ class Operation(BaseTable):
         extra_metadata json
     """
     __tablename__ = "operation"
+    __table_args__ = (
+        Index("ix_operation_project_id", "project_id"),
+        Index("ix_operation_reference_id", "reference_id"),
+        Index("ix_operation_operation_config_id", "operation_config_id"),
+    )
 
     project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
     operation_config_id: Mapped[int] = mapped_column(ForeignKey("operation_config.id"), default=None, nullable=True)
@@ -811,6 +845,11 @@ class Job(BaseTable):
         extra_metadata json
     """
     __tablename__ = "job"
+    __table_args__ = (
+        Index("ix_job_operation_id", "operation_id"),
+        Index("ix_job_status", "status"),
+        Index("ix_job_name", "name"),
+    )
 
     operation_id: Mapped[int] = mapped_column(ForeignKey("operation.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
@@ -844,6 +883,46 @@ class Job(BaseTable):
         """
         return [r.id if not r.deprecated or not r.deleted else None for r in self.readsets]
 
+    @classmethod
+    def from_attributes(
+        cls,
+        operation,
+        name=None,
+        start=None,
+        stop=None,
+        status=None,
+        type=None,
+        session=None,
+        deprecated=False,
+        deleted=False
+        ):
+        """
+        get job if it exist, set it if it does not exist
+        """
+        if not session:
+            session = database.get_session()
+        job = session.query(cls).filter(
+            cls.operation == operation,
+            cls.name == name,
+            cls.start == start,
+            cls.stop == stop,
+            cls.status == status,
+            cls.type == type,
+            cls.deprecated.is_(deprecated),
+            cls.deleted.is_(deleted)
+        ).first()
+        if not job:
+            job = cls(
+                operation=operation,
+                name=name,
+                start=start,
+                stop=stop,
+                status=status,
+                type=type
+            )
+            session.add(job)
+            session.flush()
+        return job
 
 class Metric(BaseTable):
     """
@@ -862,6 +941,10 @@ class Metric(BaseTable):
         extra_metadata json
     """
     __tablename__ = "metric"
+    __table_args__ = (
+        Index("ix_metric_job_id", "job_id"),
+        Index("ix_metric_name", "name"),
+    )
 
     name: Mapped[str] = mapped_column(nullable=False)
     job_id: Mapped[int] = mapped_column(ForeignKey("job.id"), default=None)
@@ -934,12 +1017,17 @@ class Metric(BaseTable):
         readset = readsets[0]
 
         # Combine checks into a single query
-        metrics = session.query(cls).join(cls.readsets).filter(
-            cls.name == name,
-            cls.deprecated.is_(deprecated),
-            cls.deleted.is_(deleted),
-            Readset.id == readset.id
-        ).all()
+        stmt = (
+            select(cls)
+            .join(cls.readsets)
+            .where(
+                cls.name == name,
+                cls.deprecated.is_(deprecated),
+                cls.deleted.is_(deleted),
+                Readset.id.in_([readset.id])
+            )
+        )
+        metrics = session.execute(stmt).scalars().all()
 
         warning = None
         metric = None
@@ -980,6 +1068,9 @@ class Location(BaseTable):
         extra_metadata json
     """
     __tablename__ = "location"
+    __table_args__ = (
+        Index("ix_location_file_id", "file_id"),
+    )
 
     file_id: Mapped[int] = mapped_column(ForeignKey("file.id"), nullable=False)
     uri: Mapped[str] = mapped_column(nullable=False, unique=True)
@@ -996,11 +1087,15 @@ class Location(BaseTable):
         if not session:
             session = database.get_session()
 
-        location = session.query(cls).filter(
-            cls.uri == uri,
-            cls.deprecated.is_(deprecated),
-            cls.deleted.is_(deleted)
-        ).first()
+        stmt = (
+            select(cls)
+            .where(
+                cls.uri == uri,
+                cls.deprecated.is_(deprecated),
+                cls.deleted.is_(deleted)
+            )
+        )
+        location = session.execute(stmt).scalar_one_or_none()
 
         if not location:
             if endpoint is None:
@@ -1028,6 +1123,10 @@ class File(BaseTable):
         extra_metadata json
     """
     __tablename__ = "file"
+    __table_args__ = (
+        Index("ix_file_name", "name"),
+        Index("ix_file_md5sum", "md5sum"),
+    )
 
     name: Mapped[str] = mapped_column(nullable=False)
     type: Mapped[str] = mapped_column(default=None, nullable=True)
@@ -1095,14 +1194,19 @@ class File(BaseTable):
         job = jobs[0]
 
         # Combine checks into a single query
-        files = session.query(cls).join(cls.readsets).join(cls.jobs).filter(
-            cls.name == name,
-            cls.deprecated.is_(deprecated),
-            cls.deleted.is_(deleted),
-            Readset.id == readset.id,
-            Job.id == job.id
-        ).all()
-
+        stmt = (
+            select(cls)
+            .join(cls.readsets)
+            .join(cls.jobs)
+            .where(
+                cls.name == name,
+                cls.deprecated.is_(deprecated),
+                cls.deleted.is_(deleted),
+                Readset.id.not_in([readset.id]),
+                Job.id.in_([job.id])
+            )
+        )
+        files = session.execute(stmt).scalars().all()
         warning = None
         file = None
         for f in files:
@@ -1112,7 +1216,7 @@ class File(BaseTable):
             if f.md5sum != md5sum:
                 f.deprecated = True
                 warning = f"Warning: File '{name}' already exists for readset '{readset.id}' and job '{job.id}' with a different MD5 checksum (old: '{f.md5sum}', new: '{md5sum}). Deprecating the old file."
-
+        # print(f"File lookup returned {len(files)} entries, selected file: {file}")
         if file:
             # File with the same name and md5sum exists, link to readset and job
             if readset not in file.readsets:
