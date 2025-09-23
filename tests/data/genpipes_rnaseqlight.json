@@ -71,8 +71,8 @@
                     "job": [
                         {
                             "job_name": "trimmomatic",
-                            "job_start": "2023-03-15 00:17:24",
-                            "job_stop": "2023-03-15 00:26:19",
+                            "job_start": "2023-03-15 00:17:23",
+                            "job_stop": "2023-03-15 00:26:18",
                             "job_status": "COMPLETED",
                             "file": [
                                 {
@@ -96,6 +96,61 @@
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.log",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.log"
+                                }
+                            ]
+                        },
+                        {
+                            "job_name": "kallisto",
+                            "job_start": "2023-03-15 14:56:39",
+                            "job_stop": "2023-03-15 18:32:07",
+                            "job_status": "COMPLETED",
+                            "file": [
+                                {
+                                    "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_transcripts.tsv",
+                                    "file_name": "abundance_transcripts.tsv"
+                                },
+                                {
+                                    "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_genes.tsv",
+                                    "file_name": "abundance_genes.tsv"
+                                },
+                                {
+                                    "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/kallisto_quant.log",
+                                    "file_name": "kallisto_quant.log"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "readset_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1",
+                    "job": [
+                        {
+                            "job_name": "trimmomatic",
+                            "job_start": "2023-03-15 00:18:23",
+                            "job_stop": "2023-03-15 00:27:18",
+                            "job_status": "COMPLETED",
+                            "file": [
+                                {
+                                    "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.pair1.fastq.gz",
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.pair1.fastq.gz",
+                                    "file_extra_metadata": {"read_type": "R1"}
+                                },
+                                {
+                                    "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.single1.fastq.gz",
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.single1.fastq.gz"
+                                },
+                                {
+                                    "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.pair2.fastq.gz",
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.pair2.fastq.gz",
+                                    "file_extra_metadata": {"read_type": "R2"}
+                                },
+                                {
+                                    "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.single2.fastq.gz",
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.single2.fastq.gz"
+                                },
+                                {
+                                    "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.log",
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.log"
                                 }
                             ]
                         },
