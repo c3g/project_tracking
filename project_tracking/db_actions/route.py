@@ -97,17 +97,6 @@ def metrics(project_id, session, deliverable=None, specimen_id=None, sample_id=N
         )
     )
 
-    # stmt = (
-    #     select(Metric)
-    #     .where(Metric.deprecated.is_(deprecated), Metric.deleted.is_(deleted))
-    #     .join(Metric.readsets)
-    #     .join(Readset.sample)
-    #     .join(Sample.specimen)
-    #     .join(Specimen.project)
-    #     .where(Project.id.in_(project_id))
-    #     .group_by(Metric.id)
-    # )
-
     if metric_id:
         if isinstance(metric_id, int):
             metric_id = [metric_id]
@@ -361,17 +350,6 @@ def readsets(project_id, session, specimen_id=None, sample_id=None, readset_id=N
             Project.id.in_(project_id)
         )
     )
-
-
-    # stmt = (
-    #     select(Readset)
-    #     .where(Readset.deprecated.is_(deprecated), Readset.deleted.is_(deleted))
-    #     .join(Readset.sample)
-    #     .join(Sample.specimen)
-    #     .join(Specimen.project)
-    #     .where(Project.id.in_(project_id))
-    #     .group_by(Readset.id)
-    # )
 
     if specimen_id:
         if isinstance(specimen_id, int):
