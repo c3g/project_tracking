@@ -90,6 +90,7 @@ LOCATION_DELIVERABLE = "location_deliverable"
 FILE = "file"
 FILE_NAME = "file_name"
 FILE_MD5SUM = "file_md5sum"
+FILE_STATE = "file_state"
 FILE_DELIVERABLE = "file_deliverable"
 FILE_EXTRA_METADATA = "file_extra_metadata"
 # Not sure if coming from JSON?
