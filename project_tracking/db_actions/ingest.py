@@ -153,6 +153,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                         # No need to use .from_attributes because run_processing is ingested only one time for a given Readset
                         file = File(
                             name=file_json[vb.FILE_NAME],
+                            md5sum=file_json.get(vb.FILE_MD5SUM, None),
                             type=file_type,
                             extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
                             deliverable=file_deliverable,
@@ -163,6 +164,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                         # No need to use .from_attributes because run_processing is ingested only one time for a given Readset
                         file = File(
                             name=file_json[vb.FILE_NAME],
+                            md5sum=file_json.get(vb.FILE_MD5SUM, None),
                             type=file_type,
                             deliverable=file_deliverable,
                             readsets=[readset],
@@ -430,6 +432,7 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                                 # Before adding a new file make sure an existing one doesn't exist otherwise update it
                                 file, warning = File.get_or_create(
                                     name=file_json[vb.FILE_NAME],
+                                    md5sum=file_json.get(vb.FILE_MD5SUM, None),
                                     type=file_type,
                                     extra_metadata=file_json[vb.FILE_EXTRA_METADATA],
                                     deliverable=file_deliverable,
@@ -443,6 +446,7 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                                 # Before adding a new file make sure an existing one doesn't exist otherwise update it
                                 file, warning = File.get_or_create(
                                     name=file_json[vb.FILE_NAME],
+                                    md5sum=file_json.get(vb.FILE_MD5SUM, None),
                                     type=file_type,
                                     deliverable=file_deliverable,
                                     readsets=[readset],
