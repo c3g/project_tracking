@@ -229,6 +229,7 @@ class BaseTable(Base):
         dico[self.__tablename__] = {c.key: getattr(self, c.key) for c in self.__table__.columns}
         return dico.__repr__()
 
+    # The following properties are not used for now but kep for legacy until next release
     # @property
     # def dict(self):
     #     """
@@ -922,6 +923,7 @@ class Job(BaseTable):
             )
             session.add(job)
             session.flush()
+        # print(f"Job: {job}")
         return job
 
 class Metric(BaseTable):
@@ -1019,6 +1021,7 @@ class Metric(BaseTable):
         # Combine checks into a single query
         stmt = (
             select(cls)
+            .distinct()
             .join(cls.readsets)
             .where(
                 cls.name == name,
@@ -1090,9 +1093,7 @@ class Location(BaseTable):
         stmt = (
             select(cls)
             .where(
-                cls.uri == uri,
-                cls.deprecated.is_(deprecated),
-                cls.deleted.is_(deleted)
+                cls.uri == uri
             )
         )
         location = session.execute(stmt).scalar_one_or_none()
@@ -1139,17 +1140,25 @@ class File(BaseTable):
     jobs: Mapped[list[Job]] = relationship(secondary=job_file, back_populates="files")
 
     @property
+    def readset_ids(self) -> list[int]:
+        """
+        List of readset ids associated with the metric
+        """
+        return [r.id if not r.deprecated or not r.deleted else None for r in self.readsets]
+
+    @property
     def sample_ids(self) -> list[int]:
         """
-        List of sample ids associated with the file through readsets
+        List of sample ids associated with the metric through readsets
         """
-        return [r.sample.id for r in self.readsets if r.sample]
+        return [r.sample.id if not r.sample.deprecated or not r.sample.deleted else None for r in self.readsets if r.sample]
+
     @property
     def specimen_ids(self) -> list[int]:
         """
-        List of specimen ids associated with the file through readsets and samples
+        List of specimen ids associated with the metric through readsets and samples
         """
-        return [r.sample.specimen.id for r in self.readsets if r.sample and r.sample.specimen]
+        return [r.sample.specimen.id if not r.sample.specimen.deprecated or not r.sample.specimen.deleted else None for r in self.readsets if r.sample and r.sample.specimen]
 
     @classmethod
     def get_or_create(
@@ -1196,17 +1205,18 @@ class File(BaseTable):
         # Combine checks into a single query
         stmt = (
             select(cls)
+            .distinct()
             .join(cls.readsets)
             .join(cls.jobs)
             .where(
                 cls.name == name,
                 cls.deprecated.is_(deprecated),
                 cls.deleted.is_(deleted),
-                Readset.id.not_in([readset.id]),
                 Job.id.in_([job.id])
             )
         )
         files = session.execute(stmt).scalars().all()
+        # print(f"Looking for files with name '{name}' for readset '{readset.id}' and job '{job.id}' found {len(files)} entries: {files}")
         warning = None
         file = None
         for f in files:
@@ -1216,7 +1226,7 @@ class File(BaseTable):
             if f.md5sum != md5sum:
                 f.deprecated = True
                 warning = f"Warning: File '{name}' already exists for readset '{readset.id}' and job '{job.id}' with a different MD5 checksum (old: '{f.md5sum}', new: '{md5sum}). Deprecating the old file."
-        # print(f"File lookup returned {len(files)} entries, selected file: {file}")
+        # print(f"Selecting file: {file}")
         if file:
             # File with the same name and md5sum exists, link to readset and job
             if readset not in file.readsets:
