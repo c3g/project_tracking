@@ -358,8 +358,15 @@ def create_file_schema(include_relationships=True, **kwargs):
             include_fk = True
 
         if include_relationships:
+            readset_ids = fields.Method("get_readset_ids")
             sample_ids = fields.Method("get_sample_ids")
             specimen_ids = fields.Method("get_specimen_ids")
+
+        def get_readset_ids(self, obj):
+            """
+            Get associated readset IDs.
+            """
+            return obj.readset_ids
 
         def get_sample_ids(self, obj):
             """
