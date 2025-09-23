@@ -171,6 +171,12 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                     location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
                     # Before adding a new location for the current File make sure an existing one doesn't exist otherwise update it
                     if location not in file.locations:
+                        if location.deleted:
+                            ret["DB_ACTION_WARNING"].append(f"Existing deleted location found for uri '{location.uri}', undeleting it.")
+                            location.deleted = False
+                        if location.deprecated:
+                            ret["DB_ACTION_WARNING"].append(f"Existing deprecated location found for uri '{location.uri}', undeprecating it.")
+                            location.deprecated = False
                         file.locations.append(location)
                 for metric_json in readset_json[vb.METRIC]:
                     if vb.METRIC_DELIVERABLE in metric_json:
@@ -295,6 +301,12 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
                     raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}'")
 
             new_location = Location.from_uri(uri=dest_uri, file=file, session=session)
+            if new_location.deleted:
+                ret["DB_ACTION_WARNING"].append(f"Existing deleted location found for uri '{new_location.uri}', undeleting it.")
+                new_location.deleted = False
+            if new_location.deprecated:
+                ret["DB_ACTION_WARNING"].append(f"Existing deprecated location found for uri '{new_location.uri}', undeprecating it.")
+                new_location.deprecated = False
             file.jobs.append(job)
             session.add(new_location)
     operation.readsets = readset_list
@@ -405,9 +417,6 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                         session=session
                     )
                     job.readsets = [readset]
-                    # Required to lookup with get_or_create
-                    # session.add(job)
-                    # session.flush()
                     if vb.FILE in job_json:
                         for file_json in job_json[vb.FILE]:
                             suffixes = Path(file_json[vb.FILE_NAME]).suffixes
@@ -445,6 +454,12 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                             location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
                             # Before adding a new location for the current File make sure an existing one doesn't exist otherwise update it
                             if location not in file.locations:
+                                if location.deleted:
+                                    ret["DB_ACTION_WARNING"].append(f"Existing deleted location found for uri '{location.uri}', undeleting it.")
+                                    location.deleted = False
+                                if location.deprecated:
+                                    ret["DB_ACTION_WARNING"].append(f"Existing deprecated location found for uri '{location.uri}', undeprecating it.")
+                                    location.deprecated = False
                                 file.locations.append(location)
                     if vb.METRIC in job_json:
                         for metric_json in job_json[vb.METRIC]:
@@ -465,7 +480,6 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                 # If job status is null then skip it as we don't want to ingest data not generated
                 else:
                     ret["DB_ACTION_WARNING"].append(f"'Readset' with 'name' '{readset.name}' has 'Job' with 'name' '{job_json[vb.JOB_NAME]}' with no status, skipping.")
-
                 try:
                     session.add(job)
                     session.flush()
@@ -572,6 +586,12 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
                 location.deleted = True
 
             new_location = Location.from_uri(uri=dest_uri, file=file, session=session)
+            if new_location.deleted:
+                ret["DB_ACTION_WARNING"].append(f"Existing deleted location found for uri '{new_location.uri}', undeleting it.")
+                new_location.deleted = False
+            if new_location.deprecated:
+                ret["DB_ACTION_WARNING"].append(f"Existing deprecated location found for uri '{new_location.uri}', undeprecating it.")
+                new_location.deprecated = False
             file.jobs.append(job)
             session.add(new_location)
     operation.readsets = readset_list
