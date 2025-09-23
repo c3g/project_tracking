@@ -19,7 +19,8 @@ from ..model import (
     Operation,
     Job,
     Metric,
-    File
+    File,
+    StateEnum
     )
 
 logger = logging.getLogger(__name__)
@@ -139,7 +140,7 @@ def metrics(project_id, session, deliverable=None, specimen_id=None, sample_id=N
     return ret
 
 
-def files(project_id, session, deliverable=None, specimen_id=None, sample_id=None, readset_id=None, file_id=None, deprecated=False, deleted=False):
+def files(project_id, session, deliverable=None, specimen_id=None, sample_id=None, readset_id=None, file_id=None, state=None, deprecated=False, deleted=False):
     """
     Fetching all files that are linked to readset.
     """
@@ -189,6 +190,9 @@ def files(project_id, session, deliverable=None, specimen_id=None, sample_id=Non
     if deliverable is not None:
         # Filter files based on deliverable status
         stmt = stmt.where(File.deliverable.is_(deliverable))
+    if state is not None:
+        # Filter files based on state
+        stmt = stmt.where(File.state.is_(StateEnum(state)))
 
     # logger.debug(str(stmt.compile(compile_kwargs={"literal_binds": True})))
 
@@ -198,6 +202,7 @@ def files(project_id, session, deliverable=None, specimen_id=None, sample_id=Non
         ret["DB_ACTION_WARNING"].append(
             f"No files found with the following criteria: "
             f"project_id={project_id}, "
+            f"state={state}, "
             f"deliverable={deliverable}, "
             f"specimen_id={specimen_id}, "
             f"sample_id={sample_id}, "
