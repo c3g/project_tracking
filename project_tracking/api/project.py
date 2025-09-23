@@ -283,7 +283,7 @@ def projects(project_id=None):
     The project_name query allows to get all projects labelled with a specific name
         (name):
             return: a subset of projects who have the name
-            Ex: /project?json={"project_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project?json={"project_name": "<NAME1>,<NAME2>,..."}
     If project_id is provided, it will return the project with that ID.
     If project_name is provided in digest_data, it will convert the name to an ID.
     If no project_id or project_name is provided, it will return all projects.
@@ -326,17 +326,17 @@ def specimens(project_id: str, specimen_id: str=None, sample_id: str=None, reads
     The specimen_name query allows to get all specimens labelled with a specific name
         (name):
             return: a subset of specimens who have the name
-            Ex: /project/<project>/specimens?json={"specimen_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/specimens?json={"specimen_name": "<NAME1>,<NAME2>,..."}
     (sample_name):
     The sample_name query allows to get all specimens belonging to a specific sample
         (name):
             return: a subset of specimens who have the sample name
-            Ex: /project/<project>/specimens?json={"sample_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/specimens?json={"sample_name": "<NAME1>,<NAME2>,..."}
     (readset_name):
     The readset_name query allows to get all specimens belonging to a specific readset
         (name):
             return: a subset of specimens who have the readset name
-            Ex: /project/<project>/specimens?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/specimens?json={"readset_name": "<NAME1>,<NAME2>,..."}
     (include_relationships):
     The include_relationships query allows to include related entities in the output
         (true):
@@ -418,17 +418,17 @@ def samples(project_id: str, specimen_id: str=None, sample_id: str=None, readset
     The sample_name query allows to get all samples labelled with a specific name
         (name):
             return: a subset of samples who have the name
-            Ex: /project/<project>/samples?json={"sample_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/samples?json={"sample_name": "<NAME1>,<NAME2>,..."}
     (specimen_name):
     The specimen_name query allows to get all samples belonging to a specific specimen
         (name):
             return: a subset of samples who have the specimen name
-            Ex: /project/<project>/samples?json={"specimen_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/samples?json={"specimen_name": "<NAME1>,<NAME2>,..."}
     (readset_name):
     The readset_name query allows to get all samples belonging to a specific readset
         (name):
             return: a subset of samples who have the readset name
-            Ex: /project/<project>/samples?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/samples?json={"readset_name": "<NAME1>,<NAME2>,..."}
     (pair):
     The pair query allows to get all samples that are paired
         (true):
@@ -539,17 +539,17 @@ def readsets(project_id: str, specimen_id: str=None, sample_id: str=None, readse
     The readset_name query allows to get all readsets labelled with a specific name
         (name):
             return: a subset of readsets who have the name
-            Ex: /project/<project>/readsets?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/readsets?json={"readset_name": "<NAME1>,<NAME2>,..."}
     (sample_name):
     The sample_name query allows to get all readsets belonging to a specific sample
         (name):
             return: a subset of readsets who have the sample name
-            Ex: /project/<project>/readsets?json={"sample_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/readsets?json={"sample_name": "<NAME1>,<NAME2>,..."}
     (specimen_name):
     The specimen_name query allows to get all readsets belonging to a specific specimen
         (name):
             return: a subset of readsets who have the specimen name
-            Ex: /project/<project>/readsets?json={"specimen_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/readsets?json={"specimen_name": "<NAME1>,<NAME2>,..."}
     (include_relationships):
     The include_relationships query allows to include related entities in the output
         (true):
@@ -629,12 +629,12 @@ def operations(project_id: str, readset_id: str=None, operation_id: str=None, di
     The operation_name query allows to get all operations labelled with a specific name
         (name):
             return: a subset of operations who have the name
-            Ex: /project/<project>/operations?json={"operation_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/operations?json={"operation_name": "<NAME1>,<NAME2>,..."}
     (readset_name):
     The readset_name query allows to get all operations belonging to a specific readset
         (name):
             return: a subset of operations who have the readset name
-            Ex: /project/<project>/operations?json={"readset_name":  "<NAME1>,<NAME2>,..."}\
+            Ex: /project/<project>/operations?json={"readset_name": "<NAME1>,<NAME2>,..."}\
     (include_relationships):
     The include_relationships query allows to include related entities in the output
         (true):
@@ -705,12 +705,12 @@ def jobs(project_id: str, readset_id: str=None, job_id: str=None, digest_data=No
     The job_name query allows to get all jobs labelled with a specific name
         (name):
             return: a subset of jobs who have the name
-            Ex: /project/<project>/jobs?json={"job_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/jobs?json={"job_name": "<NAME1>,<NAME2>,..."}
     (readset_name):
     The readset_name query allows to get all jobs belonging to a specific readset
         (name):
             return: a subset of jobs who have the readset name
-            Ex: /project/<project>/jobs?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/jobs?json={"readset_name": "<NAME1>,<NAME2>,..."}
     (include_relationships):
     The include_relationships query allows to include related entities in the output
         (true):
@@ -768,7 +768,7 @@ def jobs(project_id: str, readset_id: str=None, job_id: str=None, digest_data=No
 @bp.route('/<string:project>/samples/<string:sample_id>/files', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/files', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"file_name", "specimen_name", "sample_name", "readset_name", "deliverable", "include_relationships"})
+@parse_json_get(expected_keys={"file_name", "specimen_name", "sample_name", "readset_name", "deliverable", "state", "include_relationships"})
 def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, file_id: str=None, digest_data=None):
     """
     GET:
@@ -791,26 +791,31 @@ def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_i
         (false):
             return: a subset of metrics who have Deliverable=True
             Ex: /project/<project>/files?json={"deliverable": "false"}
+    (state):
+    The state query allows to get all files with a specific state
+        (state):
+            return: a subset of files who have the state VALID, ON_HOLD, INVALID or DELIVERED
+            Ex: /project/<project>/files?json={"state": "<STATE>"}
     (file_name):
     The file_name query allows to get all files labelled with a specific name
         (name):
             return: a subset of files who have the name
-            Ex: /project/<project>/files?json={"file_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/files?json={"file_name": "<NAME1>,<NAME2>,..."}
     (specimen_name):
     The specimen_name query allows to get all files belonging to a specific specimen
         (name):
             return: a subset of files who have the specimen name
-            Ex: /project/<project>/files?json={"specimen_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/files?json={"specimen_name": "<NAME1>,<NAME2>,..."}
     (sample_name):
     The sample_name query allows to get all files belonging to a specific sample
         (name):
             return: a subset of files who have the sample name
-            Ex: /project/<project>/files?json={"sample_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/files?json={"sample_name": "<NAME1>,<NAME2>,..."}
     (readset_name):
     The readset_name query allows to get all files belonging to a specific readset
         (name):
             return: a subset of files who have the readset name
-            Ex: /project/<project>/files?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/files?json={"readset_name": "<NAME1>,<NAME2>,..."}
     (include_relationships):
     The include_relationships query allows to include related entities in the output
         (true):
@@ -824,8 +829,10 @@ def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_i
     include_relationships = False
     # Read digest_data for filtering
     deliverable = None
+    state = None
     if digest_data:
         deliverable = bool(digest_data.get("deliverable"))
+        state = digest_data.get("state")
         file_name = digest_data.get("file_name")
         specimen_name = digest_data.get("specimen_name")
         sample_name = digest_data.get("sample_name")
@@ -878,6 +885,7 @@ def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_i
         sample_id=sample_id,
         readset_id=readset_id,
         deliverable=deliverable,
+        state=state,
         include_relationships=include_relationships
         )
 
@@ -917,22 +925,22 @@ def metrics(project_id: str, specimen_id: str=None, sample_id: str=None, readset
     The metric_name query allows to get all metrics labelled with a specific name
         (name):
             return: a subset of metrics who have the name
-            Ex: /project/<project>/metrics?json={"metric_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/metrics?json={"metric_name": "<NAME1>,<NAME2>,..."}
     (specimen_name):
     The specimen_name query allows to get all metrics belonging to a specific specimen
         (name):
             return: a subset of metrics who have the specimen name
-            Ex: /project/<project>/metrics?json={"specimen_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/metrics?json={"specimen_name": "<NAME1>,<NAME2>,..."}
     (sample_name):
     The sample_name query allows to get all metrics belonging to a specific sample
         (name):
             return: a subset of metrics who have the sample name
-            Ex: /project/<project>/metrics?json={"sample_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/metrics?json={"sample_name": "<NAME1>,<NAME2>,..."}
     (readset_name):
     The readset_name query allows to get all metrics belonging to a specific readset
         (name):
             return: a subset of metrics who have the readset name
-            Ex: /project/<project>/metrics?json={"readset_name":  "<NAME1>,<NAME2>,..."}
+            Ex: /project/<project>/metrics?json={"readset_name": "<NAME1>,<NAME2>,..."}
     (include_relationships):
     The include_relationships query allows to include related entities in the output
         (true):
