@@ -196,7 +196,8 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                         deliverable=metric_deliverable,
                         job=job,
                         readsets=[readset],
-                        session=session
+                        session=session,
+                        dont_merge=True
                         )
                     if warning:
                         ret["DB_ACTION_WARNING"].append(warning)
@@ -418,7 +419,8 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                         operation=operation,
                         session=session
                     )
-                    job.readsets = [readset]
+                    if readset not in job.readsets:
+                        job.readsets.append(readset)
                     if vb.FILE in job_json:
                         for file_json in job_json[vb.FILE]:
                             suffixes = Path(file_json[vb.FILE_NAME]).suffixes
@@ -470,7 +472,7 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                             metric_deliverable = metric_json.get(vb.METRIC_DELIVERABLE, False)
                             metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG]) if vb.METRIC_FLAG in metric_json else None
                             # Before adding a new metric for the current Readset make sure an existing one doesn't exist otherwise update it
-                            _, warning = Metric.get_or_create(
+                            metric, warning = Metric.get_or_create(
                                 name=metric_json[vb.METRIC_NAME],
                                 value=metric_json[vb.METRIC_VALUE],
                                 flag=metric_flag,
@@ -481,6 +483,8 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                             )
                             if warning:
                                 ret["DB_ACTION_WARNING"].append(warning)
+                            if metric not in job.metrics:
+                                job.metrics.append(metric)
                 # If job status is null then skip it as we don't want to ingest data not generated
                 else:
                     ret["DB_ACTION_WARNING"].append(f"'Readset' with 'name' '{readset.name}' has 'Job' with 'name' '{job_json[vb.JOB_NAME]}' with no status, skipping.")
