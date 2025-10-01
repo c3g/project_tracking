@@ -5,7 +5,7 @@ DECLARE
     -- general
     total_missing_loc INT;
 
-    -- dedup / remap
+    -- dedup / remap (files)
     dedup_candidates INT := 0;
     dedup_mapping_pairs INT := 0;
     dedup_inserted_remaps INT := 0;
@@ -18,12 +18,12 @@ DECLARE
     job_only_deleted_jobfile INT := 0;
     job_only_deleted_file INT := 0;
 
-    -- investigation
+    -- investigation (files)
     readset_no_loc_count INT := 0;
     rescued_strict_count INT := 0;
     rescued_loose_count INT := 0;
 
-    -- rescue action counts
+    -- rescue action counts (files)
     rescue_inserted_remaps INT := 0;
     rescue_deleted_old_rf INT := 0;
     rescue_deleted_jobfile INT := 0;
@@ -34,6 +34,21 @@ DECLARE
     orphan_metrics_kept INT := 0;
     orphan_jobs_deleted INT := 0;
     orphan_ops_deleted INT := 0;
+
+    -- JOB deduplication counters
+    job_groups_count INT := 0;
+    job_remap_inserted_readset_job INT := 0;
+    job_readset_deleted_count INT := 0;
+    jobfile_inserted_count INT := 0;
+    jobfile_deleted_count INT := 0;
+    metrics_remapped_count INT := 0;
+    jobs_deleted_count INT := 0;
+
+    -- METRIC deduplication counters
+    metric_groups_count INT := 0;
+    readset_metric_inserted_count INT := 0;
+    readset_metric_deleted_count INT := 0;
+    metrics_deleted_count INT := 0;
 BEGIN
     RAISE NOTICE '--- Starting merged cleanup + rescue transaction ---';
 
@@ -215,10 +230,6 @@ BEGIN
 
     ----------------------------------------------------------------------
     -- Step 4: Automatic rescue/remap for rescued_loose (controlled, constrained)
-    --   - insert readset->located file mapping if missing
-    --   - delete old readset->remove_file mapping
-    --   - delete job_file for remove_file
-    --   - delete remove_file rows
     ----------------------------------------------------------------------
     IF (rescued_loose_count > 0) THEN
         RAISE NOTICE 'Step 4: Performing automatic rescue/remap for loose-rescuable cases: % items', rescued_loose_count;
@@ -232,10 +243,7 @@ BEGIN
         INSERT INTO readset_file (readset_id, file_id)
         SELECT ra.readset_id, ra.located_file_id
         FROM rescue_actions ra
-        LEFT JOIN readset_file rf_check
-               ON rf_check.readset_id = ra.readset_id
-              AND rf_check.file_id = ra.located_file_id
-        WHERE rf_check.readset_id IS NULL;
+        ON CONFLICT (readset_id, file_id) DO NOTHING;
         GET DIAGNOSTICS rescue_inserted_remaps = ROW_COUNT;
         RAISE NOTICE 'Inserted readset->located_file mappings (rescue): %', rescue_inserted_remaps;
 
@@ -325,6 +333,115 @@ BEGIN
     RAISE NOTICE 'Deleted orphan operations: %', orphan_ops_deleted;
 
     ----------------------------------------------------------------------
+    -- Step 6: Deduplicate jobs (same operation_id + name + start + stop)
+    ----------------------------------------------------------------------
+    RAISE NOTICE 'Step 6: Deduplicating jobs (same op+name+start+stop)...';
+
+    CREATE TEMP TABLE job_groups ON COMMIT DROP AS
+    SELECT operation_id, name, start, stop,
+           MIN(id) AS keep_job_id,
+           ARRAY_AGG(id) AS all_job_ids
+    FROM job
+    GROUP BY operation_id, name, start, stop
+    HAVING COUNT(*) > 1;
+
+    SELECT COUNT(*) INTO job_groups_count FROM job_groups;
+    RAISE NOTICE 'Job groups to dedupe: %', job_groups_count;
+
+    -- Remap readset_job: insert target mapping and remove old ones
+    INSERT INTO readset_job (readset_id, job_id)
+    SELECT DISTINCT rj.readset_id, jg.keep_job_id
+    FROM readset_job rj
+    JOIN job_groups jg ON rj.job_id = ANY(jg.all_job_ids)
+    WHERE rj.job_id <> jg.keep_job_id
+    ON CONFLICT (readset_id, job_id) DO NOTHING;
+    GET DIAGNOSTICS job_remap_inserted_readset_job = ROW_COUNT;
+    RAISE NOTICE 'Inserted remapped readset_job rows: %', job_remap_inserted_readset_job;
+
+    DELETE FROM readset_job rj
+    USING job_groups jg
+    WHERE rj.job_id = ANY(jg.all_job_ids)
+      AND rj.job_id <> jg.keep_job_id;
+    GET DIAGNOSTICS job_readset_deleted_count = ROW_COUNT;
+    RAISE NOTICE 'Deleted old readset_job rows for duplicates: %', job_readset_deleted_count;
+
+    -- Remap job_file: insert keep mapping then delete old
+    INSERT INTO job_file (job_id, file_id)
+    SELECT DISTINCT jg.keep_job_id, jf.file_id
+    FROM job_file jf
+    JOIN job_groups jg ON jf.job_id = ANY(jg.all_job_ids)
+    WHERE jf.job_id <> jg.keep_job_id
+    ON CONFLICT (job_id, file_id) DO NOTHING;
+    GET DIAGNOSTICS jobfile_inserted_count = ROW_COUNT;
+    RAISE NOTICE 'Inserted remapped job_file rows: %', jobfile_inserted_count;
+
+    DELETE FROM job_file jf
+    USING job_groups jg
+    WHERE jf.job_id = ANY(jg.all_job_ids)
+      AND jf.job_id <> jg.keep_job_id;
+    GET DIAGNOSTICS jobfile_deleted_count = ROW_COUNT;
+    RAISE NOTICE 'Deleted old job_file rows for duplicates: %', jobfile_deleted_count;
+
+    -- Remap metrics to keep_job_id
+    UPDATE metric m
+    SET job_id = jg.keep_job_id
+    FROM job_groups jg
+    WHERE m.job_id = ANY(jg.all_job_ids)
+      AND m.job_id <> jg.keep_job_id;
+    GET DIAGNOSTICS metrics_remapped_count = ROW_COUNT;
+    RAISE NOTICE 'Remapped metrics to keep_job_id: %', metrics_remapped_count;
+
+    -- Delete duplicate job rows (keep the keep_job_id)
+    DELETE FROM job j
+    USING job_groups jg
+    WHERE j.id = ANY(jg.all_job_ids)
+      AND j.id <> jg.keep_job_id;
+    GET DIAGNOSTICS jobs_deleted_count = ROW_COUNT;
+    RAISE NOTICE 'Deleted duplicate job rows: %', jobs_deleted_count;
+
+    ----------------------------------------------------------------------
+    -- Step 7: Deduplicate metrics (same job_id + name + value) AFTER job dedup
+    ----------------------------------------------------------------------
+    RAISE NOTICE 'Step 7: Deduplicating metrics (same job+name+value after job dedup)...';
+
+    CREATE TEMP TABLE metric_groups ON COMMIT DROP AS
+    SELECT job_id, name, value,
+           MIN(id) AS keep_metric_id,
+           ARRAY_AGG(id) AS all_metric_ids
+    FROM metric
+    GROUP BY job_id, name, value
+    HAVING COUNT(*) > 1;
+
+    SELECT COUNT(*) INTO metric_groups_count FROM metric_groups;
+    RAISE NOTICE 'Metric groups to dedupe: %', metric_groups_count;
+
+    -- Remap readset_metric: insert mapping to keep_metric_id if not present
+    INSERT INTO readset_metric (readset_id, metric_id)
+    SELECT DISTINCT rm.readset_id, mg.keep_metric_id
+    FROM readset_metric rm
+    JOIN metric_groups mg ON rm.metric_id = ANY(mg.all_metric_ids)
+    WHERE rm.metric_id <> mg.keep_metric_id
+    ON CONFLICT (readset_id, metric_id) DO NOTHING;
+    GET DIAGNOSTICS readset_metric_inserted_count = ROW_COUNT;
+    RAISE NOTICE 'Inserted remapped readset_metric rows: %', readset_metric_inserted_count;
+
+    -- Delete old readset_metric entries that referenced duplicate metrics
+    DELETE FROM readset_metric rm
+    USING metric_groups mg
+    WHERE rm.metric_id = ANY(mg.all_metric_ids)
+      AND rm.metric_id <> mg.keep_metric_id;
+    GET DIAGNOSTICS readset_metric_deleted_count = ROW_COUNT;
+    RAISE NOTICE 'Deleted old readset_metric rows for duplicates: %', readset_metric_deleted_count;
+
+    -- Finally, delete duplicate metric rows (keep the keep_metric_id)
+    DELETE FROM metric m
+    USING metric_groups mg
+    WHERE m.id = ANY(mg.all_metric_ids)
+      AND m.id <> mg.keep_metric_id;
+    GET DIAGNOSTICS metrics_deleted_count = ROW_COUNT;
+    RAISE NOTICE 'Deleted duplicate metric rows: %', metrics_deleted_count;
+
+    ----------------------------------------------------------------------
     -- Final summary
     ----------------------------------------------------------------------
     RAISE NOTICE '--- Final summary ---';
@@ -335,8 +452,14 @@ BEGIN
     RAISE NOTICE 'Readset-linked no-strict-dup count: % ; rescued_strict: % ; rescued_loose_found: %', readset_no_loc_count, rescued_strict_count, rescued_loose_count;
     RAISE NOTICE 'Rescue actions: inserted remaps: % ; deleted old rf: % ; deleted jobfile: % ; deleted files: %', rescue_inserted_remaps, rescue_deleted_old_rf, rescue_deleted_jobfile, rescue_deleted_files;
     RAISE NOTICE 'Orphan metrics deleted: % ; orphan metrics kept: % ; orphan jobs deleted: % ; orphan ops deleted: %', orphan_metrics_deleted, orphan_metrics_kept, orphan_jobs_deleted, orphan_ops_deleted;
-    RAISE NOTICE '--- End of cleanup + rescue transaction ---';
 
+    RAISE NOTICE 'Job dedup: groups: % ; readset_job inserted remaps: % ; readset_job deleted old: % ; job_file inserted remaps: % ; job_file deleted old: % ; metrics remapped: % ; jobs deleted: %',
+        job_groups_count, job_remap_inserted_readset_job, job_readset_deleted_count, jobfile_inserted_count, jobfile_deleted_count, metrics_remapped_count, jobs_deleted_count;
+
+    RAISE NOTICE 'Metric dedup: groups: % ; readset_metric inserted remaps: % ; readset_metric deleted old: % ; metrics deleted: %',
+        metric_groups_count, readset_metric_inserted_count, readset_metric_deleted_count, metrics_deleted_count;
+
+    RAISE NOTICE '--- End of cleanup + rescue transaction ---';
 END $$;
 
 COMMIT;
