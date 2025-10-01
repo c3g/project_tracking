@@ -353,7 +353,7 @@ def specimens(project_id: str, specimen_id: str=None, sample_id: str=None, reads
         specimen_name = digest_data.get("specimen_name")
         sample_name = digest_data.get("sample_name")
         readset_name = digest_data.get("readset_name")
-        include_relationships = bool(digest_data.get("include_relationships", False))
+        include_relationships = bool(digest_data.get("include_relationships"))
         if specimen_name:
             names = parse_names(specimen_name)
             ids = db_actions.name_to_id("Specimen", names)
@@ -460,12 +460,16 @@ def samples(project_id: str, specimen_id: str=None, sample_id: str=None, readset
     pair = None
     tumour = None
     if digest_data:
-        pair = bool(digest_data.get("pair"))
-        tumour = bool(digest_data.get("tumour", digest_data.get("tumor")))
+        pair = digest_data.get("pair")
+        if pair is not None:
+            pair = bool(pair)
+        tumour = digest_data.get("tumour", digest_data.get("tumor"))
+        if tumour is not None:
+            tumour = bool(tumour)
         specimen_name = digest_data.get("specimen_name")
         sample_name = digest_data.get("sample_name")
         readset_name = digest_data.get("readset_name")
-        include_relationships = bool(digest_data.get("include_relationships", False))
+        include_relationships = bool(digest_data.get("include_relationships"))
         if readset_name:
             names = parse_names(readset_name)
             ids = db_actions.name_to_id("Readset", names)
@@ -831,7 +835,9 @@ def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_i
     deliverable = None
     state = None
     if digest_data:
-        deliverable = bool(digest_data.get("deliverable"))
+        deliverable = digest_data.get("deliverable")
+        if deliverable is not None:
+            deliverable = bool(deliverable)
         state = digest_data.get("state")
         file_name = digest_data.get("file_name")
         specimen_name = digest_data.get("specimen_name")
@@ -954,7 +960,9 @@ def metrics(project_id: str, specimen_id: str=None, sample_id: str=None, readset
     # Read digest_data for filtering
     deliverable = None
     if digest_data:
-        deliverable = bool(digest_data.get("deliverable"))
+        deliverable = digest_data.get("deliverable")
+        if deliverable is not None:
+            deliverable = bool(deliverable)
         metric_name = digest_data.get("metric_name")
         specimen_name = digest_data.get("specimen_name")
         sample_name = digest_data.get("sample_name")
