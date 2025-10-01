@@ -118,7 +118,7 @@ def metrics(project_id, session, deliverable=None, specimen_id=None, sample_id=N
         # Filter metrics based on deliverable status
         stmt = stmt.where(Metric.deliverable.is_(deliverable))
 
-    result = session.execute(stmt).scalars().all()
+    result = list({metric.id: metric for metric in session.execute(stmt).scalars()}.values())
 
     if not result:
         ret["DB_ACTION_WARNING"].append(

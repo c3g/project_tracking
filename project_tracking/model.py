@@ -923,7 +923,7 @@ class Job(BaseTable):
             )
             session.add(job)
             session.flush()
-        # print(f"Job: {job}")
+
         return job
 
 class Metric(BaseTable):
@@ -990,7 +990,8 @@ class Metric(BaseTable):
         job=None,
         session=None,
         deprecated=False,
-        deleted=False
+        deleted=False,
+        dont_merge=False
         ):
         """
         Retrieve or create a metric based on the provided name and value.
@@ -1015,19 +1016,29 @@ class Metric(BaseTable):
         if session is None:
             session = database.get_session()
 
+
         # Assuming readsets contains a single unique readset
         readset = readsets[0]
+
+        # If dont_merge is True, always create a new metric
+        if dont_merge:
+            metric = cls(name=name, value=value, flag=flag, deliverable=deliverable, job=job, readsets=readsets)
+            session.add(metric)
+            session.flush()
+            return metric, None
 
         # Combine checks into a single query
         stmt = (
             select(cls)
             .distinct()
             .join(cls.readsets)
+            .join(cls.job)
             .where(
                 cls.name == name,
                 cls.deprecated.is_(deprecated),
                 cls.deleted.is_(deleted),
-                Readset.id.in_([readset.id])
+                Job.id.is_(job.id)
+                # Readset.id.in_([readset.id])
             )
         )
         metrics = session.execute(stmt).scalars().all()
@@ -1054,58 +1065,6 @@ class Metric(BaseTable):
             session.flush()
 
         return metric, warning
-
-
-class Location(BaseTable):
-    """
-    Uri:
-        id integer [PK]
-        file_id integer [ref: > file.id]
-        uri text
-        endpoint text
-        deliverable boolean
-        deprecated boolean
-        deleted boolean
-        creation timestamp
-        modification timestamp
-        extra_metadata json
-    """
-    __tablename__ = "location"
-    __table_args__ = (
-        Index("ix_location_file_id", "file_id"),
-    )
-
-    file_id: Mapped[int] = mapped_column(ForeignKey("file.id"), nullable=False)
-    uri: Mapped[str] = mapped_column(nullable=False, unique=True)
-    endpoint: Mapped[str] = mapped_column(nullable=False)
-    deliverable: Mapped[bool] = mapped_column(default=False)
-
-    file: Mapped[File] = relationship(back_populates="locations")
-
-    @classmethod
-    def from_uri(cls, uri, file, endpoint=None, session=None, deprecated=False, deleted=False):
-        """
-        Sets endpoint from uri
-        """
-        if not session:
-            session = database.get_session()
-
-        stmt = (
-            select(cls)
-            .where(
-                cls.uri == uri
-            )
-        )
-        location = session.execute(stmt).scalar_one_or_none()
-
-        if not location:
-            if endpoint is None:
-                endpoint = uri.split(':///')[0]
-            location = cls(uri=uri, file=file, endpoint=endpoint)
-            session.add(location)
-            session.flush()
-
-        return location
 
 
 class File(BaseTable):
@@ -1216,7 +1175,6 @@ class File(BaseTable):
             )
         )
         files = session.execute(stmt).scalars().all()
-        # print(f"Looking for files with name '{name}' for readset '{readset.id}' and job '{job.id}' found {len(files)} entries: {files}")
         warning = None
         file = None
         for f in files:
@@ -1226,7 +1184,6 @@ class File(BaseTable):
             if f.md5sum != md5sum:
                 f.deprecated = True
                 warning = f"Warning: File '{name}' already exists for readset '{readset.id}' and job '{job.id}' with a different MD5 checksum (old: '{f.md5sum}', new: '{md5sum}). Deprecating the old file."
-        # print(f"Selecting file: {file}")
         if file:
             # File with the same name and md5sum exists, link to readset and job
             if readset not in file.readsets:
@@ -1240,3 +1197,55 @@ class File(BaseTable):
             session.flush()
 
         return file, warning
+
+
+class Location(BaseTable):
+    """
+    Uri:
+        id integer [PK]
+        file_id integer [ref: > file.id]
+        uri text
+        endpoint text
+        deliverable boolean
+        deprecated boolean
+        deleted boolean
+        creation timestamp
+        modification timestamp
+        extra_metadata json
+    """
+    __tablename__ = "location"
+    __table_args__ = (
+        Index("ix_location_file_id", "file_id"),
+    )
+
+    file_id: Mapped[int] = mapped_column(ForeignKey("file.id"), nullable=False)
+    uri: Mapped[str] = mapped_column(nullable=False, unique=True)
+    endpoint: Mapped[str] = mapped_column(nullable=False)
+    deliverable: Mapped[bool] = mapped_column(default=False)
+
+    file: Mapped[File] = relationship(back_populates="locations")
+
+    @classmethod
+    def from_uri(cls, uri, file, endpoint=None, session=None, deprecated=False, deleted=False):
+        """
+        Sets endpoint from uri
+        """
+        if not session:
+            session = database.get_session()
+
+        stmt = (
+            select(cls)
+            .where(
+                cls.uri == uri
+            )
+        )
+        location = session.execute(stmt).scalar_one_or_none()
+
+        if not location:
+            if endpoint is None:
+                endpoint = uri.split(':///')[0]
+            location = cls(uri=uri, file=file, endpoint=endpoint)
+            session.add(location)
+            session.flush()
+
+        return location
