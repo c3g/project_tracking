@@ -332,8 +332,62 @@ BEGIN
     GET DIAGNOSTICS orphan_ops_deleted = ROW_COUNT;
     RAISE NOTICE 'Deleted orphan operations: %', orphan_ops_deleted;
 
+	----------------------------------------------------------------------
+	-- Step 6: Deduplicate operations (run_processing + transfer)
+	----------------------------------------------------------------------
+	RAISE NOTICE 'Step 6: Deduplicating operations (run_processing + transfer)...';
+	
+	-- Identify duplicate operations (same name, cmd_line, platform, operation_config_id)
+	CREATE TEMP TABLE operation_duplicates ON COMMIT DROP AS
+	SELECT o.id AS op_id,
+	       MIN(o.id) OVER (PARTITION BY o.name, o.cmd_line, o.platform, o.operation_config_id) AS keep_op_id
+	FROM operation o
+	WHERE o.name IN ('run_processing', 'transfer');
+	
+	-- Count of operation groups to dedupe
+	SELECT COUNT(DISTINCT keep_op_id) INTO total_missing_loc
+	FROM operation_duplicates
+	WHERE keep_op_id <> op_id;
+	RAISE NOTICE 'Operation groups to dedupe: %', total_missing_loc;
+	
+	-- 1. Delete conflicting readset_operation rows before remapping
+	DELETE FROM readset_operation ro
+	USING operation_duplicates od
+	WHERE ro.operation_id = od.op_id
+	  AND EXISTS (
+	      SELECT 1
+	      FROM readset_operation ro2
+	      WHERE ro2.readset_id = ro.readset_id
+	        AND ro2.operation_id = od.keep_op_id
+	  );
+	
+	-- 2. Update readset_operation safely
+	UPDATE readset_operation ro
+	SET operation_id = od.keep_op_id
+	FROM operation_duplicates od
+	WHERE ro.operation_id = od.op_id
+	  AND ro.operation_id <> od.keep_op_id;
+	
+	-- 3. Update job.operation_id
+	UPDATE job j
+	SET operation_id = od.keep_op_id
+	FROM operation_duplicates od
+	WHERE j.operation_id = od.op_id
+	  AND j.operation_id <> od.keep_op_id;
+	
+	-- 4. Delete duplicate operations
+	DELETE FROM operation o
+	WHERE o.id IN (
+	    SELECT op_id
+	    FROM operation_duplicates
+	    WHERE keep_op_id <> op_id
+	);
+	
+	RAISE NOTICE 'Duplicate operations collapsed into canonical entries.';
+
+
     ----------------------------------------------------------------------
-    -- Step 6: Deduplicate jobs (same operation_id + name + start + stop)
+    -- Step 7: Deduplicate jobs (same operation_id + name + start + stop)
     ----------------------------------------------------------------------
     RAISE NOTICE 'Step 6: Deduplicating jobs (same op+name+start+stop)...';
 
@@ -400,7 +454,7 @@ BEGIN
     RAISE NOTICE 'Deleted duplicate job rows: %', jobs_deleted_count;
 
     ----------------------------------------------------------------------
-    -- Step 7: Deduplicate metrics (same job_id + name + value) AFTER job dedup
+    -- Step 8: Deduplicate metrics (same job_id + name + value) AFTER job dedup
     ----------------------------------------------------------------------
     RAISE NOTICE 'Step 7: Deduplicating metrics (same job+name+value after job dedup)...';
 
