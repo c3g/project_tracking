@@ -497,6 +497,7 @@ class Experiment(BaseTable):
         """
         get experiment if it exist, set it if it does not exist
         """
+        warning = None
         if not session:
             session = database.get_session()
         experiment = session.query(cls).filter(
@@ -509,6 +510,9 @@ class Experiment(BaseTable):
             cls.deleted.is_(deleted)
         ).first()
 
+        if experiment:
+            warning = f"Experiment with id {experiment.id} already exists, informations will be attached to this one."
+
         if not experiment:
             experiment = cls(
                 sequencing_technology=sequencing_technology,
@@ -520,7 +524,7 @@ class Experiment(BaseTable):
             session.add(experiment)
             session.flush()
 
-        return experiment
+        return experiment, warning
 
 class Run(BaseTable):
     """
@@ -548,6 +552,7 @@ class Run(BaseTable):
         """
         get run if it exist, set it if it does not exist
         """
+        warning = None
         if not session:
             session = database.get_session()
         run = session.query(cls).filter(
@@ -560,6 +565,9 @@ class Run(BaseTable):
             cls.deleted.is_(deleted)
         ).first()
 
+        if run:
+            warning = f"Run with id {run.id} already exists, informations will be attached to this one."
+
         if not run:
             run = cls(
                 ext_id=ext_id,
@@ -571,7 +579,7 @@ class Run(BaseTable):
             session.add(run)
             session.flush()
 
-        return run
+        return run, warning
 
 
 class Readset(BaseTable):
@@ -700,8 +708,8 @@ class Operation(BaseTable):
     @classmethod
     def from_attributes(
         cls,
-        operation_config,
         project,
+        operation_config=None,
         reference=None,
         platform=None,
         cmd_line=None,
@@ -803,6 +811,7 @@ class OperationConfig(BaseTable):
         """
         get operation_config if it exist, set it if it does not exist
         """
+        warning = None
         if not session:
             session = database.get_session()
         # Use ORM query
@@ -815,6 +824,9 @@ class OperationConfig(BaseTable):
             cls.deleted.is_(deleted)
         ).first()
 
+        if operation_config:
+            warning = f"OperationConfig with id {operation_config.id} already exists, informations will be attached to this one."
+
         if not operation_config:
             operation_config = cls(
                 name=name,
@@ -825,7 +837,7 @@ class OperationConfig(BaseTable):
             session.add(operation_config)
             session.flush()
 
-        return operation_config
+        return operation_config, warning
 
 
 class Job(BaseTable):
@@ -900,6 +912,7 @@ class Job(BaseTable):
         """
         get job if it exist, set it if it does not exist
         """
+        warning = None
         if not session:
             session = database.get_session()
         job = session.query(cls).filter(
@@ -912,6 +925,10 @@ class Job(BaseTable):
             cls.deprecated.is_(deprecated),
             cls.deleted.is_(deleted)
         ).first()
+
+        if job:
+            warning = f"Job with id {job.id} already exists, informations will be attached to this one."
+
         if not job:
             job = cls(
                 operation=operation,
@@ -924,7 +941,7 @@ class Job(BaseTable):
             session.add(job)
             session.flush()
 
-        return job
+        return job, warning
 
 class Metric(BaseTable):
     """

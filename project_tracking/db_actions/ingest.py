@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 # Third-party
-from sqlalchemy import select
+from sqlalchemy import select, inspect
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 # Local modules
@@ -66,22 +66,37 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
-    operation = Operation(
+    operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
         name="run_processing",
         status=StatusEnum("COMPLETED"),
-        project=project
-        )
-    job = Job(
+        project=project,
+        session=session
+    )
+    if warning:
+        ret["DB_ACTION_WARNING"].append(warning)
+
+    try:
+        job_start = datetime.strptime(ingest_data.get(vb.JOB_START), vb.DATE_LONG_FMT)
+    except TypeError:
+        job_start = datetime.now()
+    try:
+        job_stop = datetime.strptime(ingest_data.get(vb.JOB_STOP), vb.DATE_LONG_FMT)
+    except TypeError:
+        job_stop = datetime.now()
+    job, warning = Job.from_attributes(
         name="run_processing",
         status=StatusEnum("COMPLETED"),
-        start=datetime.now(),
-        stop=datetime.now(),
-        operation=operation
+        start=job_start,
+        stop=job_stop,
+        operation=operation,
+        session=session
         )
+    if warning:
+        ret["DB_ACTION_WARNING"].append(warning)
     session.add(job)
     # Defining Run
-    run = Run.from_attributes(
+    run, warning = Run.from_attributes(
         ext_id=ingest_data[vb.RUN_EXT_ID],
         ext_src=ingest_data[vb.RUN_EXT_SRC],
         name=ingest_data[vb.RUN_NAME],
@@ -89,6 +104,8 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
         date=datetime.strptime(ingest_data[vb.RUN_DATE], vb.DATE_LONG_FMT),
         session=session
         )
+    if warning:
+        ret["DB_ACTION_WARNING"].append(warning)
 
     for specimen_json in ingest_data[vb.SPECIMEN]:
         specimen = Specimen.from_name(
@@ -116,7 +133,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                 else:
                     kit_expiration_date = None
                 # Defining Experiment
-                experiment = Experiment.from_attributes(
+                experiment, warning = Experiment.from_attributes(
                     sequencing_technology=readset_json[vb.EXPERIMENT_SEQUENCING_TECHNOLOGY],
                     type=readset_json[vb.EXPERIMENT_TYPE],
                     nucleic_acid_type=readset_json[vb.EXPERIMENT_NUCLEIC_ACID_TYPE],
@@ -124,6 +141,9 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                     kit_expiration_date=kit_expiration_date,
                     session=session
                     )
+                if warning:
+                    ret["DB_ACTION_WARNING"].append(warning)
+
                 readset = Readset(
                     name=readset_json[vb.READSET_NAME],
                     lane=LaneEnum(readset_json[vb.READSET_LANE]),
@@ -251,22 +271,36 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
-    operation = Operation(
+    operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
         name="transfer",
         cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
         status=StatusEnum("COMPLETED"),
-        project=project
+        project=project,
+        session=session
     )
-    session.add(operation)
-    job = Job(
+    if warning:
+        ret["DB_ACTION_WARNING"].append(warning)
+
+    try:
+        job_start = datetime.strptime(ingest_data.get(vb.JOB_START), vb.DATE_LONG_FMT)
+    except TypeError:
+        job_start = datetime.now()
+    try:
+        job_stop = datetime.strptime(ingest_data.get(vb.JOB_STOP), vb.DATE_LONG_FMT)
+    except TypeError:
+        job_stop = datetime.now()
+    job, warning = Job.from_attributes(
         name="transfer",
         status=StatusEnum("COMPLETED"),
-        start=datetime.now(),
-        stop=datetime.now(),
-        operation=operation
+        start=job_start,
+        stop=job_stop,
+        operation=operation,
+        session=session
     )
-    session.add(job)
+    if warning:
+        ret["DB_ACTION_WARNING"].append(warning)
+    # session.add(job)
     readset_list = []
     for readset_json in ingest_data[vb.READSET]:
         readset_name = readset_json[vb.READSET_NAME]
@@ -312,8 +346,22 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
                 new_location.deprecated = False
             file.jobs.append(job)
             session.add(new_location)
-    operation.readsets = readset_list
-    job.readsets = readset_list
+    # Get existing readset IDs from the relationship
+    existing_operation_readset_ids = {r.id for r in operation.readsets}
+    # Filter only new readsets not already present
+    operation_readset_list_to_add = [r for r in readset_list if r.id not in existing_operation_readset_ids]
+    # Extend the relationship with non-redundant readsets
+    if operation_readset_list_to_add:
+        operation.readsets.extend(operation_readset_list_to_add)
+    # operation.readsets = readset_list
+    # Get existing readset IDs from the relationship
+    existing_job_readset_ids = {r.id for r in job.readsets}
+    # Filter only new readsets not already present
+    job_readset_list_to_add = [r for r in readset_list if r.id not in existing_job_readset_ids]
+    # Extend the relationship with non-redundant readsets
+    if job_readset_list_to_add:
+        job.readsets.extend(job_readset_list_to_add)
+    # job.readsets = readset_list
 
     session.add(job)
     session.flush()
@@ -356,13 +404,15 @@ def ingest_genpipes(project_id: str, ingest_data, session):
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
-    operation_config = OperationConfig.from_attributes(
+    operation_config, warning = OperationConfig.from_attributes(
         name=ingest_data[vb.OPERATION_CONFIG_NAME],
         version=ingest_data[vb.OPERATION_CONFIG_VERSION],
         md5sum=ingest_data[vb.OPERATION_CONFIG_MD5SUM],
         data=bytes(ingest_data[vb.OPERATION_CONFIG_DATA], 'utf-8'),
         session=session
     )
+    if warning:
+        ret["DB_ACTION_WARNING"].append(warning)
 
     operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
@@ -411,7 +461,7 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                     job_stop = None
                 # Check if job_status exists otherwise skip it
                 if job_json[vb.JOB_STATUS]:
-                    job = Job.from_attributes(
+                    job, warning = Job.from_attributes(
                         name=job_json[vb.JOB_NAME],
                         status=StatusEnum(job_json[vb.JOB_STATUS]),
                         start=job_start,
@@ -419,6 +469,8 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                         operation=operation,
                         session=session
                     )
+                    if warning:
+                        ret["DB_ACTION_WARNING"].append(warning)
                     if readset not in job.readsets:
                         job.readsets.append(readset)
                     if vb.FILE in job_json:
@@ -493,11 +545,20 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                     session.flush()
                 except UnboundLocalError:
                     pass
-    operation.readsets = readset_list
+
+    # Get existing readset IDs from the relationship
+    existing_readset_ids = {r.id for r in operation.readsets}
+    # Filter only new readsets not already present
+    readset_list_to_add = [r for r in readset_list if r.id not in existing_readset_ids]
+    # Extend the relationship with non-redundant readsets
+    if readset_list_to_add:
+        operation.readsets.extend(readset_list_to_add)
+    # operation.readsets = readset_list
     operation_id = operation.id
     job_ids = [job.id for job in operation.jobs]
     if not job_ids:
         raise RequestError("No 'Job' has a status, this json won't be ingested.")
+
     try:
         session.commit()
     except SQLAlchemyError as error:
@@ -531,21 +592,36 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
 
     delete = ingest_data.get(vb.DELETE, True)
 
-    operation = Operation(
+    operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
         name="delivery",
         cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
         status=StatusEnum("COMPLETED"),
-        project=project
+        project=project,
+        session=session
     )
-    job = Job(
+    if warning:
+        ret["DB_ACTION_WARNING"].append(warning)
+
+    try:
+        job_start = datetime.strptime(ingest_data.get(vb.JOB_START), vb.DATE_LONG_FMT)
+    except TypeError:
+        job_start = datetime.now()
+    try:
+        job_stop = datetime.strptime(ingest_data.get(vb.JOB_STOP), vb.DATE_LONG_FMT)
+    except TypeError:
+        job_stop = datetime.now()
+    job, warning = Job.from_attributes(
         name="delivery",
         status=StatusEnum("COMPLETED"),
-        start=datetime.now(),
-        stop=datetime.now(),
-        operation=operation
+        start=job_start,
+        stop=job_stop,
+        operation=operation,
+        session=session
     )
-    session.add(job)
+    if warning:
+        ret["DB_ACTION_WARNING"].append(warning)
+    # session.add(job)
 
     readset_list = []
     for readset_json in ingest_data[vb.READSET]:
@@ -602,8 +678,23 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
                 new_location.deprecated = False
             file.jobs.append(job)
             session.add(new_location)
-    operation.readsets = readset_list
-    job.readsets = readset_list
+
+    # Get existing readset IDs from the relationship
+    existing_operation_readset_ids = {r.id for r in operation.readsets}
+    # Filter only new readsets not already present
+    operation_readset_list_to_add = [r for r in readset_list if r.id not in existing_operation_readset_ids]
+    # Extend the relationship with non-redundant readsets
+    if operation_readset_list_to_add:
+        operation.readsets.extend(operation_readset_list_to_add)
+    # operation.readsets = readset_list
+    # Get existing readset IDs from the relationship
+    existing_job_readset_ids = {r.id for r in job.readsets}
+    # Filter only new readsets not already present
+    job_readset_list_to_add = [r for r in readset_list if r.id not in existing_job_readset_ids]
+    # Extend the relationship with non-redundant readsets
+    if job_readset_list_to_add:
+        job.readsets.extend(job_readset_list_to_add)
+    # job.readsets = readset_list
 
     session.add(job)
     session.flush()
