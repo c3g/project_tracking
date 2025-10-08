@@ -23,24 +23,29 @@
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.pair1.fastq.gz",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.pair1.fastq.gz",
+                                    "file_md5sum": "56b1c8ef9bb87f42934637699b623fd7",
                                     "file_extra_metadata": {"read_type": "R1"}
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.single1.fastq.gz",
-                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.single1.fastq.gz"
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.single1.fastq.gz",
+                                    "file_md5sum": "d06629d9f3831b5bbbd24c75c9788a0a"
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.pair2.fastq.gz",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.pair2.fastq.gz",
+                                    "file_md5sum": "b36b7f0a3fa15a8acd2941eafe0df4fa",
                                     "file_extra_metadata": {"read_type": "R2"}
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.single2.fastq.gz",
-                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.single2.fastq.gz"
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.single2.fastq.gz",
+                                    "file_md5sum": "b0155c06a16f93992021cae52e5f2664"
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.log",
-                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.log"
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.log",
+                                    "file_md5sum": "88e1124f4eec625edc8ef4bdf20609a5"
                                 }
                             ]
                         },
@@ -52,15 +57,18 @@
                             "file": [
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_transcripts.tsv",
-                                    "file_name": "abundance_transcripts.tsv"
+                                    "file_name": "abundance_transcripts.tsv",
+                                    "file_md5sum": "bbd53c6c0b913ebb0aa77d30115f2417"
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_genes.tsv",
-                                    "file_name": "abundance_genes.tsv"
+                                    "file_name": "abundance_genes.tsv",
+                                    "file_md5sum": "885d086e815982a4a2d43ef5b3c7ba23"
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/kallisto_quant.log",
-                                    "file_name": "kallisto_quant.log"
+                                    "file_name": "kallisto_quant.log",
+                                    "file_md5sum": "e4d3fef0d810ca55f40a77b3d506e5dd"
                                 }
                             ],
                             "metric": [
@@ -86,24 +94,29 @@
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.pair1.fastq.gz",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.pair1.fastq.gz",
+                                    "file_md5sum": "0954ffe121f607a1677ec60b9fb7b61d",
                                     "file_extra_metadata": {"read_type": "R1"}
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.single1.fastq.gz",
-                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.single1.fastq.gz"
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.single1.fastq.gz",
+                                    "file_md5sum": "39fb4178dd75b4a9f2ddebea59e07456"
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.pair2.fastq.gz",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.pair2.fastq.gz",
+                                    "file_md5sum": "c3a00feb2d3b95179dc3131d29beecea",
                                     "file_extra_metadata": {"read_type": "R2"}
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.single2.fastq.gz",
-                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.single2.fastq.gz"
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.single2.fastq.gz",
+                                    "file_md5sum": "9044eb9eb827ce712b41dab8c14cea59"
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.log",
-                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.log"
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.log",
+                                    "file_md5sum": "786a9f8a2e6b51da4272876941474d8f"
                                 }
                             ]
                         },
@@ -115,15 +128,18 @@
                             "file": [
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_transcripts.tsv",
-                                    "file_name": "abundance_transcripts.tsv"
+                                    "file_name": "abundance_transcripts.tsv",
+                                    "file_md5sum": "bbd53c6c0b913ebb0aa77d30115f2417"
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_genes.tsv",
-                                    "file_name": "abundance_genes.tsv"
+                                    "file_name": "abundance_genes.tsv",
+                                    "file_md5sum": "885d086e815982a4a2d43ef5b3c7ba23"
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/kallisto_quant.log",
-                                    "file_name": "kallisto_quant.log"
+                                    "file_name": "kallisto_quant.log",
+                                    "file_md5sum": "e4d3fef0d810ca55f40a77b3d506e5dd"
                                 }
                             ],
                             "metric": [
@@ -149,24 +165,29 @@
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.pair1.fastq.gz",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.pair1.fastq.gz",
+                                    "file_md5sum": "b6944b9244cbcb2596a49317bb25665e",
                                     "file_extra_metadata": {"read_type": "R1"}
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.single1.fastq.gz",
-                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.single1.fastq.gz"
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.single1.fastq.gz",
+                                    "file_md5sum": "ce3d384cad954cafd3ee31c7f79ff0bd"
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.pair2.fastq.gz",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.pair2.fastq.gz",
+                                    "file_md5sum": "125bbb49a0fd3d6e70dc950a824e7997",
                                     "file_extra_metadata": {"read_type": "R2"}
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.single2.fastq.gz",
-                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.single2.fastq.gz"
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.single2.fastq.gz",
+                                    "file_md5sum": "75c2cd663e52bda731c1ba5732b475a5"
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.log",
-                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.log"
+                                    "file_name": "MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.log",
+                                    "file_md5sum": "457756bdfde38c31a1cfec7f33acb507"
                                 }
                             ]
                         },
@@ -178,15 +199,18 @@
                             "file": [
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_transcripts.tsv",
-                                    "file_name": "abundance_transcripts.tsv"
+                                    "file_name": "abundance_transcripts.tsv",
+                                    "file_md5sum": "bbd53c6c0b913ebb0aa77d30115f2417"
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_genes.tsv",
-                                    "file_name": "abundance_genes.tsv"
+                                    "file_name": "abundance_genes.tsv",
+                                    "file_md5sum": "885d086e815982a4a2d43ef5b3c7ba23"
                                 },
                                 {
                                     "location_uri": "beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/kallisto_quant.log",
-                                    "file_name": "kallisto_quant.log"
+                                    "file_name": "kallisto_quant.log",
+                                    "file_md5sum": "e4d3fef0d810ca55f40a77b3d506e5dd"
                                 }
                             ],
                             "metric": [
