@@ -1,6 +1,8 @@
 {
     "operation_platform": "beluga",
     "operation_cmd_line": "globus transfer --submission-id $sub_id --label MoHQ-JG-9-23 --batch /lb/project/mugqic/projects/MOH/TEMP/2023-01-13T14.21.42_transfer_log.txt 6c66d53d-a79d-11e8-96fa-0a6d4e044368 278b9bfe-24da-11e9-9fa2-0a06afd4a22e",
+    "job_start": "2025-01-13 14:21:42",
+    "job_end": "2025-01-13 15:45:00",
     "readset": [
         {
             "readset_name": "MoHQ-JG-9-23-15000863775-19933DT.A01433_0157_1",
