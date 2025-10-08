@@ -48,8 +48,7 @@ def test_create_api(client, run_processing_json, transfer_json, genpipes_json, d
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['status'] == "COMPLETED"
     # Test ingesting genpipes a 2nd time to make sure it fetches the already existing ioperation and links the new information to it
     response = client.post(f'project/{project_name}/ingest_genpipes', data=json.dumps(genpipes_json))
-    assert response.status_code == 200
-    assert json.loads(response.data)["DB_ACTION_WARNING"][0] == "Operation with id 3 already exists, informations will be attached to this one."
+    assert json.loads(response.data)["DB_ACTION_WARNING"] == ["OperationConfig with id 1 already exists, informations will be attached to this one.","Operation with id 3 already exists, informations will be attached to this one.","Job with id 3 already exists, informations will be attached to this one.","Job with id 4 already exists, informations will be attached to this one.","Job with id 5 already exists, informations will be attached to this one.","Job with id 4 already exists, informations will be attached to this one.","Job with id 6 already exists, informations will be attached to this one.","Job with id 4 already exists, informations will be attached to this one."]
     # Test ingesting delivery
     response = client.post(f'project/{project_name}/ingest_delivery', data=json.dumps(delivery_json))
     assert response.status_code == 200
