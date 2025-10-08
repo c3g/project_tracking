@@ -38,6 +38,7 @@
                                 {
                                     "location_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Aligned.1/alignment/MoHQ-JG-9-23-15000863775-19933DT/runA01433_0157_1/MoHQ-JG-9-23-15000863775-19933DT_2-2224210.sorted.bam",
                                     "file_name": "MoHQ-JG-9-23-15000863775-19933DT_2-2224210.sorted.bam",
+                                    "file_md5sum": "05ba12e464dc8f906239d2e59ec06a03",
                                     "file_deliverable": true
                                 }
                             ],
@@ -95,6 +96,7 @@
                                 {
                                     "location_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Aligned.2/alignment/MoHQ-JG-9-23-15000936286-19866DN/runA01433_0157_2/MoHQ-JG-9-23-15000936286-19866DN_2-2224220.sorted.bam",
                                     "file_name": "MoHQ-JG-9-23-15000936286-19866DN_2-2224220.sorted.bam",
+                                    "file_md5sum": "1c2c305b504364684fc135438edbb532",
                                     "file_deliverable": true
                                 }
                             ],
@@ -161,12 +163,14 @@
                                 {
                                     "location_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Unaligned.3/Project_MES1431/Sample_MoHQ-CM-1-3-6929-1RT_2-2053929/MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L003_R1_001.fastq.gz",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L003_R1_001.fastq.gz",
+                                    "file_md5sum": "3031a2c942e7c4b54a490a8eccc5e501",
                                     "file_extra_metadata": {"read_type": "R1"},
                                     "file_deliverable": true
                                 },
                                 {
                                     "location_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Unaligned.3/Project_MES1431/Sample_MoHQ-CM-1-3-6929-1RT_2-2053929/MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L003_R2_001.fastq.gz",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L003_R2_001.fastq.gz",
+                                    "file_md5sum": "bc2eaac9f501e68b2b1a2769aea570ad",
                                     "file_extra_metadata": {"read_type": "R2"},
                                     "file_deliverable": true
                                 }
@@ -217,12 +221,14 @@
                                 {
                                     "location_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Unaligned.2/Project_MES1431/Sample_MoHQ-CM-1-3-6929-1RT_2-2053929/MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L002_R1_001.fastq.gz",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L002_R1_001.fastq.gz",
+                                    "file_md5sum": "d273c90b6e99a3e51811801006d8339c",
                                     "file_extra_metadata": {"read_type": "R1"},
                                     "file_deliverable": true
                                 },
                                 {
                                     "location_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Unaligned.2/Project_MES1431/Sample_MoHQ-CM-1-3-6929-1RT_2-2053929/MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L002_R2_001.fastq.gz",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L002_R2_001.fastq.gz",
+                                    "file_md5sum": "268b0ebd58707051841282491d6630dc",
                                     "file_extra_metadata": {"read_type": "R2"},
                                     "file_deliverable": true
                                 }
@@ -273,12 +279,14 @@
                                 {
                                     "location_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Unaligned.1/Project_MES1431/Sample_MoHQ-CM-1-3-6929-1RT_2-2053929/MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L001_R1_001.fastq.gz",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L001_R1_001.fastq.gz",
+                                    "file_md5sum": "0a2bd63a477e3afdda5f50e2e400933b",
                                     "file_extra_metadata": {"read_type": "R1"},
                                     "file_deliverable": true
                                 },
                                 {
                                     "location_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Unaligned.1/Project_MES1431/Sample_MoHQ-CM-1-3-6929-1RT_2-2053929/MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L001_R2_001.fastq.gz",
                                     "file_name": "MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L001_R2_001.fastq.gz",
+                                    "file_md5sum": "bae3407e583b395e6f2ea36f6d35fd09",
                                     "file_extra_metadata": {"read_type": "R2"},
                                     "file_deliverable": true
                                 }
@@ -337,6 +345,7 @@
                                 {
                                     "location_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Aligned.1/alignment/MoHQ-CM-1-3-15000863775-19933DT/runA01433_0157_1/MoHQ-CM-1-3-15000863775-19933DT_2-2224210.sorted.bam",
                                     "file_name": "MoHQ-CM-1-3-15000863775-19933DT_2-2224210.sorted.bam",
+                                    "file_md5sum": "25c85006888185833ad10d6771be60e1",
                                     "file_deliverable": true
                                 }
                             ],
@@ -394,6 +403,7 @@
                                 {
                                     "location_uri": "abacus:///lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Aligned.2/alignment/MoHQ-CM-1-3-15000936286-19866DN/runA01433_0157_2/MoHQ-CM-1-3-15000936286-19866DN_2-2224220.sorted.bam",
                                     "file_name": "MoHQ-CM-1-3-15000936286-19866DN_2-2224220.sorted.bam",
+                                    "file_md5sum": "59fca40cb47385188dc6769fd27af576",
                                     "file_deliverable": true
                                 }
                             ],
