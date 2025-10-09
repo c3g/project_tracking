@@ -5,17 +5,9 @@ on:
     types: [closed]
     branches: ['main']
 
-env:
-  REGISTRY: ghcr.io
-  REGISTRY_USER: ${{ github.actor }}
-  REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
   release:
     runs-on: ubuntu-latest
-
-    # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
     permissions:
       contents: write
       packages: write
@@ -56,36 +48,17 @@ jobs:
       - name: Create changelog diff
         id: changelog_diff
         run: |
-          sed -n '/#### \[${{ steps.get_tag.outputs.version }}\]/,/^#### /p' CHANGELOG.md | sed '$d' > release_notes.md
+          sed -n '/#### [${{ steps.get_tag.outputs.version }}]/,/^#### /p' CHANGELOG.md | sed '$d' > release_notes.md
 
-      - name: Update package lists
-        run: sudo apt-get update
-
-      - name: Install QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker registry
-        uses: docker/login-action@v3
+      - name: Call reusable Docker publish workflow
+        uses: ./.github/workflows/reusable-docker-publish.yml
         with:
-          registry: ghcr.io
-          username: ${{ env.REGISTRY_USER }}
-          password: ${{ env.REGISTRY_PASSWORD }}
-
-      - name: Build and push multi-architecture image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Containerfile
-          push: true
-          sbom: true
-          provenance: true
+          image_name: ${{ github.repository }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get_tag.outputs.version }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          platforms: linux/amd64,linux/arm64
+            ghcr.io/${{ github.repository }}:${{ steps.get_tag.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
+        secrets:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create release
         id: create_release
