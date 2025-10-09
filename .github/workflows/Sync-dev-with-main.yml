@@ -35,7 +35,7 @@ jobs:
       - name: Update the version to <latest>.dev
         id: update_version
         run: |
-          version_file="genpipes/__version__.py"
+          version_file="project_tracking/__version__.py"
           version_number=$(sed -n "s/__version__ = '\([^']*\)'/\1/p" $version_file)
           if [[ "$version_number" != *.dev ]]; then
             echo "__version__ = '${version_number}.dev'" > $version_file
@@ -43,6 +43,6 @@ jobs:
 
       - name: Commit changes
         run: |
-          git add genpipes/__version__.py
+          git add project_tracking/__version__.py
           git commit -m "Dev Version update"
           git push --force-with-lease
