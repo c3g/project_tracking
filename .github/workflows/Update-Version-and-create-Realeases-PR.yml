@@ -1,4 +1,4 @@
-name: Update version and create Release's PR Workflow
+name: Update version and create Release's PR
 
 on:
   workflow_dispatch:
