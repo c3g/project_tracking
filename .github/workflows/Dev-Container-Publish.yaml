@@ -1,9 +1,7 @@
 name: Dev Container Publish
 
 on:
-  push:
-    branches:
-      - dev
+  workflow_dispatch:
 
 jobs:
   prepare:
