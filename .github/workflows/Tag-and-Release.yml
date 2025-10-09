@@ -8,12 +8,13 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_tag.outputs.version }}
     permissions:
       contents: write
       packages: write
       attestations: write
       id-token: write
-
     if: startsWith(github.event.pull_request.title, 'Release:') && github.event.pull_request.merged == true
     steps:
       - name: Checkout code
@@ -46,26 +47,39 @@ jobs:
           git push --follow-tags
 
       - name: Create changelog diff
-        id: changelog_diff
         run: |
           sed -n '/#### [${{ steps.get_tag.outputs.version }}]/,/^#### /p' CHANGELOG.md | sed '$d' > release_notes.md
 
-      - name: Call reusable Docker publish workflow
-        uses: ./.github/workflows/reusable-docker-publish.yml
-        with:
-          image_name: ${{ github.repository }}
-          tags: |
-            ghcr.io/${{ github.repository }}:${{ steps.get_tag.outputs.version }}
-            ghcr.io/${{ github.repository }}:latest
-        secrets:
-          token: ${{ secrets.GITHUB_TOKEN }}
+  docker-publish:
+    needs: release
+    uses: ./.github/workflows/reusable-docker-publish.yml
+    permissions:
+      contents: write
+      packages: write
+      attestations: write
+      id-token: write
+    with:
+      image_name: ${{ github.repository }}
+      tags: |
+        ghcr.io/${{ github.repository }}:${{ needs.release.outputs.version }}
+        ghcr.io/${{ github.repository }}:latest
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+
+  create-release:
+    needs: [release, docker-publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Create release
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.get_tag.outputs.version }}
-          name: Release ${{ steps.get_tag.outputs.version }}
+          tag_name: ${{ needs.release.outputs.version }}
+          name: Release ${{ needs.release.outputs.version }}
           body_path: ./release_notes.md
           draft: false
           prerelease: false

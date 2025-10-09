@@ -6,14 +6,15 @@ on:
       - dev
 
 jobs:
-  publish-dev:
+  prepare:
     runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
       attestations: write
       id-token: write
-
+    outputs:
+      short_sha: ${{ steps.vars.outputs.short_sha }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,12 +31,18 @@ jobs:
         id: vars
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Call reusable Docker publish workflow
-        uses: ./.github/workflows/reusable-docker-publish.yml
-        with:
-          image_name: ${{ github.repository }}
-          tags: |
-            ghcr.io/${{ github.repository }}:dev
-            ghcr.io/${{ github.repository }}:dev-${{ steps.vars.outputs.short_sha }}
-        secrets:
-          token: ${{ secrets.GITHUB_TOKEN }}
+  docker-publish:
+    needs: prepare
+    uses: ./.github/workflows/reusable-docker-publish.yml
+    permissions:
+      contents: write
+      packages: write
+      attestations: write
+      id-token: write
+    with:
+      image_name: ${{ github.repository }}
+      tags: |
+        ghcr.io/${{ github.repository }}:dev
+        ghcr.io/${{ github.repository }}:dev-${{ needs.prepare.outputs.short_sha }}
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
