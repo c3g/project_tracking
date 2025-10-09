@@ -15,9 +15,11 @@ jobs:
   publish-dev:
     runs-on: ubuntu-latest
 
+    # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
     permissions:
-      contents: read
+      contents: write
       packages: write
+      attestations: write
       id-token: write
 
     steps:
