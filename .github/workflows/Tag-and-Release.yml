@@ -46,10 +46,6 @@ jobs:
           git tag -a "$next_version" -m "Version $next_version"
           git push --follow-tags
 
-      - name: Create changelog diff
-        run: |
-          sed -n '/#### [${{ steps.get_tag.outputs.version }}]/,/^#### /p' CHANGELOG.md | sed '$d' > release_notes.md
-
   docker-publish:
     needs: release
     uses: ./.github/workflows/reusable-docker-publish.yml
@@ -74,6 +70,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Create changelog diff
+        run: |
+          sed -n '/#### [${{ steps.get_tag.outputs.version }}]/,/^#### /p' CHANGELOG.md | sed '$d' > release_notes.md
 
       - name: Create release
         uses: softprops/action-gh-release@v2
