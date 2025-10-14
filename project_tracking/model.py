@@ -513,7 +513,7 @@ class Experiment(BaseTable):
         ).first()
 
         if experiment:
-            warning = f"Experiment with id {experiment.id} and name {experiment.name} already exists, informations will be attached to this one."
+            warning = f"Experiment with id {experiment.id} already exists, informations will be attached to this one."
 
         if not experiment:
             experiment = cls(
