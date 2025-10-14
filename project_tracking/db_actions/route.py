@@ -96,7 +96,7 @@ def metrics(project_id, session, deliverable=None, specimen_id=None, sample_id=N
             Metric.deleted.is_(deleted),
             Project.id.in_(project_id)
         )
-    )
+    ).distinct()
 
     if metric_id:
         if isinstance(metric_id, int):
@@ -118,7 +118,7 @@ def metrics(project_id, session, deliverable=None, specimen_id=None, sample_id=N
         # Filter metrics based on deliverable status
         stmt = stmt.where(Metric.deliverable.is_(deliverable))
 
-    result = list({metric.id: metric for metric in session.execute(stmt).scalars()}.values())
+    result = session.execute(stmt).scalars().all()
 
     if not result:
         ret["DB_ACTION_WARNING"].append(
