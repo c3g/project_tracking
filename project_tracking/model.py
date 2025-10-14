@@ -28,6 +28,8 @@ from sqlalchemy.orm import (
 
 from sqlalchemy.sql import func
 
+from sqlalchemy.dialects.postgresql import JSONB
+
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 
 from . import database
@@ -216,7 +218,7 @@ class BaseTable(Base):
     creation: Mapped[DateTime] = Column(DateTime(timezone=True), server_default=func.now())
     modification: Mapped[DateTime] = Column(DateTime(timezone=True), onupdate=func.now())
     # extra_metadata: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
-    extra_metadata: Mapped[dict] = mapped_column(MutableDict.as_mutable(JSON), default=None, nullable=True)
+    extra_metadata: Mapped[dict] = mapped_column(MutableDict.as_mutable(JSON().with_variant(JSONB, 'postgresql')), default=dict, nullable=True)
     ext_id: Mapped[int] = mapped_column(default=None, nullable=True)
     ext_src: Mapped[str] = mapped_column(default=None, nullable=True)
 
@@ -316,7 +318,7 @@ class Project(BaseTable):
     )
 
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
+    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON().with_variant(JSONB, 'postgresql')), default=list, nullable=True)
 
     specimens: Mapped[list[Specimen]] = relationship(back_populates="project", cascade="all, delete")
     operations: Mapped[list[Operation]] = relationship(back_populates="project", cascade="all, delete")
@@ -344,7 +346,7 @@ class Specimen(BaseTable):
 
     project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
+    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON().with_variant(JSONB, 'postgresql')), default=list, nullable=True)
     cohort: Mapped[str] = mapped_column(default=None, nullable=True)
     institution: Mapped[str] = mapped_column(default=None, nullable=True)
 
@@ -413,7 +415,7 @@ class Sample(BaseTable):
 
     specimen_id: Mapped[int] = mapped_column(ForeignKey("specimen.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
+    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON().with_variant(JSONB, 'postgresql')), default=list, nullable=True)
     tumour: Mapped[bool] = mapped_column(default=False)
 
     specimen: Mapped[Specimen] = relationship(back_populates="samples")
@@ -511,7 +513,7 @@ class Experiment(BaseTable):
         ).first()
 
         if experiment:
-            warning = f"Experiment with id {experiment.id} already exists, informations will be attached to this one."
+            warning = f"Experiment with id {experiment.id} and name {experiment.name} already exists, informations will be attached to this one."
 
         if not experiment:
             experiment = cls(
@@ -566,7 +568,7 @@ class Run(BaseTable):
         ).first()
 
         if run:
-            warning = f"Run with id {run.id} already exists, informations will be attached to this one."
+            warning = f"Run with id {run.id} and name {run.name} already exists, informations will be attached to this one."
 
         if not run:
             run = cls(
@@ -614,7 +616,7 @@ class Readset(BaseTable):
     experiment_id: Mapped[int] = mapped_column(ForeignKey("experiment.id"), default=None)
     run_id: Mapped[int] = mapped_column(ForeignKey("run.id"), default=None)
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
-    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
+    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON().with_variant(JSONB, 'postgresql')), default=list, nullable=True)
     lane: Mapped[LaneEnum]  =  mapped_column(default=None, nullable=True)
     adapter1: Mapped[str] = mapped_column(default=None, nullable=True)
     adapter2: Mapped[str] = mapped_column(default=None, nullable=True)
@@ -738,7 +740,7 @@ class Operation(BaseTable):
         ).first()
 
         if operation:
-            warning = f"Operation with id {operation.id} already exists, informations will be attached to this one."
+            warning = f"Operation with id {operation.id} and name {operation.name} already exists, informations will be attached to this one."
         else:
             operation = cls(
                 operation_config=operation_config,
@@ -773,7 +775,7 @@ class Reference(BaseTable):
     __tablename__ = "reference"
 
     name: Mapped[str] = mapped_column(default=None, nullable=True)
-    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON), default=list, nullable=True)
+    alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON().with_variant(JSONB, 'postgresql')), default=list, nullable=True)
     assembly: Mapped[str] = mapped_column(default=None, nullable=True)
     version: Mapped[str] = mapped_column(default=None, nullable=True)
     taxon_id: Mapped[str] = mapped_column(default=None, nullable=True)
@@ -825,7 +827,7 @@ class OperationConfig(BaseTable):
         ).first()
 
         if operation_config:
-            warning = f"OperationConfig with id {operation_config.id} already exists, informations will be attached to this one."
+            warning = f"OperationConfig with id {operation_config.id} and name {operation_config.name} already exists, informations will be attached to this one."
 
         if not operation_config:
             operation_config = cls(
@@ -927,7 +929,7 @@ class Job(BaseTable):
         ).first()
 
         if job:
-            warning = f"Job with id {job.id} already exists, informations will be attached to this one."
+            warning = f"Job with id {job.id} and name {job.name} already exists, informations will be attached to this one."
 
         if not job:
             job = cls(
@@ -1054,7 +1056,7 @@ class Metric(BaseTable):
                 cls.name == name,
                 cls.deprecated.is_(deprecated),
                 cls.deleted.is_(deleted),
-                Job.id.is_(job.id)
+                Job.id == job.id
                 # Readset.id.in_([readset.id])
             )
         )
