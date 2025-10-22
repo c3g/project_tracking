@@ -44,7 +44,7 @@ def projects(project_id, session, deprecated=False, deleted=False):
         select(Project)
         .where(Project.deprecated.is_(deprecated), Project.deleted.is_(deleted))
         .group_by(Project.id)
-    )
+    ).distinct()
 
     if project_id:
         if isinstance(project_id, int):
@@ -169,7 +169,7 @@ def files(project_id, session, deliverable=None, specimen_id=None, sample_id=Non
             File.deleted.is_(deleted),
             Project.id.in_(project_id)
         )
-    )
+    ).distinct()
 
     if file_id:
         if isinstance(file_id, int):
@@ -243,7 +243,7 @@ def operations(project_id, session, operation_id=None, readset_id=None, deprecat
             Operation.deleted.is_(deleted),
             Project.id.in_(project_id)
         )
-    )
+    ).distinct()
 
     if operation_id:
         if isinstance(operation_id, int):
@@ -297,7 +297,7 @@ def jobs(project_id, session, job_id=None, readset_id=None, deprecated=False, de
             Job.deleted.is_(deleted),
             Project.id.in_(project_id)
         )
-    )
+    ).distinct()
 
     if job_id:
         if isinstance(job_id, int):
@@ -354,7 +354,7 @@ def readsets(project_id, session, specimen_id=None, sample_id=None, readset_id=N
             Readset.deleted.is_(deleted),
             Project.id.in_(project_id)
         )
-    )
+    ).distinct()
 
     if specimen_id:
         if isinstance(specimen_id, int):
@@ -410,7 +410,7 @@ def specimens(project_id, session, specimen_id=None, sample_id=None, readset_id=
         .join(Specimen.project)
         .where(Project.id.in_(project_id))
         .group_by(Specimen.id)
-    )
+    ).distinct()
 
     if specimen_id:
         if isinstance(specimen_id, int):
@@ -467,7 +467,7 @@ def samples(project_id, session, specimen_id=None, sample_id=None, readset_id=No
         .join(Specimen.project)
         .where(Project.id.in_(project_id))
         .group_by(Sample.id)
-    )
+    ).distinct()
 
     if tumour is not None:
         # Filter samples based on tumour status
@@ -534,7 +534,7 @@ def samples_pair(project_id, session, pair: bool, specimen_id=None, deprecated=F
         .join(Specimen.project)
         .where(Project.id.in_(project_id))
         .group_by(Sample.id)
-    )
+    ).distinct()
 
     if specimen_id:
         if isinstance(specimen_id, int):
