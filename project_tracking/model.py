@@ -358,14 +358,14 @@ class Specimen(BaseTable):
         """
         Get all readset ids associated with the sample.
         """
-        return [r.id if not r.deprecated or not r.deleted else None for s in self.samples for r in s.readsets]
+        return list({r.id for s in self.samples for r in s.readsets if not r.deprecated and not r.deleted})
 
     @property
     def sample_ids(self) -> list[int]:
         """
         Get all sample ids associated with the specimen.
         """
-        return [s.id if not s.deprecated or not s.deleted else None for s in self.samples]
+        return list({s.id for s in self.samples if not s.deprecated and not s.deleted})
 
     @classmethod
     def from_name(cls, name, project, cohort=None, institution=None, session=None, deprecated=False, deleted=False):
@@ -982,21 +982,21 @@ class Metric(BaseTable):
         """
         List of readset ids associated with the metric
         """
-        return [r.id if not r.deprecated or not r.deleted else None for r in self.readsets]
+        return list({r.id for r in self.readsets if not r.deprecated and not r.deleted})
 
     @property
     def sample_ids(self) -> list[int]:
         """
         List of sample ids associated with the metric through readsets
         """
-        return [r.sample.id if not r.sample.deprecated or not r.sample.deleted else None for r in self.readsets if r.sample]
+        return list({r.sample.id for r in self.readsets if r.sample and not r.sample.deprecated and not r.sample.deleted})
 
     @property
     def specimen_ids(self) -> list[int]:
         """
         List of specimen ids associated with the metric through readsets and samples
         """
-        return [r.sample.specimen.id if not r.sample.specimen.deprecated or not r.sample.specimen.deleted else None for r in self.readsets if r.sample and r.sample.specimen]
+        return list({r.sample.specimen.id for r in self.readsets if r.sample and r.sample.specimen and not r.sample.specimen.deprecated and not r.sample.specimen.deleted})
 
     @classmethod
     def get_or_create(
@@ -1122,21 +1122,21 @@ class File(BaseTable):
         """
         List of readset ids associated with the metric
         """
-        return [r.id if not r.deprecated or not r.deleted else None for r in self.readsets]
+        return list({r.id for r in self.readsets if not r.deprecated and not r.deleted})
 
     @property
     def sample_ids(self) -> list[int]:
         """
         List of sample ids associated with the metric through readsets
         """
-        return [r.sample.id if not r.sample.deprecated or not r.sample.deleted else None for r in self.readsets if r.sample]
+        return list({r.sample.id for r in self.readsets if r.sample and not r.sample.deprecated and not r.sample.deleted})
 
     @property
     def specimen_ids(self) -> list[int]:
         """
         List of specimen ids associated with the metric through readsets and samples
         """
-        return [r.sample.specimen.id if not r.sample.specimen.deprecated or not r.sample.specimen.deleted else None for r in self.readsets if r.sample and r.sample.specimen]
+        return list({r.sample.specimen.id for r in self.readsets if r.sample and r.sample.specimen and not r.sample.specimen.deprecated and not r.sample.specimen.deleted})
 
     @classmethod
     def get_or_create(
