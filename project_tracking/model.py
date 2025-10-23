@@ -383,6 +383,7 @@ class Specimen(BaseTable):
         ).first()
 
         if not specimen:
+            # Create new specimen
             specimen = cls(name=name, cohort=cohort, institution=institution, project=project)
             session.add(specimen)
             session.flush()
@@ -444,6 +445,7 @@ class Sample(BaseTable):
         ).first()
 
         if not sample:
+            # Create new sample
             sample = cls(name=name, specimen=specimen, alias=[alias], tumour=tumour)
             session.add(sample)
             session.flush()
@@ -452,7 +454,7 @@ class Sample(BaseTable):
                 for a in alias:
                     if a not in sample.alias:
                         sample.alias.append(a)
-                session.flush()
+                # session.flush()
             if sample.specimen != specimen:
                 logger.error(f"sample {sample.specimen} already attatched to project {specimen.name}")
 
@@ -516,6 +518,7 @@ class Experiment(BaseTable):
             warning = f"Experiment with id {experiment.id} already exists, informations will be attached to this one."
 
         if not experiment:
+            # Create new experiment
             experiment = cls(
                 sequencing_technology=sequencing_technology,
                 type=type,
@@ -571,6 +574,7 @@ class Run(BaseTable):
             warning = f"Run with id {run.id} and name {run.name} already exists, informations will be attached to this one."
 
         if not run:
+            # Create new run
             run = cls(
                 ext_id=ext_id,
                 ext_src=ext_src,
@@ -654,6 +658,7 @@ class Readset(BaseTable):
         ).first()
 
         if not readset:
+            # Create new readset
             readset = cls(name=name, alias=alias, sample=sample)
             session.add(readset)
             session.flush()
@@ -742,6 +747,7 @@ class Operation(BaseTable):
         if operation:
             warning = f"Operation with id {operation.id} and name {operation.name} already exists, informations will be attached to this one."
         else:
+            # Create new operation
             operation = cls(
                 operation_config=operation_config,
                 project=project,
@@ -830,6 +836,7 @@ class OperationConfig(BaseTable):
             warning = f"OperationConfig with id {operation_config.id} and name {operation_config.name} already exists, informations will be attached to this one."
 
         if not operation_config:
+            # Create new operation_config
             operation_config = cls(
                 name=name,
                 version=version,
@@ -932,6 +939,7 @@ class Job(BaseTable):
             warning = f"Job with id {job.id} and name {job.name} already exists, informations will be attached to this one."
 
         if not job:
+            # Create new job
             job = cls(
                 operation=operation,
                 name=name,
@@ -1041,6 +1049,7 @@ class Metric(BaseTable):
 
         # If dont_merge is True, always create a new metric
         if dont_merge:
+            # Create a new metric
             metric = cls(name=name, value=value, flag=flag, deliverable=deliverable, job=job, readsets=readsets)
             session.add(metric)
             session.flush()
@@ -1261,6 +1270,7 @@ class Location(BaseTable):
         location = session.execute(stmt).scalar_one_or_none()
 
         if not location:
+            # Create new location
             if endpoint is None:
                 endpoint = uri.split(':///')[0]
             location = cls(uri=uri, file=file, endpoint=endpoint)

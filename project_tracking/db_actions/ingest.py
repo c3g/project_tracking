@@ -66,6 +66,12 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
+
+    # Looking for potential readsets duplicates before starting the ingestion to be able to report all of them at once
+    message = unique_constraint_error(session, "run_processing", ingest_data)
+    if message:
+        raise UniqueConstraintError(message=message)
+
     operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
         name="run_processing",
