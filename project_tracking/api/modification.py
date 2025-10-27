@@ -51,7 +51,7 @@ def handle_request(action_func):
                 return jsonify({"error": "Only one of 'cascade', 'cascade_up', or 'cascade_down' can be true."}), 400
             cascade_mode = mode
 
-    with session_scope() as session:
+    with session_scope(dry_run=dry_run) as session:
         return action_func(
             ingest_data,
             dry_run=dry_run,
