@@ -61,16 +61,19 @@ def get_session(no_app=False, db_uri=None):
     return flask.g.session
 
 @contextmanager
-def session_scope(no_app=False, db_uri=None):
+def session_scope(no_app=False, db_uri=None, dry_run=False):
     session = get_session(no_app=no_app, db_uri=db_uri)
     try:
         yield session
-        session.commit()
+        if not dry_run:
+            session.commit()
+        else:
+            session.rollback()
     except:
         session.rollback()
         raise
     finally:
-        session.close()  # Works for both scoped_session and regular session
+        session.close()
 
 
 def init_db(db_uri=None, flush=False):
