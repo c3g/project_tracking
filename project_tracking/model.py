@@ -1261,6 +1261,7 @@ class Location(BaseTable):
         if not session:
             session = database.get_session()
 
+        warning = None
         stmt = (
             select(cls)
             .where(
@@ -1276,5 +1277,7 @@ class Location(BaseTable):
             location = cls(uri=uri, file=file, endpoint=endpoint)
             session.add(location)
             session.flush()
+        else:
+            warning = f"Warning: Location with id {location.id} and uri {location.uri} already exists, informations will be attached to this one."
 
-        return location
+        return location, warning
