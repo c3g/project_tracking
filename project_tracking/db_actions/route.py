@@ -192,7 +192,7 @@ def files(project_id, session, deliverable=None, specimen_id=None, sample_id=Non
         stmt = stmt.where(File.deliverable.is_(deliverable))
     if state is not None:
         # Filter files based on state
-        stmt = stmt.where(File.state.is_(StateEnum(state)))
+        stmt = stmt.where(File.state == StateEnum(state))
 
     # logger.debug(str(stmt.compile(compile_kwargs={"literal_binds": True})))
 
