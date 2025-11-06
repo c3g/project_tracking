@@ -196,7 +196,9 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                             readsets=[readset],
                             jobs=[job]
                             )
-                    location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                    location, warning = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                    if warning:
+                        ret["DB_ACTION_WARNING"].append(warning)
                     # Before adding a new location for the current File make sure an existing one doesn't exist otherwise update it
                     if location not in file.locations:
                         if location.deleted:
@@ -343,7 +345,9 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
                 if not file:
                     raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}'")
 
-            new_location = Location.from_uri(uri=dest_uri, file=file, session=session)
+            new_location, warning = Location.from_uri(uri=dest_uri, file=file, session=session)
+            if warning:
+                ret["DB_ACTION_WARNING"].append(warning)
             if new_location.deleted:
                 ret["DB_ACTION_WARNING"].append(f"Existing deleted location found for uri '{new_location.uri}', undeleting it.")
                 new_location.deleted = False
@@ -515,7 +519,9 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                                 )
                                 if warning:
                                     ret["DB_ACTION_WARNING"].append(warning)
-                            location = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                            location, warning = Location.from_uri(uri=file_json[vb.LOCATION_URI], file=file, session=session)
+                            if warning:
+                                ret["DB_ACTION_WARNING"].append(warning)
                             # Before adding a new location for the current File make sure an existing one doesn't exist otherwise update it
                             if location not in file.locations:
                                 if location.deleted:
@@ -675,7 +681,9 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
                 location = session.execute(stmt).scalar_one_or_none()
                 location.deleted = True
 
-            new_location = Location.from_uri(uri=dest_uri, file=file, session=session)
+            new_location, warning = Location.from_uri(uri=dest_uri, file=file, session=session)
+            if warning:
+                ret["DB_ACTION_WARNING"].append(warning)
             if new_location.deleted:
                 ret["DB_ACTION_WARNING"].append(f"Existing deleted location found for uri '{new_location.uri}', undeleting it.")
                 new_location.deleted = False
