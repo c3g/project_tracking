@@ -658,9 +658,9 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
                     .where(Location.uri == src_uri)
                 )
                 file = session.execute(stmt).scalar_one_or_none()
-                file.state = StateEnum("DELIVERED")
                 if not file:
                     raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}' and 'Readset' with 'name' '{readset_name}'")
+                file.state = StateEnum("DELIVERED")
             else:
                 stmt = (
                     select(File)
@@ -669,9 +669,9 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
                     .where(Location.uri == src_uri)
                 )
                 file = session.execute(stmt).scalar_one_or_none()
-                file.state = StateEnum("DELIVERED")
                 if not file:
                     raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}'")
+                file.state = StateEnum("DELIVERED")
 
             if delete:
                 stmt = (
@@ -690,7 +690,8 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
             if new_location.deprecated:
                 ret["DB_ACTION_WARNING"].append(f"Existing deprecated location found for uri '{new_location.uri}', undeprecating it.")
                 new_location.deprecated = False
-            file.jobs.append(job)
+            if job not in file.jobs:
+                file.jobs.append(job)
             session.add(new_location)
 
     # Get existing readset IDs from the relationship
