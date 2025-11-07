@@ -1,7 +1,6 @@
 {
     "operation_platform": "beluga",
     "operation_cmd_line": "bucket_delivery.py -i MoHQ-JG-9-23_DNA_2022-06-25T19.04.54.json -l Delivery_MoHQ-JG-9-23_DNA_2025-06-25T19.04.54.list",
-    "delete": true,
     "readset": [
         {
             "readset_name": "MoHQ-JG-9-23-15000863775-19933DT.A01433_0157_1",
