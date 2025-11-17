@@ -341,10 +341,10 @@ def specimens(project_id: str, specimen_id: str=None, sample_id: str=None, reads
     The include_relationships query allows to include related entities in the output
         (true):
             return: specimens with related entities included
-            Ex: /project/<project>/specimens?json={"include_relationships":  true}
+            Ex: /project/<project>/specimens?json={"include_relationships": true}
         (false):
             return: specimens without related entities (default behavior)
-            Ex: /project/<project>/specimens?json={"include_relationships":  false}
+            Ex: /project/<project>/specimens?json={"include_relationships": false}
     """
     # Don't serialize relationships by default aka when requesting all specimens
     include_relationships = False
@@ -449,10 +449,10 @@ def samples(project_id: str, specimen_id: str=None, sample_id: str=None, readset
     The include_relationships query allows to include related entities in the output
         (true):
             return: samples with related entities included
-            Ex: /project/<project>/samples?json={"include_relationships":  true}
+            Ex: /project/<project>/samples?json={"include_relationships": true}
         (false):
             return: samples without related entities (default behavior)
-            Ex: /project/<project>/samples?json={"include_relationships":  false}
+            Ex: /project/<project>/samples?json={"include_relationships": false}
     """
     # Don't serialize relationships by default aka when requesting all samples
     include_relationships = False
@@ -558,10 +558,10 @@ def readsets(project_id: str, specimen_id: str=None, sample_id: str=None, readse
     The include_relationships query allows to include related entities in the output
         (true):
             return: readsets with related entities included
-            Ex: /project/<project>/readsets?json={"include_relationships":  true}
+            Ex: /project/<project>/readsets?json={"include_relationships": true}
         (false):
             return: readsets without related entities (default behavior)
-            Ex: /project/<project>/readsets?json={"include_relationships":  false}
+            Ex: /project/<project>/readsets?json={"include_relationships": false}
     """
     # Don't serialize relationships by default aka when requesting all readsets
     include_relationships = False
@@ -643,10 +643,10 @@ def operations(project_id: str, readset_id: str=None, operation_id: str=None, di
     The include_relationships query allows to include related entities in the output
         (true):
             return: operations with related entities included
-            Ex: /project/<project>/operations?json={"include_relationships":  true}
+            Ex: /project/<project>/operations?json={"include_relationships": true}
         (false):
             return: operations without related entities (default behavior)
-            Ex: /project/<project>/operations?json={"include_relationships":  false}
+            Ex: /project/<project>/operations?json={"include_relationships": false}
     """
     # Don't serialize relationships by default aka when requesting all operations
     include_relationships = False
@@ -719,10 +719,10 @@ def jobs(project_id: str, readset_id: str=None, job_id: str=None, digest_data=No
     The include_relationships query allows to include related entities in the output
         (true):
             return: jobs with related entities included
-            Ex: /project/<project>/jobs?json={"include_relationships":  true}
+            Ex: /project/<project>/jobs?json={"include_relationships": true}
         (false):
             return: jobs without related entities (default behavior)
-            Ex: /project/<project>/jobs?json={"include_relationships":  false}
+            Ex: /project/<project>/jobs?json={"include_relationships": false}
     """
     # Don't serialize relationships by default aka when requesting all jobs
     include_relationships = False
@@ -824,10 +824,10 @@ def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_i
     The include_relationships query allows to include related entities in the output
         (true):
             return: files with related entities included
-            Ex: /project/<project>/files?json={"include_relationships":  true}
+            Ex: /project/<project>/files?json={"include_relationships": true}
         (false):
             return: files without related entities (default behavior)
-            Ex: /project/<project>/files?json={"include_relationships":  false}
+            Ex: /project/<project>/files?json={"include_relationships": false}
     """
     # Don't serialize relationships by default aka when requesting all files
     include_relationships = False
@@ -951,7 +951,7 @@ def metrics(project_id: str, specimen_id: str=None, sample_id: str=None, readset
     The include_relationships query allows to include related entities in the output
         (true):
             return: metrics with related entities included
-            Ex: /project/<project>/metrics?json={"include_relationships":  true}
+            Ex: /project/<project>/metrics?json={"include_relationships": true}
         (false):
             return: metrics without related entities (default behavior)
     """

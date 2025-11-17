@@ -4,6 +4,7 @@ Modification actions for the database.
 # Standard library
 import logging
 import json
+import re
 
 # Third-party
 from sqlalchemy import select
@@ -12,12 +13,24 @@ from sqlalchemy.orm import class_mapper
 from sqlalchemy.orm.exc import UnmappedClassError
 
 # Local modules
-from .errors import DidNotFindError, RequestError
+from .errors import DidNotFindError, RequestError, UniqueConstraintError
 from .. import vocabulary as vb
 from .. import database
 from .. import model
 
 logger = logging.getLogger(__name__)
+
+def parse_unique_violation(error_msg: str):
+    """Extract table, column, and value from a psycopg2 UniqueViolation error message."""
+    # Extract column and value
+    key_match = re.search(r'Key \(([^)]+)\)=\(([^)]+)\)', error_msg)
+    column, value = key_match.groups() if key_match else (None, None)
+
+    # Extract table name from SQL
+    table_match = re.search(r'(?:INSERT INTO|UPDATE)\s+(\w+)', error_msg)
+    table = table_match.group(1) if table_match else None
+
+    return table, column, value
 
 # Condition Functions
 def is_deleted(obj):
@@ -534,6 +547,15 @@ def edit(ingest_data, session, cascade_mode=None, dry_run=False):
         except SQLAlchemyError as error:
             logger.error("Error: %s", error)
             session.rollback()
+            error_str = str(error)
+            if "UniqueViolation" in error_str:
+                table, column, value = parse_unique_violation(error_str)
+                if table and column and value:
+                    raise UniqueConstraintError(
+                        message=f"'{table}' with '{column}' '{value}' already exists in the database and '{column}' has to be unique."
+                    ) from error
+                raise UniqueConstraintError(message="Unique constraint violation occurred, but details could not be parsed.") from error
+
 
     # If no warning
     if not ret["DB_ACTION_WARNING"]:
