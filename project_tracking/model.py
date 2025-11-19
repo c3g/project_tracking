@@ -451,6 +451,8 @@ class Sample(BaseTable):
             session.flush()
         else:
             if alias:
+                if sample.alias is None:
+                    sample.alias = []
                 for a in alias:
                     if a not in sample.alias:
                         sample.alias.append(a)
