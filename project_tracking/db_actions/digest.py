@@ -366,7 +366,7 @@ def extract_file_uri(file, location_endpoint):
     Extract the URI of a file based on its location endpoint.
     """
     for location in file.locations:
-        if location.endpoint == location_endpoint:
+        if location.endpoint == location_endpoint and not location.deleted:
             return location.uri.split("://")[-1]
     return None
 
@@ -402,7 +402,7 @@ def digest_readset_file(project_id: str, digest_data, session):
         file_map = {"R1": None, "R2": None, "bam": None, "bed": None}
         readset_files = [
             file for op in readset.operations if op.name == "run_processing"
-            for job in op.jobs for file in job.files if file in readset.files
+            for job in op.jobs for file in job.files if file in readset.files and not file.deleted
         ]
 
         for file in readset_files:
@@ -415,7 +415,7 @@ def digest_readset_file(project_id: str, digest_data, session):
                         file_map[read_type] = uri
                     else:
                         ret["DB_ACTION_WARNING"].append(
-                            f"Looking for {read_type} fastq 'File' for 'Sample' '{readset.sample.name}' and 'Readset' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]}."
+                            f"Looking for {read_type} fastq 'File' for 'Sample' '{readset.sample.name}' and 'Readset' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations if not l.deleted]}."
                         )
             elif file.type == "bam":
                 uri = extract_file_uri(file, location_endpoint)
@@ -423,7 +423,7 @@ def digest_readset_file(project_id: str, digest_data, session):
                     file_map["bam"] = uri
                 else:
                     ret["DB_ACTION_WARNING"].append(
-                        f"Looking for bam 'File' for 'Sample' '{readset.sample.name}' and 'Readset' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]}."
+                        f"Looking for bam 'File' for 'Sample' '{readset.sample.name}' and 'Readset' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations if not l.deleted]}."
                     )
             elif file.type == "bed":
                 file_map["bed"] = file.name
