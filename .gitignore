@@ -16,6 +16,7 @@ build/
 *.egg-info/
 .pdm*
 pdm*
+.vscode/
 
 .DS_Store
 

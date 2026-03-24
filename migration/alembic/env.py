@@ -39,8 +39,19 @@ to_upper = PGFunction(
 register_entities([to_upper])
 
 def get_url():
-    """Generate a URL from the environment variables."""
-    return f"{os.environ['C3G_SQLALCHEMY_DATABASE_URI']}"
+    """Resolve DB URL with the following priority:
+    1. config.attributes['db_uri']  — set programmatically by flask upgrade-all-dbs.
+    2. -x db_url=...                — passed on the alembic CLI for a one-off target.
+    3. C3G_SQLALCHEMY_DATABASE_URI  — standard env-var path.
+    """
+    # Programmatic override (flask upgrade-all-dbs iterates over all configured URIs).
+    if 'db_uri' in config.attributes:
+        return config.attributes['db_uri']
+    # CLI override: alembic -x db_url=postgresql://... upgrade head
+    x_args = context.get_x_argument(as_dictionary=True)
+    if 'db_url' in x_args:
+        return x_args['db_url']
+    return os.environ['C3G_SQLALCHEMY_DATABASE_URI']
 
 # Filter out grant-related objects
 def include_object(object, name, type_, reflected, compare_to):

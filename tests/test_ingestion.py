@@ -63,7 +63,7 @@ def test_create_api(client, run_processing_json, transfer_json, genpipes_json, d
 def test_create(not_app_db, run_processing_json, transfer_json, genpipes_json):
     project_name = run_processing_json[vb.PROJECT_NAME]
     db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
 
     run_processing_out = db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
 
@@ -82,3 +82,28 @@ def test_create(not_app_db, run_processing_json, transfer_json, genpipes_json):
 
     genpipes_out = db_actions.ingest_genpipes(project_id, genpipes_json, not_app_db)
     assert isinstance(genpipes_out["DB_ACTION_OUTPUT"][0], model.Operation)
+
+
+def test_create_project_accepts_optional_ext_fields(client):
+    response = client.post(
+        'admin/create_project/EXT-PROJECT',
+        data=json.dumps({"ext_id": 123, "ext_src": "lims"}),
+        content_type='application/json'
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["DB_ACTION_OUTPUT"][0]["name"] == "EXT-PROJECT"
+    assert data["DB_ACTION_OUTPUT"][0]["ext_id"] == 123
+    assert data["DB_ACTION_OUTPUT"][0]["ext_src"] == "lims"
+
+
+def test_create_project_rejects_non_integer_ext_id(client):
+    response = client.post(
+        'admin/create_project/BAD-EXT',
+        data=json.dumps({"ext_id": "abc", "ext_src": "lims"}),
+        content_type='application/json'
+    )
+    assert response.status_code == 400
+    data = json.loads(response.data)
+    assert "DB_ACTION_ERROR" in data
+    assert "ext_id must be an integer when provided." in data["DB_ACTION_ERROR"]

@@ -83,11 +83,19 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
         ret["DB_ACTION_WARNING"].append(warning)
 
     try:
-        job_start = datetime.strptime(ingest_data.get(vb.JOB_START), vb.DATE_LONG_FMT)
+        job_start_value = ingest_data.get(vb.JOB_START)
+        if job_start_value is not None:
+            job_start = datetime.strptime(job_start_value, vb.DATE_LONG_FMT)
+        else:
+            job_start = datetime.now()
     except TypeError:
         job_start = datetime.now()
     try:
-        job_stop = datetime.strptime(ingest_data.get(vb.JOB_STOP), vb.DATE_LONG_FMT)
+        job_stop_value = ingest_data.get(vb.JOB_STOP)
+        if job_stop_value is not None:
+            job_stop = datetime.strptime(job_stop_value, vb.DATE_LONG_FMT)
+        else:
+            job_stop = datetime.now()
     except TypeError:
         job_stop = datetime.now()
     job, warning = Job.from_attributes(
@@ -291,11 +299,19 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
         ret["DB_ACTION_WARNING"].append(warning)
 
     try:
-        job_start = datetime.strptime(ingest_data.get(vb.JOB_START), vb.DATE_LONG_FMT)
+        job_start_value = ingest_data.get(vb.JOB_START)
+        if job_start_value is not None:
+            job_start = datetime.strptime(job_start_value, vb.DATE_LONG_FMT)
+        else:
+            job_start = datetime.now()
     except TypeError:
         job_start = datetime.now()
     try:
-        job_stop = datetime.strptime(ingest_data.get(vb.JOB_STOP), vb.DATE_LONG_FMT)
+        job_stop_value = ingest_data.get(vb.JOB_STOP)
+        if job_stop_value is not None:
+            job_stop = datetime.strptime(job_stop_value, vb.DATE_LONG_FMT)
+        else:
+            job_stop = datetime.now()
     except TypeError:
         job_stop = datetime.now()
     job, warning = Job.from_attributes(
@@ -413,6 +429,8 @@ def ingest_genpipes(project_id: str, ingest_data, session):
         }
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
+
+    job = None
 
     operation_config, warning = OperationConfig.from_attributes(
         name=ingest_data[vb.OPERATION_CONFIG_NAME],
@@ -616,11 +634,19 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
         ret["DB_ACTION_WARNING"].append(warning)
 
     try:
-        job_start = datetime.strptime(ingest_data.get(vb.JOB_START), vb.DATE_LONG_FMT)
+        job_start_value = ingest_data.get(vb.JOB_START)
+        if job_start_value is not None:
+            job_start = datetime.strptime(job_start_value, vb.DATE_LONG_FMT)
+        else:
+            job_start = datetime.now()
     except TypeError:
         job_start = datetime.now()
     try:
-        job_stop = datetime.strptime(ingest_data.get(vb.JOB_STOP), vb.DATE_LONG_FMT)
+        job_stop_value = ingest_data.get(vb.JOB_STOP)
+        if job_stop_value is not None:
+            job_stop = datetime.strptime(job_stop_value, vb.DATE_LONG_FMT)
+        else:
+            job_stop = datetime.now()
     except TypeError:
         job_stop = datetime.now()
     job, warning = Job.from_attributes(
@@ -679,7 +705,8 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
                     .where(Location.uri == src_uri)
                 )
                 location = session.execute(stmt).scalar_one_or_none()
-                location.deleted = True
+                if location is not None:
+                    location.deleted = True
 
             new_location, warning = Location.from_uri(uri=dest_uri, file=file, session=session)
             if warning:

@@ -14,6 +14,42 @@ from . import api
 from . import database
 
 
+def _load_prefixed_file_env(app, prefix="C3G"):
+    """Load <PREFIX>_*_FILE values directly into app config.
+
+    Example:
+        C3G_PROJECT_DATABASES_FILE=/run/secrets/C3G_PROJECT_DATABASES
+    will populate:
+        C3G_PROJECT_DATABASES=<content of file>
+
+    Existing non-file variables keep precedence.
+    """
+    prefix_value = f"{prefix}_"
+    for key, file_path in list(os.environ.items()):
+        if not (key.startswith(prefix_value) and key.endswith("_FILE")):
+            continue
+
+        target_key = key[:-5]
+        if os.environ.get(target_key):
+            continue
+
+        # Convert C3G_SQLALCHEMY_DATABASE_URI -> SQLALCHEMY_DATABASE_URI
+        config_key = target_key[len(prefix_value):]
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as handle:
+                raw_value = handle.read().strip()
+                try:
+                    value = app.json.loads(raw_value)
+                except Exception:
+                    value = raw_value
+                app.config[config_key] = value
+        except OSError as exc:
+            raise RuntimeError(
+                f"Could not read secret file '{file_path}' for env var '{target_key}'."
+            ) from exc
+
+
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True, static_folder=None)
     app.url_map.strict_slashes = False
@@ -33,6 +69,7 @@ def create_app(test_config=None):
         SQLALCHEMY_DATABASE_URI=f'sqlite:///{os.path.join(app.instance_path, "tracking_db.sql")}',
     )
     app.config.from_prefixed_env("C3G")
+    _load_prefixed_file_env(app, "C3G")
 
     logging.debug(f'SQLALCHEMY_DATABASE_URI: {app.config["SQLALCHEMY_DATABASE_URI"]}')
 

@@ -2,14 +2,13 @@
 import time
 import functools
 import logging
-import json
 
-from flask import Blueprint, request, flash, redirect, jsonify
-from werkzeug.exceptions import BadRequest
+from flask import Blueprint, request, jsonify
 
 from .. import db_actions
-from ..database import session_scope
+from ..database import session_scope, set_project_db_from_name
 from ..schema import serialize
+from .decorators import parse_json_input, parse_json_get
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +60,11 @@ def convcheck_project(func):
     """
     @functools.wraps(func)
     def wrapper(*args, project=None, **kwargs):
+        # Resolve the correct DB for this project name BEFORE any DB query.
+        # project is the raw URL segment e.g. "Project Name", "PROJ-A", "42".
+        if project and not project.isdigit():
+            set_project_db_from_name(project)
+
         project_id = None
 
         if project is None:
@@ -68,7 +72,7 @@ def convcheck_project(func):
         elif project.isdigit():
             project_id = project
         else:
-            project_id = db_actions.name_to_id("Project", project.upper())
+            project_id = db_actions.name_to_id("Project", project)
             # Handle empty list case as non-existent project
             if isinstance(project_id, list) and not project_id:
                 with session_scope() as session:
@@ -196,80 +200,6 @@ def parse_names(raw):
     """
     return [n.strip() for n in raw.split(',') if n.strip()]
 
-def parse_json_input(func):
-    """
-    Decorator to parse JSON input from the request.
-    If the JSON is invalid, flash an error message and redirect to the same URL.
-    Args:
-        func (function): The function to decorate.
-    Returns:
-        function: The decorated function that processes JSON input.
-    """
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            ingest_data = request.get_json(force=True)
-        except BadRequest:
-            flash('Data does not seem to be valid JSON')
-            return redirect(request.url)
-
-        kwargs["ingest_data"] = ingest_data
-        return func(*args, **kwargs)
-    return wrapper
-
-def parse_json_get(expected_keys=None):
-    """
-    Decorator to parse JSON input from the request's query parameters.
-    If the JSON is invalid or contains unexpected keys, return a 400 Bad Request response.
-    Args:
-        expected_keys (set, optional): A set of expected keys in the JSON input.
-            If provided, the decorator will check for unexpected keys.
-    Returns:
-        function: The decorated function that processes JSON input from query parameters.
-    """
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            # Check for unexpected query parameters
-            allowed_params = {'json'}
-            unexpected_params = set(request.args.keys()) - allowed_params
-            if unexpected_params:
-                return jsonify({
-                    "DB_ACTION_ERROR": [
-                        f"Unexpected query parameter(s): {', '.join(unexpected_params)}. Allowed: {', '.join(allowed_params)}"
-                    ]
-                }), 400
-            raw_json = request.args.get("json", "{}")
-            try:
-                digest_data = json.loads(raw_json)
-            except json.JSONDecodeError as e:
-                error_position = e.pos
-                pointer_line = " " * error_position + "^"
-
-                return jsonify({
-                    "DB_ACTION_ERROR": [
-                        "Invalid JSON",
-                        f"Error: {str(e)}",
-                        raw_json,
-                        pointer_line
-                    ]
-                }), 400
-
-            if expected_keys is not None:
-                unexpected_keys = set(digest_data.keys()) - expected_keys
-                if unexpected_keys:
-                    return jsonify({
-                        "DB_ACTION_ERROR": [
-                            f"Unexpected keys in JSON: {', '.join(unexpected_keys)}"
-                        ]
-                    }), 400
-
-            kwargs["digest_data"] = digest_data
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
-
-
 @bp.route('/', methods=['GET'])
 @bp.route('/<string:project>', methods=['GET'])
 @convcheck_project
@@ -315,7 +245,7 @@ def projects(project_id=None):
 @bp.route('/<string:project>/readsets/<string:readset_id>/specimens', methods=['GET'])
 @convcheck_project
 @parse_json_get(expected_keys={"specimen_name", "sample_name", "readset_name", "include_relationships"})
-def specimens(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, digest_data=None):
+def specimens(project_id: str, specimen_id=None, sample_id=None, readset_id=None, digest_data=None):
     """
     GET:
         specimen_id: uses the form "1,3-8,9", if not provided all specimens are returned
@@ -403,7 +333,7 @@ def specimens(project_id: str, specimen_id: str=None, sample_id: str=None, reads
 @bp.route('/<string:project>/readsets/<string:readset_id>/samples', methods=['GET'])
 @convcheck_project
 @parse_json_get(expected_keys={"pair", "tumour", "tumor", "specimen_name", "sample_name", "readset_name", "include_relationships"})
-def samples(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, digest_data=None):
+def samples(project_id: str, specimen_id=None, sample_id=None, readset_id=None, digest_data=None):
     """
     GET:
         sample_id: uses the form "1,3-8,9", if not provided all samples are returned
@@ -528,7 +458,7 @@ def samples(project_id: str, specimen_id: str=None, sample_id: str=None, readset
 @bp.route('/<string:project>/specimens/<string:specimen_id>/readsets', methods=['GET'])
 @convcheck_project
 @parse_json_get(expected_keys={"readset_name", "sample_name", "specimen_name", "include_relationships"})
-def readsets(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, digest_data=None):
+def readsets(project_id: str, specimen_id=None, sample_id=None, readset_id=None, digest_data=None):
     """
     GET:
         readset_id: uses the form "1,3-8,9", if not provided all readsets are returned
@@ -619,7 +549,7 @@ def readsets(project_id: str, specimen_id: str=None, sample_id: str=None, readse
 @bp.route('/<string:project>/readsets/<string:readset_id>/operations', methods=['GET'])
 @convcheck_project
 @parse_json_get(expected_keys={"operation_name", "readset_name", "include_relationships"})
-def operations(project_id: str, readset_id: str=None, operation_id: str=None, digest_data=None):
+def operations(project_id: str, readset_id=None, operation_id=None, digest_data=None):
     """
     GET:
         operation_id: uses the form "1,3-8,9". Select operation by ids
@@ -695,7 +625,7 @@ def operations(project_id: str, readset_id: str=None, operation_id: str=None, di
 @bp.route('/<string:project>/readsets/<string:readset_id>/jobs', methods=['GET'])
 @convcheck_project
 @parse_json_get(expected_keys={"job_name", "readset_name", "include_relationships"})
-def jobs(project_id: str, readset_id: str=None, job_id: str=None, digest_data=None):
+def jobs(project_id: str, readset_id=None, job_id=None, digest_data=None):
     """
     GET:
         job_id: uses the form "1,3-8,9". Select job by ids
@@ -773,7 +703,7 @@ def jobs(project_id: str, readset_id: str=None, job_id: str=None, digest_data=No
 @bp.route('/<string:project>/readsets/<string:readset_id>/files', methods=['GET'])
 @convcheck_project
 @parse_json_get(expected_keys={"file_name", "specimen_name", "sample_name", "readset_name", "deliverable", "state", "include_relationships"})
-def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, file_id: str=None, digest_data=None):
+def files(project_id: str, specimen_id=None, sample_id=None, readset_id=None, file_id=None, digest_data=None):
     """
     GET:
         file_id: uses the form "1,3-8,9". Select file by ids
@@ -905,7 +835,7 @@ def files(project_id: str, specimen_id: str=None, sample_id: str=None, readset_i
 @bp.route('/<string:project>/readsets/<string:readset_id>/metrics', methods=['GET'])
 @convcheck_project
 @parse_json_get(expected_keys={"metric_name", "specimen_name", "sample_name", "readset_name", "deliverable", "include_relationships"})
-def metrics(project_id: str, specimen_id: str=None, sample_id: str=None, readset_id: str=None, metric_id: str=None, digest_data=None):
+def metrics(project_id: str, specimen_id=None, sample_id=None, readset_id=None, metric_id=None, digest_data=None):
     """
     GET:
         metric_id: uses the form "1,3-8,9". Select metric by ids
