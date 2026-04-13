@@ -63,6 +63,7 @@ READSET_ADAPTER1 = "readset_adapter1"
 READSET_ADAPTER2 = "readset_adapter2"
 READSET_SEQUENCING_TYPE = "readset_sequencing_type"
 READSET_QUALITY_OFFSET = "readset_quality_offset"
+READSET_STATE = "readset_state"
 
 # operation table
 OPERATION_PLATFORM = "operation_platform"

@@ -164,6 +164,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                     adapter1=readset_json[vb.READSET_ADAPTER1],
                     adapter2=readset_json[vb.READSET_ADAPTER2],
                     sequencing_type=SequencingTypeEnum(readset_json[vb.READSET_SEQUENCING_TYPE]),
+                    state=StateEnum(readset_json.get(vb.READSET_STATE, "VALID")),
                     sample=sample,
                     experiment=experiment,
                     run=run,
