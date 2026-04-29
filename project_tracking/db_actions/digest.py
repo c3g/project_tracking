@@ -513,8 +513,8 @@ def digest_unanalyzed(project_id: str, digest_data, session):
     Returns:
         - List of unanalyzed sample or readset identifiers
     """
-    if isinstance(project_id, str):
-        project_id = [project_id]
+    # if isinstance(project_id, str):
+    #     project_id = [project_id]
 
     ret = {
         "DB_ACTION_WARNING": [],
@@ -547,7 +547,7 @@ def digest_unanalyzed(project_id: str, digest_data, session):
             .join(Sample.readsets)
             .join(Sample.specimen)
             .join(Specimen.project)
-            .where(Project.id.in_(project_id))
+            .where(Project.id == project_id)
         )
         key = "sample_name"
     elif sample_id_flag:
@@ -556,7 +556,7 @@ def digest_unanalyzed(project_id: str, digest_data, session):
             .join(Sample.readsets)
             .join(Sample.specimen)
             .join(Specimen.project)
-            .where(Project.id.in_(project_id))
+            .where(Project.id == project_id)
         )
         key = "sample_id"
     elif readset_name_flag:
@@ -565,7 +565,7 @@ def digest_unanalyzed(project_id: str, digest_data, session):
             .join(Readset.sample)
             .join(Sample.specimen)
             .join(Specimen.project)
-            .where(Project.id.in_(project_id))
+            .where(Project.id == project_id)
         )
         key = "readset_name"
     elif readset_id_flag:
@@ -574,7 +574,7 @@ def digest_unanalyzed(project_id: str, digest_data, session):
             .join(Readset.sample)
             .join(Sample.specimen)
             .join(Specimen.project)
-            .where(Project.id.in_(project_id))
+            .where(Project.id == project_id)
         )
         key = "readset_id"
     else:

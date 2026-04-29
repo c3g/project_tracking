@@ -1,3 +1,4 @@
+import copy
 import json
 import re
 import os
@@ -107,3 +108,71 @@ def test_create_project_rejects_non_integer_ext_id(client):
     data = json.loads(response.data)
     assert "DB_ACTION_ERROR" in data
     assert "ext_id must be an integer when provided." in data["DB_ACTION_ERROR"]
+
+
+def test_run_processing_skips_file_without_md5sum(not_app_db, run_processing_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+
+    data = copy.deepcopy(run_processing_json)
+    first_file = data[vb.SPECIMEN][0][vb.SAMPLE][0][vb.READSET][0][vb.FILE][0]
+    first_file_name = first_file[vb.FILE_NAME]
+    first_file[vb.FILE_MD5SUM] = None
+
+    result = db_actions.ingest_run_processing(project_id, data, not_app_db)
+
+    assert any("has no md5sum, skipping" in w for w in result["DB_ACTION_WARNING"])
+    assert not_app_db.execute(select(model.File).where(model.File.name == first_file_name)).scalar_one_or_none() is None
+
+
+def test_run_processing_force_ingest_file_without_md5sum(not_app_db, run_processing_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+
+    data = copy.deepcopy(run_processing_json)
+    first_file = data[vb.SPECIMEN][0][vb.SAMPLE][0][vb.READSET][0][vb.FILE][0]
+    first_file_name = first_file[vb.FILE_NAME]
+    first_file[vb.FILE_MD5SUM] = None
+    data[vb.FORCE] = True
+
+    result = db_actions.ingest_run_processing(project_id, data, not_app_db)
+
+    assert any("ingesting anyway (force=True)" in w for w in result["DB_ACTION_WARNING"])
+    assert not_app_db.execute(select(model.File).where(model.File.name == first_file_name)).scalar_one_or_none() is not None
+
+
+def test_genpipes_skips_file_without_md5sum(not_app_db, run_processing_json, genpipes_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+
+    data = copy.deepcopy(genpipes_json)
+    first_file = data[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0][vb.FILE][0]
+    first_file_name = first_file[vb.FILE_NAME]
+    first_file[vb.FILE_MD5SUM] = None
+
+    result = db_actions.ingest_genpipes(project_id, data, not_app_db)
+
+    assert any("has no md5sum, skipping" in w for w in result["DB_ACTION_WARNING"])
+    assert not_app_db.execute(select(model.File).where(model.File.name == first_file_name)).scalar_one_or_none() is None
+
+
+def test_genpipes_force_ingest_file_without_md5sum(not_app_db, run_processing_json, genpipes_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+
+    data = copy.deepcopy(genpipes_json)
+    first_file = data[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0][vb.FILE][0]
+    first_file_name = first_file[vb.FILE_NAME]
+    first_file[vb.FILE_MD5SUM] = None
+    data[vb.FORCE] = True
+
+    result = db_actions.ingest_genpipes(project_id, data, not_app_db)
+
+    assert any("ingesting anyway (force=True)" in w for w in result["DB_ACTION_WARNING"])
+    assert not_app_db.execute(select(model.File).where(model.File.name == first_file_name)).scalar_one_or_none() is not None

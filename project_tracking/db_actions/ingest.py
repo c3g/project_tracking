@@ -66,6 +66,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
+    force = ingest_data.get(vb.FORCE, False)
 
     # Looking for potential readsets duplicates before starting the ingestion to be able to report all of them at once
     message = unique_constraint_error(session, "run_processing", ingest_data)
@@ -172,6 +173,11 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                     jobs=[job]
                     )
                 for file_json in readset_json[vb.FILE]:
+                    if not file_json.get(vb.FILE_MD5SUM):
+                        if not force:
+                            ret["DB_ACTION_WARNING"].append(f"File '{file_json[vb.FILE_NAME]}' has no md5sum, skipping. Use force to ingest anyway.")
+                            continue
+                        ret["DB_ACTION_WARNING"].append(f"File '{file_json[vb.FILE_NAME]}' has no md5sum, ingesting anyway (force=True).")
                     suffixes = Path(file_json[vb.FILE_NAME]).suffixes
                     file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
                     if ".gz" in suffixes:
@@ -431,6 +437,8 @@ def ingest_genpipes(project_id: str, ingest_data, session):
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
+    force = ingest_data.get(vb.FORCE, False)
+
     job = None
 
     operation_config, warning = OperationConfig.from_attributes(
@@ -504,6 +512,11 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                         job.readsets.append(readset)
                     if vb.FILE in job_json:
                         for file_json in job_json[vb.FILE]:
+                            if not file_json.get(vb.FILE_MD5SUM):
+                                if not force:
+                                    ret["DB_ACTION_WARNING"].append(f"File '{file_json[vb.FILE_NAME]}' has no md5sum, skipping. Use force to ingest anyway.")
+                                    continue
+                                ret["DB_ACTION_WARNING"].append(f"File '{file_json[vb.FILE_NAME]}' has no md5sum, ingesting anyway (force=True).")
                             suffixes = Path(file_json[vb.FILE_NAME]).suffixes
                             file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
                             if ".gz" in suffixes:
