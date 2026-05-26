@@ -5,6 +5,28 @@
 ----------------------------------------------------------------------
 --Task 3:Post-run — compute the same hashes again
 ----------------------------------------------------------------------
+----------------------------------------------------------------------
+-- Post Run Global counts: run before and after dedup script
+----------------------------------------------------------------------
+DO $$
+DECLARE
+    file_count BIGINT;
+    location_count BIGINT;
+    readset_file_count BIGINT;
+    job_file_count BIGINT;
+BEGIN
+    SELECT COUNT(*) INTO file_count FROM file;
+    SELECT COUNT(*) INTO location_count FROM location;
+    SELECT COUNT(*) INTO readset_file_count FROM readset_file;
+    SELECT COUNT(*) INTO job_file_count FROM job_file;
+
+    RAISE NOTICE '--- Post RunTable counts ---';
+    RAISE NOTICE 'file: %', file_count;
+    RAISE NOTICE 'location: %', location_count;
+    RAISE NOTICE 'readset_file: %', readset_file_count;
+    RAISE NOTICE 'job_file: %', job_file_count;
+END $$;
+
 DROP TABLE IF EXISTS post_dedup_sample_digest;
 
 CREATE TEMP TABLE post_dedup_sample_digest (
@@ -17,75 +39,106 @@ CREATE TEMP TABLE post_dedup_sample_digest (
 INSERT INTO post_dedup_sample_digest (sample_id, digest, hashed_value)
 SELECT 
     sample_id,
-    encode(digest(string_agg(chain_row, ',' ORDER BY readset_id, job_id, file_id, location_id), 'md5'), 'hex'),
-    string_agg(chain_row, ',' ORDER BY readset_id, job_id, file_id, location_id)
+    encode(digest(string_agg(uri, ',' ORDER BY uri), 'md5'), 'hex'),
+    string_agg(uri, ',' ORDER BY uri)
 FROM (
-    SELECT 
-        s.id AS sample_id,
-        r.id AS readset_id,
-        NULL::INT AS job_id,
-        f.id AS file_id,
-        l.id AS location_id,
-        concat_ws(':', r.id, NULL, f.id, l.id, l.uri) AS chain_row
-    FROM sample s
-    JOIN readset r ON r.sample_id = s.id
-    JOIN readset_file rf ON rf.readset_id = r.id
-    JOIN file f ON f.id = rf.file_id
-    JOIN location l ON l.file_id = f.id
-    --ensure from the sample subset
-    WHERE s.id IN (SELECT id FROM validation_samples)
+    SELECT DISTINCT sample_id, uri
+    FROM (
+        SELECT 
+            s.id AS sample_id,
+            l.uri AS uri
+        FROM sample s
+        JOIN readset r ON r.sample_id = s.id
+        JOIN readset_file rf ON rf.readset_id = r.id
+        JOIN file f ON f.id = rf.file_id
+        JOIN location l ON l.file_id = f.id
+        --select subset of samples in validation_samples
+        WHERE s.id IN (SELECT id FROM validation_samples)
 
+        UNION ALL
 
-    UNION
-
-    SELECT 
-        s.id AS sample_id,
-        r.id AS readset_id,
-        j.id AS job_id,
-        f.id AS file_id,
-        l.id AS location_id,
-        concat_ws(':', r.id, j.id, f.id, l.id, l.uri) AS chain_row
-    FROM sample s
-    JOIN readset r ON r.sample_id = s.id
-    JOIN readset_job rj ON rj.readset_id = r.id
-    JOIN job j ON j.id = rj.job_id
-    JOIN job_file jf ON jf.job_id = j.id
-    JOIN file f ON f.id = jf.file_id
-    JOIN location l ON l.file_id = f.id
-    --ensure from the sample subset
-    WHERE s.id IN (SELECT id FROM validation_samples)   
-) chain
+        SELECT 
+            s.id AS sample_id,
+            l.uri AS uri
+        FROM sample s
+        JOIN readset r ON r.sample_id = s.id
+        JOIN readset_job rj ON rj.readset_id = r.id
+        JOIN job j ON j.id = rj.job_id
+        JOIN job_file jf ON jf.job_id = j.id
+        JOIN file f ON f.id = jf.file_id
+        JOIN location l ON l.file_id = f.id
+        --select subset of samples in validation_samples
+        WHERE s.id IN (SELECT id FROM validation_samples)
+    ) raw_chain
+) deduped
 GROUP BY sample_id;
 
+----------------------------------------------------------------------
+-- Task 4: Compare pre/post URI manifests (semantic integrity check)
+----------------------------------------------------------------------
 
-----------------------------------------------------------------------
---Task 4:Compare — report any samples where the hash changed
-----------------------------------------------------------------------
 DO $$
 DECLARE
     rec RECORD;
-    changed_count INT := 0;
+    changed_count BIGINT := 0;
 BEGIN
     FOR rec IN (
-        SELECT 
-            pre.sample_id,
+        SELECT
+            COALESCE(pre.sample_id, post.sample_id) AS sample_id,
             pre.digest AS pre_digest,
             post.digest AS post_digest,
-            pre.hashed_value AS pre_hashed_value,
-            post.hashed_value AS post_hashed_value
+            pre.hashed_value AS pre_uris,
+            post.hashed_value AS post_uris
         FROM pre_dedup_sample_digest pre
-        JOIN post_dedup_sample_digest post ON pre.sample_id = post.sample_id
-        WHERE pre.digest != post.digest
-    ) LOOP
-        changed_count := changed_count + 1;
-        RAISE NOTICE 'Sample % digest changed. PRE: % POST: %', 
-            rec.sample_id, rec.pre_digest, rec.post_digest;
+        FULL OUTER JOIN post_dedup_sample_digest post
+            ON pre.sample_id = post.sample_id
+    )
+    LOOP
+        ------------------------------------------------------------------
+        -- Case 1: sample missing after dedup (data loss)
+        ------------------------------------------------------------------
+        IF rec.post_digest IS NULL THEN
+            changed_count := changed_count + 1;
+
+            RAISE NOTICE
+                'VALIDATION FAILURE: Sample % lost all URI associations after dedup',
+                rec.sample_id;
+
+        ------------------------------------------------------------------
+        -- Case 2: sample newly appears after dedup (unexpected growth)
+        ------------------------------------------------------------------
+        ELSIF rec.pre_digest IS NULL THEN
+            changed_count := changed_count + 1;
+
+            RAISE NOTICE
+                'VALIDATION FAILURE: Sample % gained URI associations after dedup',
+                rec.sample_id;
+
+        ------------------------------------------------------------------
+        -- Case 3: both exist but URI set changed
+        ------------------------------------------------------------------
+        ELSIF rec.pre_digest IS DISTINCT FROM rec.post_digest THEN
+            changed_count := changed_count + 1;
+
+            RAISE NOTICE
+                'VALIDATION FAILURE: Sample % URI set changed',
+                rec.sample_id;
+
+            RAISE NOTICE 'PRE URIs: %', rec.pre_uris;
+            RAISE NOTICE 'POST URIs: %', rec.post_uris;
+        END IF;
     END LOOP;
 
+    ----------------------------------------------------------------------
+    -- Final summary
+    ----------------------------------------------------------------------
     IF changed_count = 0 THEN
-        RAISE NOTICE 'Validation passed — no digest changes detected across % samples', 
-            (SELECT COUNT(*) FROM validation_samples);
+        RAISE NOTICE
+            'Validation PASSED — URI sets unchanged across all validated samples (% samples)',
+            (SELECT COUNT(*) FROM pre_dedup_sample_digest);
     ELSE
-        RAISE NOTICE 'Validation FAILED — % samples had digest changes', changed_count;
+        RAISE NOTICE
+            'Validation FAILED — % samples had URI set changes',
+            changed_count;
     END IF;
 END $$;
