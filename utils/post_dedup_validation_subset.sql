@@ -76,11 +76,12 @@ GROUP BY sample_id;
 ----------------------------------------------------------------------
 -- Task 4: Compare pre/post URI manifests (semantic integrity check)
 ----------------------------------------------------------------------
-
 DO $$
 DECLARE
     rec RECORD;
     changed_count BIGINT := 0;
+    removed_uris TEXT;
+    added_uris TEXT;
 BEGIN
     FOR rec IN (
         SELECT
@@ -99,7 +100,6 @@ BEGIN
         ------------------------------------------------------------------
         IF rec.post_digest IS NULL THEN
             changed_count := changed_count + 1;
-
             RAISE NOTICE
                 'VALIDATION FAILURE: Sample % lost all URI associations after dedup',
                 rec.sample_id;
@@ -109,7 +109,6 @@ BEGIN
         ------------------------------------------------------------------
         ELSIF rec.pre_digest IS NULL THEN
             changed_count := changed_count + 1;
-
             RAISE NOTICE
                 'VALIDATION FAILURE: Sample % gained URI associations after dedup',
                 rec.sample_id;
@@ -119,13 +118,31 @@ BEGIN
         ------------------------------------------------------------------
         ELSIF rec.pre_digest IS DISTINCT FROM rec.post_digest THEN
             changed_count := changed_count + 1;
-
             RAISE NOTICE
                 'VALIDATION FAILURE: Sample % URI set changed',
                 rec.sample_id;
 
-            RAISE NOTICE 'PRE URIs: %', rec.pre_uris;
-            RAISE NOTICE 'POST URIs: %', rec.post_uris;
+            SELECT string_agg(uri, ', ' ORDER BY uri)
+            INTO removed_uris
+            FROM unnest(string_to_array(rec.pre_uris, ',')) AS uri
+            WHERE uri NOT IN (
+                SELECT unnest(string_to_array(rec.post_uris, ','))
+            );
+
+            SELECT string_agg(uri, ', ' ORDER BY uri)
+            INTO added_uris
+            FROM unnest(string_to_array(rec.post_uris, ',')) AS uri
+            WHERE uri NOT IN (
+                SELECT unnest(string_to_array(rec.pre_uris, ','))
+            );
+
+            IF removed_uris IS NOT NULL THEN
+                RAISE NOTICE 'REMOVED URIs (in pre, missing post): %', removed_uris;
+            END IF;
+            IF added_uris IS NOT NULL THEN
+                RAISE NOTICE 'ADDED URIs (in post, missing pre): %', added_uris;
+            END IF;
+
         END IF;
     END LOOP;
 
