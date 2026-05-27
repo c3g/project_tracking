@@ -33,7 +33,7 @@ SELECT setseed(0.42);  -- any value between -1 and 1
 DROP TABLE IF EXISTS validation_samples;
 
 CREATE TEMP TABLE validation_samples AS
-SELECT id FROM sample ORDER BY RANDOM() LIMIT 100;
+SELECT id FROM sample ORDER BY RANDOM() LIMIT 7000;
 
 DROP TABLE IF EXISTS pre_dedup_sample_digest;
 

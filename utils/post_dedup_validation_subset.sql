@@ -82,6 +82,8 @@ DECLARE
     changed_count BIGINT := 0;
     removed_uris TEXT;
     added_uris TEXT;
+    flagged_samples TEXT := '';
+    affected_files TEXT;
 BEGIN
     FOR rec IN (
         SELECT
@@ -100,6 +102,7 @@ BEGIN
         ------------------------------------------------------------------
         IF rec.post_digest IS NULL THEN
             changed_count := changed_count + 1;
+            flagged_samples := flagged_samples || rec.sample_id || ', ';
             RAISE NOTICE
                 'VALIDATION FAILURE: Sample % lost all URI associations after dedup',
                 rec.sample_id;
@@ -109,6 +112,7 @@ BEGIN
         ------------------------------------------------------------------
         ELSIF rec.pre_digest IS NULL THEN
             changed_count := changed_count + 1;
+            flagged_samples := flagged_samples || rec.sample_id || ', ';
             RAISE NOTICE
                 'VALIDATION FAILURE: Sample % gained URI associations after dedup',
                 rec.sample_id;
@@ -118,6 +122,7 @@ BEGIN
         ------------------------------------------------------------------
         ELSIF rec.pre_digest IS DISTINCT FROM rec.post_digest THEN
             changed_count := changed_count + 1;
+            flagged_samples := flagged_samples || rec.sample_id || ', ';
             RAISE NOTICE
                 'VALIDATION FAILURE: Sample % URI set changed',
                 rec.sample_id;
@@ -143,6 +148,24 @@ BEGIN
                 RAISE NOTICE 'ADDED URIs (in post, missing pre): %', added_uris;
             END IF;
 
+            -- Fetch file IDs associated with the differing URIs for this sample
+            SELECT string_agg(DISTINCT f.id::TEXT, ', ' ORDER BY f.id::TEXT)
+            INTO affected_files
+            FROM file f
+            JOIN location l ON l.file_id = f.id
+            WHERE l.uri = ANY(
+                -- URIs that appear in pre but not post, or post but not pre
+                SELECT uri FROM unnest(string_to_array(rec.pre_uris, ',')) AS uri
+                WHERE uri NOT IN (SELECT unnest(string_to_array(rec.post_uris, ',')))
+                UNION
+                SELECT uri FROM unnest(string_to_array(rec.post_uris, ',')) AS uri
+                WHERE uri NOT IN (SELECT unnest(string_to_array(rec.pre_uris, ',')))
+            );
+
+            IF affected_files IS NOT NULL THEN
+                RAISE NOTICE 'AFFECTED file IDs for sample %: %', rec.sample_id, affected_files;
+            END IF;
+
         END IF;
     END LOOP;
 
@@ -155,7 +178,8 @@ BEGIN
             (SELECT COUNT(*) FROM pre_dedup_sample_digest);
     ELSE
         RAISE NOTICE
-            'Validation FAILED — % samples had URI set changes',
-            changed_count;
+            'Validation FAILED — % samples had URI set changes. Flagged sample IDs: %',
+            changed_count,
+            rtrim(flagged_samples, ', ');
     END IF;
 END $$;
