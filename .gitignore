@@ -20,3 +20,10 @@ pdm*
 .DS_Store
 
 tests/data/real_data
+
+
+#test branch
+session_notes/
+utils/deduplication-validation-junk.sql
+utils/fix0.sql
+utils/fix01.sql

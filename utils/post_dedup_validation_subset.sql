@@ -84,6 +84,8 @@ DECLARE
     added_uris TEXT;
     flagged_samples TEXT := '';
     affected_files TEXT;
+    flagged_details TEXT := '';
+    all_affected_files TEXT := '';
 BEGIN
     FOR rec IN (
         SELECT
@@ -103,6 +105,8 @@ BEGIN
         IF rec.post_digest IS NULL THEN
             changed_count := changed_count + 1;
             flagged_samples := flagged_samples || rec.sample_id || ', ';
+            flagged_details := flagged_details ||
+                format('  Sample %s: lost all URI associations (no file IDs recoverable)', rec.sample_id) || E'\n';
             RAISE NOTICE
                 'VALIDATION FAILURE: Sample % lost all URI associations after dedup',
                 rec.sample_id;
@@ -113,6 +117,8 @@ BEGIN
         ELSIF rec.pre_digest IS NULL THEN
             changed_count := changed_count + 1;
             flagged_samples := flagged_samples || rec.sample_id || ', ';
+            flagged_details := flagged_details ||
+                format('  Sample %s: gained URI associations (no file IDs recoverable)', rec.sample_id) || E'\n';
             RAISE NOTICE
                 'VALIDATION FAILURE: Sample % gained URI associations after dedup',
                 rec.sample_id;
@@ -154,7 +160,6 @@ BEGIN
             FROM file f
             JOIN location l ON l.file_id = f.id
             WHERE l.uri = ANY(
-                -- URIs that appear in pre but not post, or post but not pre
                 SELECT uri FROM unnest(string_to_array(rec.pre_uris, ',')) AS uri
                 WHERE uri NOT IN (SELECT unnest(string_to_array(rec.post_uris, ',')))
                 UNION
@@ -164,6 +169,13 @@ BEGIN
 
             IF affected_files IS NOT NULL THEN
                 RAISE NOTICE 'AFFECTED file IDs for sample %: %', rec.sample_id, affected_files;
+                flagged_details := flagged_details ||
+                    format('  Sample %s: file IDs [%s]', rec.sample_id, affected_files) || E'\n';
+                -- Accumulate into the global distinct file ID list
+                all_affected_files := all_affected_files || affected_files || ', ';
+            ELSE
+                flagged_details := flagged_details ||
+                    format('  Sample %s: URI set changed but no matching file IDs found', rec.sample_id) || E'\n';
             END IF;
 
         END IF;
@@ -181,5 +193,15 @@ BEGIN
             'Validation FAILED — % samples had URI set changes. Flagged sample IDs: %',
             changed_count,
             rtrim(flagged_samples, ', ');
+
+        RAISE NOTICE E'\n--- Per-sample breakdown ---\n%', flagged_details;
+
+        -- Deduplicate the accumulated file IDs for the final report
+        RAISE NOTICE '--- All distinct problematic file IDs ---: %',
+            (
+                SELECT string_agg(DISTINCT file_id, ', ' ORDER BY file_id)
+                FROM unnest(string_to_array(rtrim(all_affected_files, ', '), ', ')) AS file_id
+                WHERE file_id <> ''
+            );
     END IF;
 END $$;
