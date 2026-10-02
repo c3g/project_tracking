@@ -18,7 +18,7 @@ name = "project_tracking"
 dynamic = ["version"]
 authors = [
   { name="P-O Quirion", email="po.quirion@mcgill.ca" },
-  { name="Paul Streteowich", email="paul.stretenowich@mcgill.ca" },
+  { name="Paul Stretenowich", email="paul.stretenowich@mcgill.ca" },
 ]
 description = "API and DB to track C3G assembler"
 readme = "README.md"
