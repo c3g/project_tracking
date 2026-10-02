@@ -13,3 +13,6 @@ dist/
 build/
 *.egg-info/
 
+.venv*/
+swift/
+.claude/

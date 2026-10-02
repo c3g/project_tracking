@@ -1,5 +1,5 @@
-FROM fedora:39
-MAINTAINER P-O Quirion po.quirion@mcgill.ca 
+FROM fedora:44
+LABEL maintainer="P-O Quirion po.quirion@mcgill.ca, Paul Stretenowich paul.stretenowich@mcgill.ca"
 ENV APP=project_tracking
 
 RUN mkdir /app /sqlite
