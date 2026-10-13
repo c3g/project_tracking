@@ -215,8 +215,8 @@ class BaseTable(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     deprecated: Mapped[bool] = mapped_column(default=False)
     deleted: Mapped[bool] = mapped_column(default=False)
-    creation: Mapped[DateTime] = Column(DateTime(timezone=True), server_default=func.now())
-    modification: Mapped[DateTime] = Column(DateTime(timezone=True), onupdate=func.now())
+    creation: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    modification: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
     # extra_metadata: Mapped[dict] = mapped_column(mutable_json_type(dbtype=JSON, nested=True), default=None, nullable=True)
     extra_metadata: Mapped[dict] = mapped_column(MutableDict.as_mutable(JSON().with_variant(JSONB, 'postgresql')), default=dict, nullable=True)
     ext_id: Mapped[int] = mapped_column(default=None, nullable=True)
@@ -358,14 +358,14 @@ class Specimen(BaseTable):
         """
         Get all readset ids associated with the sample.
         """
-        return list({r.id for s in self.samples for r in s.readsets if not r.deprecated or not r.deleted})
+        return list({r.id for s in self.samples for r in s.readsets if not r.deprecated and not r.deleted})
 
     @property
     def sample_ids(self) -> list[int]:
         """
         Get all sample ids associated with the specimen.
         """
-        return list({s.id for s in self.samples if not s.deprecated or not s.deleted})
+        return list({s.id for s in self.samples if not s.deprecated and not s.deleted})
 
     @classmethod
     def from_name(cls, name, project, cohort=None, institution=None, session=None, deprecated=False, deleted=False):
@@ -427,7 +427,7 @@ class Sample(BaseTable):
         """
         Get all readset ids associated with the sample.
         """
-        return [r.id if not r.deprecated or not r.deleted else None for r in self.readsets]
+        return [r.id for r in self.readsets if not r.deprecated and not r.deleted]
 
     @classmethod
     def from_name(cls, name, specimen, alias=None, tumour=None, session=None, deprecated=False, deleted=False):
@@ -642,7 +642,7 @@ class Readset(BaseTable):
         """
         Get the specimen id associated with the readset.
         """
-        return self.sample.specimen.id if self.sample and self.sample.specimen and (not self.sample.specimen.deprecated or not self.sample.specimen.deleted) else None
+        return self.sample.specimen.id if self.sample and self.sample.specimen and (not self.sample.specimen.deprecated and not self.sample.specimen.deleted) else None
 
     @classmethod
     def from_name(cls, name, sample, alias=None, session=None, deprecated=False, deleted=False):
@@ -712,7 +712,7 @@ class Operation(BaseTable):
         """
         Get all readset ids associated with the operation.
         """
-        return [r.id if not r.deleted or not r.deprecated else None for r in self.readsets]
+        return [r.id for r in self.readsets if not r.deleted and not r.deprecated]
 
     @classmethod
     def from_attributes(
@@ -905,7 +905,7 @@ class Job(BaseTable):
         """
         Get all readset ids associated with the job.
         """
-        return [r.id if not r.deprecated or not r.deleted else None for r in self.readsets]
+        return [r.id for r in self.readsets if not r.deprecated and not r.deleted]
 
     @classmethod
     def from_attributes(
@@ -992,21 +992,21 @@ class Metric(BaseTable):
         """
         List of readset ids associated with the metric
         """
-        return list({r.id for r in self.readsets if not r.deprecated or not r.deleted})
+        return list({r.id for r in self.readsets if not r.deprecated and not r.deleted})
 
     @property
     def sample_ids(self) -> list[int]:
         """
         List of sample ids associated with the metric through readsets
         """
-        return list({r.sample.id for r in self.readsets if r.sample and (not r.sample.deprecated or not r.sample.deleted)})
+        return list({r.sample.id for r in self.readsets if r.sample and (not r.sample.deprecated and not r.sample.deleted)})
 
     @property
     def specimen_ids(self) -> list[int]:
         """
         List of specimen ids associated with the metric through readsets and samples
         """
-        return list({r.sample.specimen.id for r in self.readsets if r.sample and r.sample.specimen and (not r.sample.specimen.deprecated or not r.sample.specimen.deleted)})
+        return list({r.sample.specimen.id for r in self.readsets if r.sample and r.sample.specimen and (not r.sample.specimen.deprecated and not r.sample.specimen.deleted)})
 
     @classmethod
     def get_or_create(
@@ -1058,6 +1058,7 @@ class Metric(BaseTable):
             return metric, None
 
         # Combine checks into a single query
+        assert job is not None, "job must be provided when dont_merge=False"
         stmt = (
             select(cls)
             .distinct()
@@ -1131,23 +1132,23 @@ class File(BaseTable):
     @property
     def readset_ids(self) -> list[int]:
         """
-        List of readset ids associated with the metric
+        List of readset ids associated with the file
         """
-        return list({r.id for r in self.readsets if not r.deprecated or not r.deleted})
+        return list({r.id for r in self.readsets if not r.deprecated and not r.deleted})
 
     @property
     def sample_ids(self) -> list[int]:
         """
         List of sample ids associated with the metric through readsets
         """
-        return list({r.sample.id for r in self.readsets if r.sample and (not r.sample.deprecated or not r.sample.deleted)})
+        return list({r.sample.id for r in self.readsets if r.sample and (not r.sample.deprecated and not r.sample.deleted)})
 
     @property
     def specimen_ids(self) -> list[int]:
         """
         List of specimen ids associated with the metric through readsets and samples
         """
-        return list({r.sample.specimen.id for r in self.readsets if r.sample and r.sample.specimen and (not r.sample.specimen.deprecated or not r.sample.specimen.deleted)})
+        return list({r.sample.specimen.id for r in self.readsets if r.sample and r.sample.specimen and (not r.sample.specimen.deprecated and not r.sample.specimen.deleted)})
 
     @classmethod
     def get_or_create(
@@ -1190,6 +1191,10 @@ class File(BaseTable):
         # Assuming readsets and jobs each contain a single unique item
         readset = readsets[0]
         job = jobs[0]
+
+        #TODO: First check if md5 value is provided (and not None) and if yes use that instead of Job
+        # but if md5 is not provided, then check if the file exists for the job (as currently done) and readset combination
+        # otherwise a file with the same name would be wrongly associated to a different readset and job combination
 
         # Combine checks into a single query
         stmt = (
