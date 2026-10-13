@@ -411,6 +411,7 @@ class Sample(BaseTable):
         name text (unique)
         alias list
         tumour boolean
+        oncotree_code text
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -427,6 +428,7 @@ class Sample(BaseTable):
     name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
     alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON().with_variant(JSONB, 'postgresql')), default=list, nullable=True)
     tumour: Mapped[bool] = mapped_column(default=False)
+    oncotree_code: Mapped[str] = mapped_column(default=None, nullable=True)
 
     specimen: Mapped[Specimen] = relationship(back_populates="samples")
     readsets: Mapped[list[Readset]] = relationship(back_populates="sample", cascade="all, delete")
@@ -466,6 +468,22 @@ class Sample(BaseTable):
         Get ids of the samples matched with this one.
         """
         return [s.id for s in self.matched_samples]
+
+    def set_oncotree_code(self, code, force=False):
+        """
+        Set the OncoTree code; an existing different code is only replaced with force. Returns a warning or None.
+        """
+        if self.oncotree_code is None or self.oncotree_code == code:
+            self.oncotree_code = code
+            return None
+        if force:
+            old_code = self.oncotree_code
+            self.oncotree_code = code
+            return f"'Sample' '{self.name}' 'oncotree_code' updated from '{old_code}' to '{code}' (force=True)."
+        return (
+            f"'Sample' '{self.name}' already has 'oncotree_code' '{self.oncotree_code}', keeping it instead of '{code}'. "
+            f"If this change is expected, ingest with force or edit the sample."
+        )
 
     def add_matches(self, names, session):
         """

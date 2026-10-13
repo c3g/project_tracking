@@ -4,12 +4,14 @@ import re
 import os
 import logging
 
+import pytest
 from sqlalchemy import select
 
 from flask import g
 from project_tracking import model, database, db_actions
 from project_tracking import vocabulary as vb
 from project_tracking import create_app
+from project_tracking.db_actions.errors import RequestError
 
 logger = logging.getLogger(__name__)
 
@@ -176,3 +178,61 @@ def test_genpipes_force_ingest_file_without_md5sum(not_app_db, run_processing_js
 
     assert any("ingesting anyway (force=True)" in w for w in result["DB_ACTION_WARNING"])
     assert not_app_db.execute(select(model.File).where(model.File.name == first_file_name)).scalar_one_or_none() is not None
+
+
+TUMOUR_SAMPLE = "MoHQ-JG-9-23-15000863775-19933DT"
+
+
+def _set_oncotree_code(data, code):
+    for specimen_json in data[vb.SPECIMEN]:
+        for sample_json in specimen_json[vb.SAMPLE]:
+            if sample_json[vb.SAMPLE_NAME] == TUMOUR_SAMPLE:
+                sample_json[vb.SAMPLE_ONCOTREE_CODE] = code
+
+
+def _new_run(data, run_id):
+    """Same samples, new run: readset names, files and uris all carry the run id."""
+    return json.loads(json.dumps(data).replace("A01433_0157", run_id))
+
+
+def _oncotree_code(session):
+    return session.execute(select(model.Sample.oncotree_code).where(model.Sample.name == TUMOUR_SAMPLE)).scalar_one()
+
+
+def test_run_processing_oncotree_code(not_app_db, run_processing_json):
+    """Code is stored (normalized), a conflicting code is kept with a warning, and force replaces it."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+
+    data = copy.deepcopy(run_processing_json)
+    _set_oncotree_code(data, " luad ")
+    db_actions.ingest_run_processing(project_id, data, not_app_db)
+    assert _oncotree_code(not_app_db) == "LUAD"
+
+    conflicting_run = _new_run(data, "A01433_0998")
+    _set_oncotree_code(conflicting_run, "LUSC")
+    result = db_actions.ingest_run_processing(project_id, conflicting_run, not_app_db)
+    assert any("already has 'oncotree_code' 'LUAD'" in w for w in result["DB_ACTION_WARNING"])
+    assert _oncotree_code(not_app_db) == "LUAD"
+
+    forced_run = _new_run(data, "A01433_0999")
+    _set_oncotree_code(forced_run, "LUSC")
+    forced_run[vb.FORCE] = True
+    result = db_actions.ingest_run_processing(project_id, forced_run, not_app_db)
+    assert any("updated from 'LUAD' to 'LUSC'" in w for w in result["DB_ACTION_WARNING"])
+    assert _oncotree_code(not_app_db) == "LUSC"
+
+
+def test_run_processing_rejects_malformed_oncotree_code(not_app_db, run_processing_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+
+    data = copy.deepcopy(run_processing_json)
+    _set_oncotree_code(data, "LU-AD")
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_run_processing(project_id, data, not_app_db)
+    assert "LU-AD" in error.value.message[0]
+    assert not_app_db.execute(select(model.Sample)).first() is None
+

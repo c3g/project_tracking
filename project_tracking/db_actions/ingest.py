@@ -5,6 +5,7 @@ Ingesting data into the database
 import logging
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -54,6 +55,27 @@ def unique_constraint_error(session, json_format, ingest_data):
                         ret.append(f"'Readset' with 'name' '{readset_name}' already exists in the database and 'name' has to be unique")
     return ret
 
+ONCOTREE_CODE_PATTERN = re.compile(r"^[A-Z0-9]+$")
+
+
+def normalize_oncotree_codes(ingest_data):
+    """
+    Uppercase every sample OncoTree code in place; raises RequestError listing all malformed ones.
+    """
+    invalid = []
+    for specimen_json in ingest_data[vb.SPECIMEN]:
+        for sample_json in specimen_json[vb.SAMPLE]:
+            code = sample_json.get(vb.SAMPLE_ONCOTREE_CODE)
+            if code is None:
+                continue
+            code = str(code).strip().upper()
+            if not ONCOTREE_CODE_PATTERN.match(code):
+                invalid.append(f"'Sample' '{sample_json[vb.SAMPLE_NAME]}' has an invalid 'oncotree_code' '{sample_json[vb.SAMPLE_ONCOTREE_CODE]}' (expected letters and digits only, e.g. 'LUAD').")
+            sample_json[vb.SAMPLE_ONCOTREE_CODE] = code
+    if invalid:
+        raise RequestError(message=invalid)
+
+
 def ingest_run_processing(project_id: str, ingest_data: dict, session):
     """Ingesting run for MoH"""
     if not isinstance(ingest_data, dict):
@@ -72,6 +94,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
     message = unique_constraint_error(session, "run_processing", ingest_data)
     if message:
         raise UniqueConstraintError(message=message)
+    normalize_oncotree_codes(ingest_data)
 
     operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
@@ -143,6 +166,10 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                 specimen=specimen,
                 session=session
                 )
+            if sample_json.get(vb.SAMPLE_ONCOTREE_CODE):
+                warning = sample.set_oncotree_code(sample_json[vb.SAMPLE_ONCOTREE_CODE], force=force)
+                if warning:
+                    ret["DB_ACTION_WARNING"].append(warning)
             if sample_json.get(vb.SAMPLE_MATCHED_SAMPLE_NAME):
                 samples_to_match.append((sample, sample_json[vb.SAMPLE_MATCHED_SAMPLE_NAME]))
             for readset_json in sample_json[vb.READSET]:
