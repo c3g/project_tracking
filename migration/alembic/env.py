@@ -4,8 +4,6 @@ from logging.config import fileConfig
 from sqlalchemy import create_engine
 from alembic import context
 
-from alembic_utils.pg_function import PGFunction
-from alembic_utils.replaceable_entity import register_entities
 import alembic_postgresql_enum
 
 from project_tracking.model import Base
@@ -24,19 +22,8 @@ if config.config_file_name is not None:
 
 # Target metadata for autogenerate support
 target_metadata = Base.metadata
-
-# Register custom SQL function
-to_upper = PGFunction(
-    schema='public',
-    signature='to_upper(some_text text)',
-    definition="""
-    RETURNS text as
-    $$
-        SELECT upper(some_text)
-    $$ language SQL;
-    """
-)
-register_entities([to_upper])
+# public.to_upper() (created by d1dc98f61aee) is unused by the app: it is no longer registered, so
+# autogenerate/check don't require it on databases created with init-db. Existing databases keep it.
 
 def get_url():
     """Resolve DB URL with the following priority:

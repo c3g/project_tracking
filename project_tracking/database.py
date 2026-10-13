@@ -8,6 +8,7 @@ import click
 import flask
 from sqlalchemy import (
     create_engine,
+    inspect as sqlalchemy_inspect,
     )
 
 from sqlalchemy.orm import sessionmaker, scoped_session
@@ -163,6 +164,9 @@ def session_scope(no_app=False, db_uri=None, project_id=None, dry_run=False):
 def init_db(db_uri=None, flush=False):
     """
     db_uri is required if db is initialised outside of the flask app
+    Creates the schema only on an empty (or flushed) database and returns True in that case.
+    A database that already has tables is left untouched: create_all would add new tables but not
+    new columns, and the matching migration would then fail on the already existing table.
     """
     from . import model
     if db_uri is None:
@@ -176,7 +180,38 @@ def init_db(db_uri=None, flush=False):
 
     if flush:
         model.Base.metadata.drop_all(engine)
+    if not flush and set(sqlalchemy_inspect(engine).get_table_names()) - {"alembic_version"}:
+        return False
     model.Base.metadata.create_all(engine)
+    return True
+
+
+def stamp_db_head(db_uri):
+    """
+    Record the latest migration revision on a database whose schema was just created from the models,
+    so later 'upgrade-all-dbs' runs don't replay the whole migration history on it.
+    """
+    from alembic.config import Config as AlembicConfig
+    from alembic import command as alembic_command
+
+    alembic_cfg = AlembicConfig('alembic.ini')
+    alembic_cfg.attributes['db_uri'] = db_uri
+    alembic_command.stamp(alembic_cfg, 'head', purge=True)
+
+
+def init_and_stamp_db(db_uri, flush=False):
+    """
+    init_db, then stamp head only if the schema was created from scratch: stamping an existing,
+    possibly outdated, database would make alembic skip its pending migrations.
+    """
+    if init_db(db_uri, flush):
+        stamp_db_head(db_uri)
+        return True
+    click.echo(
+        f"  {db_label(db_uri)!r} already has tables: left unchanged, "
+        f"run 'upgrade-all-dbs' to apply pending migrations."
+    )
+    return False
 
 
 def close_db(no_app=False):
@@ -201,8 +236,8 @@ def init_db_command(db_uri=None, flush=False):
      """
     if db_uri is None:
         db_uri = flask.current_app.config["SQLALCHEMY_DATABASE_URI"]
-    init_db(db_uri, flush)
-    click.echo('Database initialized')
+    if init_and_stamp_db(db_uri, flush):
+        click.echo('Database initialized')
 
 @click.command('version')
 def version_command():
@@ -236,8 +271,8 @@ def init_all_dbs_command(flush, yes_i_really_mean_flush):
         if flush:
             click.echo(f'  Flushing and initializing {db_label(uri)!r} ...')
         else:
-            click.echo(f'  Initializing {uri!r} ...')
-        init_db(db_uri=uri, flush=flush)
+            click.echo(f'  Initializing {db_label(uri)!r} ...')
+        init_and_stamp_db(uri, flush=flush)
 
     if flush:
         click.echo(f'All {len(uris)} database(s) flushed and initialized.')
@@ -283,9 +318,49 @@ def upgrade_all_dbs_command(revision):
     click.echo(f'All {len(uris)} database(s) upgraded to {revision!r}.')
 
 
+@click.command('db-revisions')
+@flask.cli.with_appcontext
+def db_revisions_command():
+    """Show the alembic revision of every configured database (labels only, no credentials).
+
+    Exits with an error when a database is behind, not stamped or unreachable.
+    """
+    logging.getLogger('alembic').setLevel(logging.WARNING)
+    from alembic.config import Config as AlembicConfig
+    from alembic.runtime.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+
+    head =ScriptDirectory.from_config(AlembicConfig('alembic.ini')).get_current_head()
+    click.echo(f'Latest revision (head): {head}')
+
+    problems = 0
+    for uri in sorted(_configured_db_uris(flask.current_app.config), key=db_label):
+        try:
+            with get_engine(uri).connect() as connection:
+                revision = MigrationContext.configure(connection).get_current_revision()
+        except Exception as exc:  # noqa: BLE001
+            first_line = str(getattr(exc, 'orig', exc)).strip().splitlines()[0]
+            click.echo(f'  {db_label(uri)}: UNREACHABLE ({first_line})')
+            problems += 1
+            continue
+        if revision == head:
+            state = 'up to date'
+        elif revision is None:
+            state = "NOT STAMPED: run 'alembic stamp <revision>' matching its schema (see README)"
+            problems += 1
+        else:
+            state = "BEHIND: run 'upgrade-all-dbs'"
+            problems += 1
+        click.echo(f'  {db_label(uri)}: {revision or "-"} ({state})')
+
+    if problems:
+        raise click.ClickException(f'{problems} database(s) not at the latest revision.')
+
+
 def init_app(app):
     app.teardown_appcontext(close_db)
     app.cli.add_command(init_db_command)
     app.cli.add_command(init_all_dbs_command)
     app.cli.add_command(version_command)
     app.cli.add_command(upgrade_all_dbs_command)
+    app.cli.add_command(db_revisions_command)

@@ -4,6 +4,7 @@ import tempfile
 import contextlib
 
 import pytest
+import sqlalchemy
 from sqlalchemy.exc import OperationalError
 
 from project_tracking import model
@@ -320,3 +321,87 @@ def test_query_level_operational_error_is_not_reported_as_connection_failure():
         assert any("'PROJ-A'" in msg for msg in errors)
     finally:
         os.unlink(path)
+
+
+def _alembic_head():
+    from alembic.config import Config as AlembicConfig
+    from alembic.script import ScriptDirectory
+    return ScriptDirectory.from_config(AlembicConfig('alembic.ini')).get_current_head()
+
+
+def _alembic_revision(db_uri):
+    from sqlalchemy import create_engine, text
+    engine = create_engine(db_uri)
+    try:
+        with engine.connect() as connection:
+            return connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one_or_none()
+    finally:
+        engine.dispose()
+
+
+def test_init_db_stamps_only_databases_it_creates():
+    """A fresh (or flushed) DB is stamped at head; an existing DB keeps its revision so upgrades still run."""
+    from sqlalchemy import create_engine, text
+    with _tmp_db() as db_uri:
+        runner = _make_app(db_uri, {}).test_cli_runner()
+
+        result = runner.invoke(args=['init-db', '--db-uri', db_uri])
+        assert result.exit_code == 0, result.output
+        assert _alembic_revision(db_uri) == _alembic_head()
+
+        # Simulate a database created before the sample_match migration
+        engine = create_engine(db_uri)
+        with engine.begin() as connection:
+            connection.execute(text("DROP TABLE sample_match"))
+            connection.execute(text("UPDATE alembic_version SET version_num = '64a560017524'"))
+        result = runner.invoke(args=['init-db', '--db-uri', db_uri])
+        assert result.exit_code == 0, result.output
+        assert 'already has tables: left unchanged' in result.output
+        assert _alembic_revision(db_uri) == '64a560017524'
+        # The pending migration must still be able to create it
+        with engine.connect() as connection:
+            assert 'sample_match' not in sqlalchemy.inspect(connection).get_table_names()
+        engine.dispose()
+
+        result = runner.invoke(args=['init-db', '--db-uri', db_uri, '--flush'])
+        assert result.exit_code == 0, result.output
+        assert _alembic_revision(db_uri) == _alembic_head()
+
+
+def test_db_revisions_reports_each_database_state():
+    from sqlalchemy import create_engine, text
+    with _tmp_db() as default_uri, _tmp_db() as project_uri:
+        runner = _make_app(default_uri, {'PROJECT ALPHA': project_uri}).test_cli_runner()
+        assert runner.invoke(args=['init-all-dbs']).exit_code == 0
+        default_label = default_uri.rsplit('/', 1)[-1]
+        project_label = project_uri.rsplit('/', 1)[-1]
+
+        result = runner.invoke(args=['db-revisions'])
+        assert result.exit_code == 0, result.output
+        assert result.output.count('(up to date)') == 2
+
+        engine = create_engine(project_uri)
+        with engine.begin() as connection:
+            connection.execute(text("UPDATE alembic_version SET version_num = '64a560017524'"))
+        result = runner.invoke(args=['db-revisions'])
+        assert result.exit_code == 1
+        assert f'{project_label}: 64a560017524 (BEHIND' in result.output
+        assert f'{default_label}: {_alembic_head()} (up to date)' in result.output
+
+        with engine.begin() as connection:
+            connection.execute(text("DELETE FROM alembic_version"))
+        engine.dispose()
+        result = runner.invoke(args=['db-revisions'])
+        assert result.exit_code == 1
+        assert f'{project_label}: - (NOT STAMPED' in result.output
+
+
+def test_db_revisions_reports_unreachable_database_without_credentials():
+    with _tmp_db() as default_uri:
+        missing = "postgresql+psycopg2://someone:s3cret@127.0.0.1:1/project_tracking_missing?connect_timeout=2"
+        runner = _make_app(default_uri, {'PROJECT ALPHA': missing}).test_cli_runner()
+        runner.invoke(args=['init-db'])
+        result = runner.invoke(args=['db-revisions'])
+        assert result.exit_code == 1
+        assert 'project_tracking_missing: UNREACHABLE' in result.output
+        assert 's3cret' not in result.output
