@@ -171,15 +171,14 @@ DELIVERY = {"DB_ACTION_OUTPUT": [
 def test_digest_api(client, run_processing_json, readset_file_json, app):
     """Test the /digest_readset_file and /digest_pair_file routes."""
     project_name = run_processing_json[vb.PROJECT_NAME]
-    project_id = "1"
     response = client.post(f'admin/create_project/{project_name}')
-    response = client.post(f'project/{project_id}/ingest_run_processing', data=json.dumps(run_processing_json))
+    response = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
     # Digest readset_file
-    response = client.get(f'project/{project_id}/digest_readset_file?json={json.dumps(readset_file_json)}')
+    response = client.get(f'project/{project_name}/digest_readset_file?json={json.dumps(readset_file_json)}')
     assert response.status_code == 200
     assert sorted(json.loads(response.text)["DB_ACTION_OUTPUT"], key=lambda x: x["Sample"]) == sorted(READSET_FILE["DB_ACTION_OUTPUT"], key=lambda x: x["Sample"])
     # Digest pair_file
-    response = client.get(f'project/{project_id}/digest_pair_file?json={json.dumps(readset_file_json)}')
+    response = client.get(f'project/{project_name}/digest_pair_file?json={json.dumps(readset_file_json)}')
     assert response.status_code == 200
     assert sorted(json.loads(response.text)["DB_ACTION_OUTPUT"], key=lambda x: x["Specimen"]) == sorted(PAIR_FILE["DB_ACTION_OUTPUT"], key=lambda x: x["Specimen"])
     # Digest unanalyzed
@@ -193,7 +192,7 @@ def test_digest_api(client, run_processing_json, readset_file_json, app):
         'experiment_nucleic_acid_type': 'DNA',
         'location_endpoint': 'abacus'
     }
-    response = client.get(f'project/{project_id}/digest_unanalyzed?json={json.dumps(unanalyzed_json)}')
+    response = client.get(f'project/{project_name}/digest_unanalyzed?json={json.dumps(unanalyzed_json)}')
     assert response.status_code == 200
     assert json.loads(response.text)["DB_ACTION_OUTPUT"] == UNALYZED["DB_ACTION_OUTPUT"]
 
@@ -203,7 +202,7 @@ def test_digest_api(client, run_processing_json, readset_file_json, app):
         'experiment_nucleic_acid_type': 'DNA',
         'readset_id': [1, 2]
     }
-    response = client.get(f'project/{project_id}/digest_delivery?json={json.dumps(delivery_json)}')
+    response = client.get(f'project/{project_name}/digest_delivery?json={json.dumps(delivery_json)}')
     assert response.status_code == 200
     assert sorted(json.loads(response.text)["DB_ACTION_OUTPUT"], key=lambda x: x["specimen"]) == sorted(DELIVERY["DB_ACTION_OUTPUT"], key=lambda x: x["specimen"])
 

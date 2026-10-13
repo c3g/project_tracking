@@ -3,11 +3,12 @@ TechDev tracking API
 """
 import logging
 import os
-import datetime
+import re
 from collections import defaultdict
-from datetime import datetime, timezone
+from urllib.parse import urlparse, urlunparse
 
 from flask import Flask, request, Response, make_response, json, jsonify, g
+from sqlalchemy.exc import OperationalError
 
 from . import db_actions
 from . import api
@@ -50,6 +51,75 @@ def _load_prefixed_file_env(app, prefix="C3G"):
             ) from exc
 
 
+_CONNECTION_ERROR_MARKERS = (
+    "connection to server",
+    "could not connect",
+    "connection refused",
+    "could not translate host name",
+    "timeout expired",
+    "password authentication failed",
+    "no pg_hba.conf entry",
+    "server closed the connection",
+    "terminating connection",
+    "the database system is starting up",
+    "the database system is shutting down",
+    "too many clients",
+    "unable to open database file",
+)
+
+
+def _sanitize_db_uri(db_uri: str) -> str:
+    """Mask credentials in a DB URI while keeping host/db/query visible."""
+    parsed = urlparse(db_uri)
+    if not parsed.scheme or parsed.scheme.startswith("sqlite"):
+        return db_uri
+
+    host = parsed.hostname or ''
+    if parsed.port is not None:
+        host = f"{host}:{parsed.port}"
+
+    if parsed.username is not None and parsed.password is not None:
+        netloc = f"***:***@{host}"
+    elif parsed.username is not None:
+        netloc = f"***@{host}"
+    else:
+        netloc = host
+
+    return urlunparse((
+        parsed.scheme,
+        netloc,
+        parsed.path,
+        parsed.params,
+        parsed.query,
+        parsed.fragment,
+    ))
+
+
+def _log_database_configuration(app: Flask) -> None:
+    """Log a safe summary of configured databases without credentials."""
+    # In Flask debug mode, the reloader imports the app twice: once in the
+    # parent watcher process and once in the serving child. Only log from the
+    # serving child to avoid duplicate startup lines.
+    if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        return
+
+    default_db_uri = app.config["SQLALCHEMY_DATABASE_URI"]
+    default_db_label = database.db_label(default_db_uri)
+    configured_databases = [
+        {
+            "label": database.db_label(uri),
+            "uri": _sanitize_db_uri(uri),
+        }
+        for uri in database._configured_db_uris(app.config)
+    ]
+    logging.debug(
+        "Database routing configured: default_db=%s default_db_uri=%s configured_databases=%s",
+        default_db_label,
+        _sanitize_db_uri(default_db_uri),
+        configured_databases,
+    )
+
+
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True, static_folder=None)
     app.url_map.strict_slashes = False
@@ -64,6 +134,10 @@ def create_app(test_config=None):
         format='%(asctime)s %(levelname)s %(name)s %(threadName)s: %(message)s'
     )
 
+    # Werkzeug access lines include their own bracketed timestamp in the message,
+    # which duplicates the logger timestamp. Keep only app.access request logs.
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
     app.config.from_mapping(
         INGEST_FOLDER=app.instance_path,
         SQLALCHEMY_DATABASE_URI=f'sqlite:///{os.path.join(app.instance_path, "tracking_db.sql")}',
@@ -71,12 +145,12 @@ def create_app(test_config=None):
     app.config.from_prefixed_env("C3G")
     _load_prefixed_file_env(app, "C3G")
 
-    logging.debug(f'SQLALCHEMY_DATABASE_URI: {app.config["SQLALCHEMY_DATABASE_URI"]}')
-
     if test_config is None:
         app.config.from_pyfile('config.py', silent=True)
     else:
         app.config.from_mapping(test_config)
+
+    _log_database_configuration(app)
 
     try:
         os.makedirs(app.instance_path)
@@ -104,11 +178,23 @@ def create_app(test_config=None):
         """
         logger = logging.getLogger("app.access")
         source_file = getattr(g, 'source_file', 'no_source_file')
+        requested_project = getattr(g, 'requested_project', None)
+        resolved_db_uri = getattr(g, 'project_db_uri', None)
+
+        if resolved_db_uri:
+            resolved_db_label = database.db_label(resolved_db_uri)
+            db_route_source = 'project_mapping'
+        else:
+            resolved_db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', 'unknown')
+            resolved_db_label = database.db_label(resolved_db_uri)
+            db_route_source = 'default'
+
+        if requested_project is None:
+            requested_project = '-'
 
         logger.info(
-            "%s [%s] %s %s %s %s %s %s %s [source_file=%s]",
+            "%s %s %s %s %s %s %s %s [source_file=%s project=%s db=%s db_route=%s]",
             request.remote_addr,
-            datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")[:-3],
             request.method,
             request.path,
             request.scheme,
@@ -116,13 +202,76 @@ def create_app(test_config=None):
             response.content_length,
             request.referrer,
             request.user_agent,
-            source_file
+            source_file,
+            requested_project,
+            resolved_db_label,
+            db_route_source,
         )
         return response
 
     @app.errorhandler(db_actions.Error)
     def handle_exception(e):
         return jsonify(e.to_dict())
+
+    @app.errorhandler(OperationalError)
+    def handle_operational_error(e):
+        """Return clearer API errors for common DB connectivity failures."""
+        raw_error = str(getattr(e, 'orig', e))
+        lowered = raw_error.lower()
+        requested_project = getattr(g, 'requested_project', None)
+        resolved_db_uri = getattr(g, 'project_db_uri', None)
+        route_source = 'project_mapping' if resolved_db_uri else 'default'
+        resolved_db_label = database.db_label(resolved_db_uri) if resolved_db_uri else database.db_label(
+            app.config.get('SQLALCHEMY_DATABASE_URI', 'unknown')
+        )
+
+        context_msg = None
+        if requested_project:
+            context_msg = (
+                f"Requested project '{requested_project}' resolves to database '{resolved_db_label}' via {route_source}."
+            )
+
+        db_match = re.search(r'database\s+"([^"]+)"\s+does\s+not\s+exist', lowered)
+        if db_match:
+            db_name = db_match.group(1)
+            errors = [
+                (
+                    f"Database '{db_name}' does not exist. Create the database and run migrations/init-db for it, or update PROJECT_DATABASES to a valid URI."
+                )
+            ]
+            if context_msg:
+                errors.append(context_msg)
+            return jsonify({
+                'DB_ACTION_ERROR': errors
+            }), 503
+
+        role_match = re.search(r'role\s+"([^"]+)"\s+does\s+not\s+exist', lowered)
+        if role_match:
+            role_name = role_match.group(1)
+            errors = [
+                (
+                    f"Database role '{role_name}' does not exist. Create the PostgreSQL role or update the DB URI credentials."
+                )
+            ]
+            if context_msg:
+                errors.append(context_msg)
+            return jsonify({
+                'DB_ACTION_ERROR': errors
+            }), 503
+
+        # OperationalError also covers query-level failures (statement timeout, lock timeout, ...)
+        if e.connection_invalidated or any(marker in lowered for marker in _CONNECTION_ERROR_MARKERS):
+            errors = ['Database connection failed. Verify SQLALCHEMY_DATABASE_URI/PROJECT_DATABASES and PostgreSQL availability.']
+            status = 503
+        else:
+            errors = [f"Database error: {raw_error.strip().splitlines()[0] if raw_error.strip() else type(e).__name__}"]
+            status = 500
+        if context_msg:
+            errors.append(context_msg)
+
+        return jsonify({
+            'DB_ACTION_ERROR': errors
+        }), status
 
     @app.route('/')
     def welcome():

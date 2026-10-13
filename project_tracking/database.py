@@ -2,6 +2,7 @@
 import logging
 import os
 from contextlib import contextmanager
+from urllib.parse import urlparse
 
 import click
 import flask
@@ -15,6 +16,14 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 class Engine:
     ENGINES = {}
     NO_APP_SESSION_FACTORIES = {}
+
+
+def db_label(db_uri: str) -> str:
+    """Return a short human-readable label for a database URI."""
+    parsed = urlparse(db_uri)
+    if parsed.scheme.startswith("sqlite"):
+        return parsed.path.rsplit("/", maxsplit=1)[-1] or db_uri
+    return parsed.path.lstrip("/") or parsed.netloc or db_uri
 
 
 def _configured_db_uris(config):
@@ -85,7 +94,7 @@ def set_project_db_from_name(project_name: str) -> None:
 
 
 def get_engine(db_uri):
-    logging.debug('Connecting to {}'.format(db_uri))
+    logging.debug('Connecting to %s', db_label(db_uri))
 
     if db_uri not in Engine.ENGINES:
         Engine.ENGINES[db_uri] = create_engine(db_uri, echo=False)
@@ -225,7 +234,7 @@ def init_all_dbs_command(flush, yes_i_really_mean_flush):
 
     for uri in uris:
         if flush:
-            click.echo(f'  Flushing and initializing {uri!r} ...')
+            click.echo(f'  Flushing and initializing {db_label(uri)!r} ...')
         else:
             click.echo(f'  Initializing {uri!r} ...')
         init_db(db_uri=uri, flush=flush)
@@ -261,14 +270,14 @@ def upgrade_all_dbs_command(revision):
     alembic_cfg = AlembicConfig('alembic.ini')
 
     for uri in uris:
-        click.echo(f'  Upgrading {uri!r} → {revision} ...')
+        click.echo(f'  Upgrading {db_label(uri)!r} → {revision} ...')
         # Pass the URI through config.attributes so env.py picks it up
         # without touching environment variables.
         alembic_cfg.attributes['db_uri'] = uri
         try:
             alembic_command.upgrade(alembic_cfg, revision)
         except Exception as exc:  # noqa: BLE001
-            click.echo(f'  ERROR on {uri!r}: {exc}', err=True)
+            click.echo(f'  ERROR on {db_label(uri)!r}: {exc}', err=True)
             raise
 
     click.echo(f'All {len(uris)} database(s) upgraded to {revision!r}.')

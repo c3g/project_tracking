@@ -3,7 +3,7 @@ import time
 import functools
 import logging
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 
 from .. import db_actions
 from ..database import session_scope, set_project_db_from_name
@@ -51,7 +51,7 @@ def convcheck_project(func):
     If project is None, it passes None to the decorated function.
     If project is a string, it converts it to an ID using db_actions.
     If project is a list, it assumes it's already an ID or a list of IDs.
-    If project is a digit, it passes it as is.
+    Numeric project path values are rejected to avoid ambiguous cross-DB routing.
     If project is not found, it returns a JSON response with available projects.
     Args:
         func (function): The function to decorate.
@@ -60,6 +60,10 @@ def convcheck_project(func):
     """
     @functools.wraps(func)
     def wrapper(*args, project=None, **kwargs):
+        # Keep the raw project segment for request-level observability.
+        if project is not None:
+            g.requested_project = project
+
         # Resolve the correct DB for this project name BEFORE any DB query.
         # project is the raw URL segment e.g. "Project Name", "PROJ-A", "42".
         if project and not project.isdigit():
@@ -70,7 +74,15 @@ def convcheck_project(func):
         if project is None:
             project_id = None
         elif project.isdigit():
-            project_id = project
+            return jsonify({
+                "DB_ACTION_ERROR": [
+                    (
+                        "Project numeric IDs are not accepted on /project routes in multi-database mode. "
+                        "Use the project name in the URL (for example /project/PROJ-A/...) "
+                        "or use /admin/projects/by-id/<id>?database=<db_label> for explicit admin lookups."
+                    )
+                ]
+            }), 400
         else:
             project_id = db_actions.name_to_id("Project", project)
             # Handle empty list case as non-existent project
@@ -200,10 +212,29 @@ def parse_names(raw):
     """
     return [n.strip() for n in raw.split(',') if n.strip()]
 
+
+def resolve_project_scope(project_id, digest_data=None):
+    """Expand the project scope within the currently selected database.
+
+    The path project still selects the database. If `project_name` is provided
+    in the JSON query, it overrides the single-project path scope and resolves
+    one or more project IDs inside that same DB.
+    """
+    if not digest_data:
+        return project_id
+
+    project_name = digest_data.get("project_name")
+    if not project_name:
+        return project_id
+
+    names = parse_names(project_name)
+    return db_actions.name_to_id("Project", names)
+
 @bp.route('/', methods=['GET'])
 @bp.route('/<string:project>', methods=['GET'])
 @convcheck_project
-def projects(project_id=None):
+@parse_json_get(expected_keys={"project_name"})
+def projects(project_id=None, digest_data=None):
     """
     GET:
         project_id: uses the form "1,3-8,9", if not provided all projects are returned
@@ -219,6 +250,8 @@ def projects(project_id=None):
     If no project_id or project_name is provided, it will return all projects.
     If the project does not exist, it will return a warning with available projects.
     """
+    project_id = resolve_project_scope(project_id, digest_data)
+
     # Unroll project_id if it's a string
     try:
         if project_id is not None:
@@ -244,8 +277,8 @@ def projects(project_id=None):
 @bp.route('/<string:project>/samples/<string:sample_id>/specimens', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/specimens', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"specimen_name", "sample_name", "readset_name", "include_relationships"})
-def specimens(project_id: str, specimen_id=None, sample_id=None, readset_id=None, digest_data=None):
+@parse_json_get(expected_keys={"project_name", "specimen_name", "sample_name", "readset_name", "include_relationships"})
+def specimens(project_id, specimen_id=None, sample_id=None, readset_id=None, digest_data=None):
     """
     GET:
         specimen_id: uses the form "1,3-8,9", if not provided all specimens are returned
@@ -280,6 +313,7 @@ def specimens(project_id: str, specimen_id=None, sample_id=None, readset_id=None
     include_relationships = False
     # Read digest_data for filtering
     if digest_data:
+        project_id = resolve_project_scope(project_id, digest_data)
         specimen_name = digest_data.get("specimen_name")
         sample_name = digest_data.get("sample_name")
         readset_name = digest_data.get("readset_name")
@@ -332,8 +366,8 @@ def specimens(project_id: str, specimen_id=None, sample_id=None, readset_id=None
 @bp.route('/<string:project>/specimens/<string:specimen_id>/samples', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/samples', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"pair", "tumour", "tumor", "specimen_name", "sample_name", "readset_name", "include_relationships"})
-def samples(project_id: str, specimen_id=None, sample_id=None, readset_id=None, digest_data=None):
+@parse_json_get(expected_keys={"project_name", "pair", "tumour", "tumor", "specimen_name", "sample_name", "readset_name", "include_relationships"})
+def samples(project_id, specimen_id=None, sample_id=None, readset_id=None, digest_data=None):
     """
     GET:
         sample_id: uses the form "1,3-8,9", if not provided all samples are returned
@@ -390,6 +424,7 @@ def samples(project_id: str, specimen_id=None, sample_id=None, readset_id=None, 
     pair = None
     tumour = None
     if digest_data:
+        project_id = resolve_project_scope(project_id, digest_data)
         pair = digest_data.get("pair")
         if pair is not None:
             pair = bool(pair)
@@ -457,8 +492,8 @@ def samples(project_id: str, specimen_id=None, sample_id=None, readset_id=None, 
 @bp.route('/<string:project>/samples/<string:sample_id>/readsets', methods=['GET'])
 @bp.route('/<string:project>/specimens/<string:specimen_id>/readsets', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"readset_name", "sample_name", "specimen_name", "include_relationships"})
-def readsets(project_id: str, specimen_id=None, sample_id=None, readset_id=None, digest_data=None):
+@parse_json_get(expected_keys={"project_name", "readset_name", "sample_name", "specimen_name", "include_relationships"})
+def readsets(project_id, specimen_id=None, sample_id=None, readset_id=None, digest_data=None):
     """
     GET:
         readset_id: uses the form "1,3-8,9", if not provided all readsets are returned
@@ -497,6 +532,7 @@ def readsets(project_id: str, specimen_id=None, sample_id=None, readset_id=None,
     include_relationships = False
     # Read digest_data for filtering
     if digest_data:
+        project_id = resolve_project_scope(project_id, digest_data)
         specimen_name = digest_data.get("specimen_name")
         sample_name = digest_data.get("sample_name")
         readset_name = digest_data.get("readset_name")
@@ -548,8 +584,8 @@ def readsets(project_id: str, specimen_id=None, sample_id=None, readset_id=None,
 @bp.route('/<string:project>/operations/<string:operation_id>', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/operations', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"operation_name", "readset_name", "include_relationships"})
-def operations(project_id: str, readset_id=None, operation_id=None, digest_data=None):
+@parse_json_get(expected_keys={"project_name", "operation_name", "readset_name", "include_relationships"})
+def operations(project_id, readset_id=None, operation_id=None, digest_data=None):
     """
     GET:
         operation_id: uses the form "1,3-8,9". Select operation by ids
@@ -582,6 +618,7 @@ def operations(project_id: str, readset_id=None, operation_id=None, digest_data=
     include_relationships = False
     # Read digest_data for filtering
     if digest_data:
+        project_id = resolve_project_scope(project_id, digest_data)
         operation_name = digest_data.get("operation_name")
         readset_name = digest_data.get("readset_name")
         include_relationships = bool(digest_data.get("include_relationships", False))
@@ -624,8 +661,8 @@ def operations(project_id: str, readset_id=None, operation_id=None, digest_data=
 @bp.route('/<string:project>/jobs/<string:job_id>', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/jobs', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"job_name", "readset_name", "include_relationships"})
-def jobs(project_id: str, readset_id=None, job_id=None, digest_data=None):
+@parse_json_get(expected_keys={"project_name", "job_name", "readset_name", "include_relationships"})
+def jobs(project_id, readset_id=None, job_id=None, digest_data=None):
     """
     GET:
         job_id: uses the form "1,3-8,9". Select job by ids
@@ -658,6 +695,7 @@ def jobs(project_id: str, readset_id=None, job_id=None, digest_data=None):
     include_relationships = False
     # Read digest_data for filtering
     if digest_data:
+        project_id = resolve_project_scope(project_id, digest_data)
         job_name = digest_data.get("job_name")
         readset_name = digest_data.get("readset_name")
         include_relationships = bool(digest_data.get("include_relationships", False))
@@ -702,8 +740,8 @@ def jobs(project_id: str, readset_id=None, job_id=None, digest_data=None):
 @bp.route('/<string:project>/samples/<string:sample_id>/files', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/files', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"file_name", "specimen_name", "sample_name", "readset_name", "deliverable", "state", "include_relationships"})
-def files(project_id: str, specimen_id=None, sample_id=None, readset_id=None, file_id=None, digest_data=None):
+@parse_json_get(expected_keys={"project_name", "file_name", "specimen_name", "sample_name", "readset_name", "deliverable", "state", "include_relationships"})
+def files(project_id, specimen_id=None, sample_id=None, readset_id=None, file_id=None, digest_data=None):
     """
     GET:
         file_id: uses the form "1,3-8,9". Select file by ids
@@ -765,6 +803,7 @@ def files(project_id: str, specimen_id=None, sample_id=None, readset_id=None, fi
     deliverable = None
     state = None
     if digest_data:
+        project_id = resolve_project_scope(project_id, digest_data)
         deliverable = digest_data.get("deliverable")
         if deliverable is not None:
             deliverable = bool(deliverable)
@@ -834,8 +873,8 @@ def files(project_id: str, specimen_id=None, sample_id=None, readset_id=None, fi
 @bp.route('/<string:project>/samples/<string:sample_id>/metrics', methods=['GET'])
 @bp.route('/<string:project>/readsets/<string:readset_id>/metrics', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"metric_name", "specimen_name", "sample_name", "readset_name", "deliverable", "include_relationships"})
-def metrics(project_id: str, specimen_id=None, sample_id=None, readset_id=None, metric_id=None, digest_data=None):
+@parse_json_get(expected_keys={"project_name", "metric_name", "specimen_name", "sample_name", "readset_name", "deliverable", "include_relationships"})
+def metrics(project_id, specimen_id=None, sample_id=None, readset_id=None, metric_id=None, digest_data=None):
     """
     GET:
         metric_id: uses the form "1,3-8,9". Select metric by ids
@@ -890,6 +929,7 @@ def metrics(project_id: str, specimen_id=None, sample_id=None, readset_id=None, 
     # Read digest_data for filtering
     deliverable = None
     if digest_data:
+        project_id = resolve_project_scope(project_id, digest_data)
         deliverable = digest_data.get("deliverable")
         if deliverable is not None:
             deliverable = bool(deliverable)

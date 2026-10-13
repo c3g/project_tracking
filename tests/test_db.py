@@ -4,6 +4,7 @@ import tempfile
 import contextlib
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from project_tracking import model
 from project_tracking.database import get_session, init_db, session_scope, set_project_db_from_name
@@ -32,14 +33,16 @@ def _tmp_db():
         os.unlink(path)
 
 
-def _make_app(default_uri, project_databases):
+def _make_app(default_uri, project_databases, **extra_config):
     from project_tracking import create_app
-    return create_app({
+    config = {
         'TESTING': True,
         'SECRET_KEY': 'test-secret-key',
         'SQLALCHEMY_DATABASE_URI': default_uri,
         'PROJECT_DATABASES': project_databases,
-    })
+    }
+    config.update(extra_config)
+    return create_app(config)
 
 
 # ---------------------------------------------------------------------------
@@ -151,3 +154,169 @@ def test_unknown_project_falls_back_to_default_database():
             names = [p.name for p in get_session().query(model.Project).all()]
 
         assert names == ['DEFAULT-PROJECT']
+
+
+def test_cross_project_query_within_same_database_uses_project_name_filter():
+    """One anchor project can query multiple projects that share the same DB."""
+    with _tmp_db() as default_uri, _tmp_db() as shared_uri:
+        app = _make_app(default_uri, {
+            'PROJECT ALPHA': shared_uri,
+            'PROJECT BETA': shared_uri,
+        })
+
+        with app.app_context():
+            init_db(default_uri)
+            init_db(shared_uri)
+
+            with session_scope(no_app=True, db_uri=shared_uri) as s:
+                s.add(model.Project(name='PROJECT ALPHA'))
+                s.add(model.Project(name='PROJECT BETA'))
+
+        client = app.test_client()
+        response = client.get(
+            '/project/PROJECT ALPHA?json={"project_name":"PROJECT ALPHA,PROJECT BETA"}'
+        )
+
+        assert response.status_code == 200
+        names = sorted(project['name'] for project in response.get_json()['DB_ACTION_OUTPUT'])
+        assert names == ['PROJECT ALPHA', 'PROJECT BETA']
+
+
+def test_cross_db_projects_route_aggregates_results():
+    """Admin projects route fans out across all configured databases."""
+    with _tmp_db() as default_uri, _tmp_db() as shared_uri:
+        app = _make_app(default_uri, {'PROJECT ALPHA': shared_uri})
+
+        with app.app_context():
+            init_db(default_uri)
+            init_db(shared_uri)
+
+            with session_scope(no_app=True, db_uri=default_uri) as s:
+                s.add(model.Project(name='DEFAULT PROJECT'))
+            with session_scope(no_app=True, db_uri=shared_uri) as s:
+                s.add(model.Project(name='PROJECT ALPHA'))
+
+        client = app.test_client()
+
+        response = client.get('/admin/projects/across-databases')
+        assert response.status_code == 200
+        payload = response.get_json()['DB_ACTION_OUTPUT']
+        names = sorted(project['name'] for project in payload)
+
+        assert names == ['DEFAULT PROJECT', 'PROJECT ALPHA']
+        assert all('_database' in project for project in payload)
+
+
+def test_public_project_route_rejects_numeric_project_identifier():
+    """Public /project routes must use project names, not numeric IDs."""
+    with _tmp_db() as default_uri:
+        app = _make_app(default_uri, {})
+
+        with app.app_context():
+            init_db(default_uri)
+
+        client = app.test_client()
+        response = client.get('/project/1')
+
+        assert response.status_code == 400
+        payload = response.get_json()
+        assert 'DB_ACTION_ERROR' in payload
+        assert any('numeric' in msg.lower() and '/project' in msg.lower() for msg in payload['DB_ACTION_ERROR'])
+
+
+def test_admin_project_by_id_route_requires_database_selector_and_returns_scoped_result():
+    """Admin /projects/by-id requires explicit db selector and scopes lookup to that DB."""
+    with _tmp_db() as default_uri, _tmp_db() as shared_uri:
+        app = _make_app(default_uri, {'PROJECT ALPHA': shared_uri})
+
+        with app.app_context():
+            init_db(default_uri)
+            init_db(shared_uri)
+
+            with session_scope(no_app=True, db_uri=default_uri) as s:
+                s.add(model.Project(name='DEFAULT PROJECT'))
+            with session_scope(no_app=True, db_uri=shared_uri) as s:
+                s.add(model.Project(name='PROJECT ALPHA'))
+
+        client = app.test_client()
+
+        missing_database = client.get('/admin/projects/by-id/1')
+        assert missing_database.status_code == 400
+
+        lookup_default = client.get('/admin/projects/by-id/1?database=' + default_uri)
+        assert lookup_default.status_code == 200
+        default_rows = lookup_default.get_json()['DB_ACTION_OUTPUT']
+        assert len(default_rows) == 1
+        assert default_rows[0]['name'] == 'DEFAULT PROJECT'
+
+        lookup_shared = client.get('/admin/projects/by-id/1?database=' + shared_uri)
+        assert lookup_shared.status_code == 200
+        shared_rows = lookup_shared.get_json()['DB_ACTION_OUTPUT']
+        assert len(shared_rows) == 1
+        assert shared_rows[0]['name'] == 'PROJECT ALPHA'
+
+
+def test_missing_database_operational_error_returns_user_friendly_message():
+    """OperationalError for missing DB returns clear DB_ACTION_ERROR payload."""
+    with _tmp_db() as default_uri:
+        app = _make_app(default_uri, {})
+
+        @app.route('/_raise_missing_db')
+        def _raise_missing_db():
+            from flask import g
+            g.requested_project = 'CPHI-A'
+            g.project_db_uri = 'postgresql+psycopg2://user:pw@localhost/cphi'
+            raise OperationalError(
+                statement='SELECT 1',
+                params={},
+                orig=Exception('FATAL:  database "cphi" does not exist')
+            )
+
+        client = app.test_client()
+        response = client.get('/_raise_missing_db')
+
+        assert response.status_code == 503
+        payload = response.get_json()
+        assert 'DB_ACTION_ERROR' in payload
+        assert any('cphi' in msg.lower() and 'does not exist' in msg.lower() for msg in payload['DB_ACTION_ERROR'])
+        assert any('project' in msg.lower() and 'cphi-a' in msg.lower() and 'database' in msg.lower() and 'cphi' in msg.lower() for msg in payload['DB_ACTION_ERROR'])
+
+
+def _app_raising(orig_message):
+    """App whose test route raises an OperationalError wrapping orig_message."""
+    tmp = tempfile.NamedTemporaryFile(suffix='.sql', delete=False)
+    app = _make_app(f"sqlite:///{tmp.name}", {})
+
+    @app.route('/_raise_operational')
+    def _raise_operational():
+        from flask import g
+        g.requested_project = 'PROJ-A'
+        raise OperationalError(statement='SELECT 1', params={}, orig=Exception(orig_message))
+
+    return app, tmp.name
+
+
+def test_connection_refused_operational_error_returns_503():
+    app, path = _app_raising(
+        'connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused'
+    )
+    try:
+        response = app.test_client().get('/_raise_operational')
+        assert response.status_code == 503
+        assert 'Database connection failed' in response.get_json()['DB_ACTION_ERROR'][0]
+    finally:
+        os.unlink(path)
+
+
+def test_query_level_operational_error_is_not_reported_as_connection_failure():
+    """e.g. a PostgreSQL statement timeout must surface its own message, not a connectivity hint."""
+    app, path = _app_raising('canceling statement due to statement timeout')
+    try:
+        response = app.test_client().get('/_raise_operational')
+        assert response.status_code == 500
+        errors = response.get_json()['DB_ACTION_ERROR']
+        assert errors[0] == 'Database error: canceling statement due to statement timeout'
+        assert not any('connection failed' in msg.lower() for msg in errors)
+        assert any("'PROJ-A'" in msg for msg in errors)
+    finally:
+        os.unlink(path)
