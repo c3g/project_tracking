@@ -312,3 +312,14 @@ def test_classify_explicit_regex_keeps_unanchored_semantics():
     assert _classify_explicit_regex(".*CM-1.*") == ("contains", "CM-1")
     assert _classify_explicit_regex(r".*\.tsv$") is None
     assert _classify_explicit_regex("^.*$") is None
+
+
+def test_routes_return_rows_ordered_by_id(client, app, run_processing_json):
+    """Listing routes return rows in ascending id order, whatever the database."""
+    with app.app_context():
+        session = database.get_session()
+        reset_database(session, run_processing_json)
+        for route in ("specimens", "samples", "readsets", "metrics", "files", "operations", "jobs"):
+            ids = [row["id"] for row in client.get(f"/project/TestProject/{route}").json["DB_ACTION_OUTPUT"]]
+            assert ids, route
+            assert ids == sorted(ids), route

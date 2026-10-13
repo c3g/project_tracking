@@ -53,7 +53,7 @@ def projects(project_id, session, deprecated=False, deleted=False):
             project_id = [project_id]
         stmt = stmt.where(Project.id.in_(project_id))
 
-    result = session.execute(stmt).scalars().all()
+    result = session.execute(stmt.order_by(Project.id)).scalars().all()
 
     if not result:
         ret["DB_ACTION_WARNING"].append(
@@ -120,7 +120,7 @@ def metrics(project_id, session, deliverable=None, specimen_id=None, sample_id=N
         # Filter metrics based on deliverable status
         stmt = stmt.where(Metric.deliverable.is_(deliverable))
 
-    result = session.execute(stmt).scalars().all()
+    result = session.execute(stmt.order_by(Metric.id)).scalars().all()
 
     if not result:
         ret["DB_ACTION_WARNING"].append(
@@ -196,7 +196,7 @@ def files(project_id, session, deliverable=None, specimen_id=None, sample_id=Non
         # Filter files based on state
         stmt = stmt.where(File.state == to_enum(StateEnum, state))
 
-    result = session.execute(stmt).scalars().all()
+    result = session.execute(stmt.order_by(File.id)).scalars().all()
 
     if not result:
         ret["DB_ACTION_WARNING"].append(
@@ -261,7 +261,7 @@ def locations(project_id, session, file_id=None, location_id=None, deprecated=Fa
             location_id = [location_id]
         stmt = stmt.where(Location.id.in_(location_id))
 
-    result = session.execute(stmt).scalars().all()
+    result = session.execute(stmt.order_by(Location.id)).scalars().all()
 
     if not result:
         ret["DB_ACTION_WARNING"].append(
@@ -315,7 +315,7 @@ def operations(project_id, session, operation_id=None, readset_id=None, deprecat
             readset_id = [readset_id]
         stmt = stmt.join(Operation.readsets).where(Readset.id.in_(readset_id))
 
-    result = session.execute(stmt).scalars().all()
+    result = session.execute(stmt.order_by(Operation.id)).scalars().all()
 
     if not result:
         ret["DB_ACTION_WARNING"].append(
@@ -369,7 +369,7 @@ def jobs(project_id, session, job_id=None, readset_id=None, deprecated=False, de
             readset_id = [readset_id]
         stmt = stmt.join(Job.readsets).where(Readset.id.in_(readset_id))
 
-    result = session.execute(stmt).scalars().all()
+    result = session.execute(stmt.order_by(Job.id)).scalars().all()
 
     if not result:
         ret["DB_ACTION_WARNING"].append(
@@ -433,7 +433,7 @@ def readsets(project_id, session, specimen_id=None, sample_id=None, readset_id=N
         # Fetch readsets by readset_id
         stmt = stmt.where(Readset.id.in_(readset_id))
 
-    result = session.execute(stmt).scalars().all()
+    result = session.execute(stmt.order_by(Readset.id)).scalars().all()
 
     if not result:
         ret["DB_ACTION_WARNING"].append(
@@ -489,7 +489,7 @@ def specimens(project_id, session, specimen_id=None, sample_id=None, readset_id=
         # Fetch specimens by readset_id
         stmt = stmt.join(Specimen.samples).join(Sample.readsets).where(Readset.id.in_(readset_id))
 
-    result = session.execute(stmt).scalars().all()
+    result = session.execute(stmt.order_by(Specimen.id)).scalars().all()
 
     if not result:
         ret["DB_ACTION_WARNING"].append(
@@ -550,7 +550,7 @@ def samples(project_id, session, specimen_id=None, sample_id=None, readset_id=No
         # Fetch samples by readset_id
         stmt = stmt.join(Sample.readsets).where(Readset.id.in_(readset_id))
 
-    result = session.execute(stmt).scalars().all()
+    result = session.execute(stmt.order_by(Sample.id)).scalars().all()
 
     if not result:
         ret["DB_ACTION_WARNING"].append(
@@ -602,7 +602,7 @@ def samples_pair(project_id, session, pair: bool, specimen_id=None, deprecated=F
             specimen_id = [specimen_id]
         stmt = stmt.where(Specimen.id.in_(specimen_id))
 
-    result = session.execute(stmt).scalars().all()
+    result = session.execute(stmt.order_by(Sample.id)).scalars().all()
 
     if not result:
         ret["DB_ACTION_WARNING"].append(
