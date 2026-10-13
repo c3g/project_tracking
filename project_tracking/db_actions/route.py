@@ -20,6 +20,7 @@ from ..model import (
     Job,
     Metric,
     File,
+    Location,
     StateEnum
     )
 
@@ -208,6 +209,67 @@ def files(project_id, session, deliverable=None, specimen_id=None, sample_id=Non
             f"sample_id={sample_id}, "
             f"readset_id={readset_id}, "
             f"file_id={file_id}, "
+            f"deprecated={deprecated}, "
+            f"deleted={deleted}"
+        )
+    else:
+        ret["DB_ACTION_OUTPUT"].extend(result)
+    if not ret["DB_ACTION_WARNING"]:
+        ret.pop("DB_ACTION_WARNING")
+
+    return ret
+
+def locations(project_id, session, file_id=None, location_id=None, deprecated=False, deleted=False):
+    """
+    Fetching all locations that are linked to file.
+    """
+    ret = {
+        "DB_ACTION_WARNING": [],
+        "DB_ACTION_OUTPUT": []
+    }
+
+    if isinstance(project_id, str):
+        project_id = [project_id]
+
+    stmt = (
+        select(Location)
+        .options(
+            selectinload(Location.file)
+            .selectinload(File.readsets)
+            .selectinload(Readset.sample)
+            .selectinload(Sample.specimen)
+            .selectinload(Specimen.project)
+        )
+        .join(Location.file)
+        .join(File.readsets)
+        .join(Readset.sample)
+        .join(Sample.specimen)
+        .join(Specimen.project)
+        .where(
+            Location.deprecated.is_(deprecated),
+            Location.deleted.is_(deleted),
+            Project.id.in_(project_id)
+        )
+    ).distinct()
+
+    if file_id:
+        if isinstance(file_id, int):
+            file_id = [file_id]
+        stmt = stmt.where(File.id.in_(file_id))
+
+    if location_id:
+        if isinstance(location_id, int):
+            location_id = [location_id]
+        stmt = stmt.where(Location.id.in_(location_id))
+
+    result = session.execute(stmt).scalars().all()
+
+    if not result:
+        ret["DB_ACTION_WARNING"].append(
+            f"No file locations found with the following criteria: "
+            f"project_id={project_id}, "
+            f"file_id={file_id}, "
+            f"location_id={location_id}, "
             f"deprecated={deprecated}, "
             f"deleted={deleted}"
         )

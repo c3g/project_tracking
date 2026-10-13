@@ -867,6 +867,66 @@ def files(project_id, specimen_id=None, sample_id=None, readset_id=None, file_id
     return sanity_check("File", result_dicts)
 
 
+@bp.route('/<string:project>/locations', methods=['GET'])
+@bp.route('/<string:project>/locations/<string:location_id>', methods=['GET'])
+@convcheck_project
+@parse_json_get(expected_keys={"project_name", "location_uri", "include_relationships"})
+def locations(project_id, location_id=None, digest_data=None):
+    r"""
+    GET:
+        location_id: uses the form "1,3-8,9". Select location by ids
+            Ex: /project/<project>/locations/<location_id>
+    return: selected locations, belonging to <project>
+
+    Query:
+    (location_uri):
+    The location_uri query allows to get all locations labelled with a specific URI.
+    Supports exact match and regex (prefix with "r:").
+        (uri):
+            return: a subset of locations who have the URI
+            Ex: /project/<project>/locations?json={"location_uri": "<URI1>,<URI2>,..."}
+        (regex):
+            return: a subset of locations whose URI matches the regex
+            Ex: /project/<project>/locations?json={"location_uri": "r:.*\.tsv$"}
+    Regex caveats — URIs contain dots which are regex wildcards:
+        - Use "\." for a literal dot, otherwise "." matches any character.
+        - Use "$" to anchor the end; without it "r:.*\.tsv" also matches "*.tsv.gz".
+        - Correct suffix match: r:.*sample_name\.pipeline\.grch38\.output\.tsv$
+    """
+    # Don't serialize relationships by default aka when requesting all locations
+    include_relationships = False
+    # Read digest_data for filtering
+    if digest_data:
+        project_id = resolve_project_scope(project_id, digest_data)
+        location_uri = digest_data.get("location_uri")
+        include_relationships = bool(digest_data.get("include_relationships", False))
+        if location_uri:
+            names = parse_names(location_uri)
+            ids = db_actions.uri_to_id("Location", names)
+            location_id = ids
+
+    # Unroll the IDs if they are provided as strings or lists
+    try:
+        if location_id is not None:
+            include_relationships = True
+            location_id = unroll(location_id)
+    except ValueError as exc:
+        return jsonify({
+            "DB_ACTION_ERROR": [
+                f"Invalid ID format: {exc}"
+            ]
+        }), 400
+
+    result_dicts = fetch_and_format(
+        db_actions.locations,
+        project_id=project_id,
+        location_id=location_id,
+        include_relationships=include_relationships
+        )
+
+    return sanity_check("Location", result_dicts)
+
+
 @bp.route('/<string:project>/metrics', methods=['GET'])
 @bp.route('/<string:project>/metrics/<string:metric_id>', methods=['GET'])
 @bp.route('/<string:project>/specimens/<string:specimen_id>/metrics', methods=['GET'])

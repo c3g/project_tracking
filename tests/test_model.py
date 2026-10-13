@@ -19,3 +19,17 @@ def test_add_model(not_app_db, pre_filled_model):
     assert m1.name == entry_dict["metric_name"]
     assert r1.name == entry_dict["re1_name"]
     assert r1.metrics[0].value == entry_dict["me1_value"]
+
+
+def test_location_from_uri_reuses_deleted_location(not_app_db):
+    """uri is unique, so a soft-deleted Location must be returned instead of inserting a duplicate."""
+    with not_app_db as db:
+        file = model.File(name="sample.bam", type="bam")
+        location = model.Location(uri="abacus:///path/sample.bam", endpoint="abacus", file=file, deleted=True)
+        db.add_all([file, location])
+        db.flush()
+
+        found, warning = model.Location.from_uri(uri="abacus:///path/sample.bam", file=file, session=db)
+
+        assert found.id == location.id
+        assert warning is not None

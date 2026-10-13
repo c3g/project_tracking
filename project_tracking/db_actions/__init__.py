@@ -6,6 +6,7 @@ from .route import (
     projects,
     metrics,
     files,
+    locations,
     operations,
     jobs,
     readsets,
@@ -39,6 +40,7 @@ from .modification import (
 
 from .utils import (
     name_to_id,
+    uri_to_id,
     select_all_projects,
     project_exists
     )
@@ -47,7 +49,7 @@ from .errors import Error
 
 __all__ = [
     # Route functions
-    "create_project", "projects", "metrics", "files", "operations",
+    "create_project", "projects", "metrics", "files", "locations", "operations",
     "jobs", "readsets", "specimens", "samples", "samples_pair",
 
     # Digest functions
@@ -61,7 +63,7 @@ __all__ = [
     "edit", "delete", "undelete", "deprecate", "undeprecate", "curate",
 
     # Utilities
-    "name_to_id", "select_all_projects", "project_exists",
+    "name_to_id", "uri_to_id", "select_all_projects", "project_exists",
 
     # Error handling
     "Error"

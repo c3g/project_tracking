@@ -1255,6 +1255,18 @@ class Location(BaseTable):
 
     file: Mapped[File] = relationship(back_populates="locations")
 
+    @property
+    def readset_ids(self) -> list[int]:
+        return self.file.readset_ids if self.file else []
+
+    @property
+    def sample_ids(self) -> list[int]:
+        return self.file.sample_ids if self.file else []
+
+    @property
+    def specimen_ids(self) -> list[int]:
+        return self.file.specimen_ids if self.file else []
+
     @classmethod
     def from_uri(cls, uri, file, endpoint=None, session=None, deprecated=False, deleted=False):
         """
@@ -1264,6 +1276,7 @@ class Location(BaseTable):
             session = database.get_session()
 
         warning = None
+        # uri is unique: match regardless of deleted/deprecated, callers restore the flags
         stmt = (
             select(cls)
             .where(
