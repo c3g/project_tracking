@@ -296,3 +296,19 @@ def test_jobs_route(client, app, run_processing_json):
                 )
             assert "start" in returned
             assert "stop" in returned
+
+
+def test_classify_explicit_regex_keeps_unanchored_semantics():
+    """Regex `~` is unanchored: only ^ / $ may turn a pattern into a prefix / suffix match."""
+    from project_tracking.db_actions.utils import _classify_explicit_regex
+
+    assert _classify_explicit_regex("^MoHQ-CM$") == ("exact", "MoHQ-CM")
+    assert _classify_explicit_regex("^MoHQ-CM.*") == ("prefix", "MoHQ-CM")
+    assert _classify_explicit_regex("^MoHQ-CM") == ("prefix", "MoHQ-CM")
+    assert _classify_explicit_regex(".*1DT$") == ("suffix", "1DT")
+    assert _classify_explicit_regex("1DT$") == ("suffix", "1DT")
+    assert _classify_explicit_regex("MoHQ-CM.*") == ("contains", "MoHQ-CM")
+    assert _classify_explicit_regex(".*1DT") == ("contains", "1DT")
+    assert _classify_explicit_regex(".*CM-1.*") == ("contains", "CM-1")
+    assert _classify_explicit_regex(r".*\.tsv$") is None
+    assert _classify_explicit_regex("^.*$") is None
