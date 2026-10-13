@@ -64,3 +64,33 @@ def test_serialization(not_app_db):
         assert isinstance(serialize(j), dict)
     for f in files:
         assert isinstance(serialize(f), dict)
+
+
+def test_serialization_resolves_enums_without_queries(not_app_db, run_processing_json):
+    """Enum columns are dumped as values (lane '1', not 'ONE') and dumping never lazy loads relationships."""
+    from sqlalchemy import event
+    from project_tracking import db_actions
+
+    project_name = run_processing_json["project_name"]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+    not_app_db.commit()
+    not_app_db.expire_all()
+
+    readsets = not_app_db.execute(select(model.Readset)).scalars().all()
+    files = not_app_db.execute(select(model.File)).scalars().all()
+    for readset in readsets:
+        _ = readset.lane, readset.sequencing_type, readset.state
+    for file in files:
+        _ = file.state
+
+    queries = []
+    event.listen(not_app_db.get_bind(), "before_cursor_execute", lambda *args: queries.append(args[2]))
+    dumped_readsets = serialize(readsets, include_relationships=False)
+    dumped_files = serialize(files, include_relationships=False)
+
+    assert queries == []
+    assert {readset["lane"] for readset in dumped_readsets} <= {member.value for member in model.LaneEnum}
+    assert {readset["sequencing_type"] for readset in dumped_readsets} == {"PAIRED_END"}
+    assert {file["state"] for file in dumped_files} == {"VALID"}

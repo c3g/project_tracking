@@ -4,6 +4,7 @@ import enum
 
 from marshmallow import fields, post_dump
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
+from sqlalchemy import Enum as SQLAlchemyEnum, inspect as sqlalchemy_inspect
 from sqlalchemy.orm.exc import DetachedInstanceError
 
 from .model import (
@@ -21,6 +22,22 @@ from .model import (
     Run
     )
 
+# Enum column names per model class, computed once
+_ENUM_COLUMNS = {}
+
+
+def enum_columns(model_class):
+    """
+    Names of the enum columns of a model class.
+    """
+    if model_class not in _ENUM_COLUMNS:
+        _ENUM_COLUMNS[model_class] = [
+            attr.key for attr in sqlalchemy_inspect(model_class).column_attrs
+            if isinstance(attr.columns[0].type, SQLAlchemyEnum)
+        ]
+    return _ENUM_COLUMNS[model_class]
+
+
 class EnumResolvingMixin:
     """
     Mixin to resolve enum attributes to their values during serialization.
@@ -29,16 +46,15 @@ class EnumResolvingMixin:
     def resolve_enums(self, data, original, **kwargs):
         """
         Convert enum attributes to their values in the serialized output.
+        Only enum columns are read: reading every attribute would lazy load each relationship, one query per row.
         """
-        for attr in dir(original):
-            if attr.startswith('_'):
-                continue
+        for attr in enum_columns(type(original)):
             try:
                 value = getattr(original, attr)
-                if isinstance(value, enum.Enum):
-                    data[attr] = value.value
-            except (AttributeError, DetachedInstanceError):
+            except DetachedInstanceError:
                 continue
+            if isinstance(value, enum.Enum):
+                data[attr] = value.value
         return data
 
 class BaseSchema(EnumResolvingMixin, SQLAlchemyAutoSchema):
