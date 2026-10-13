@@ -87,7 +87,7 @@ def test_specimens_route(client, app, run_processing_json):
 
         assert len(returned_items) == len(expected_items)
 
-        for returned, expected in zip(returned_items, expected_items):
+        for returned, expected in zip(sorted(returned_items, key=lambda r: r["id"]), expected_items):
             assert returned["tablename"] == "specimen"
             for input_key, api_key in specimen_key_map.items():
                 if expected.get(input_key) is not None:
@@ -124,7 +124,7 @@ def test_samples_route(client, app, run_processing_json):
 
         assert len(returned_items) == len(expected_items)
 
-        for returned, expected in zip(returned_items, expected_items):
+        for returned, expected in zip(sorted(returned_items, key=lambda r: r["id"]), expected_items):
             assert returned["tablename"] == "sample"
             for input_key, api_key in sample_key_map.items():
                 if expected.get(input_key) is not None:
@@ -162,7 +162,7 @@ def test_readsets_route(client, app, run_processing_json):
 
         assert len(returned_items) == len(expected_items)
 
-        for returned, expected in zip(returned_items, expected_items):
+        for returned, expected in zip(sorted(returned_items, key=lambda r: r["id"]), expected_items):
             assert returned["tablename"] == "readset"
             for input_key, api_key in readset_key_map.items():
                 if expected.get(input_key) is not None:
@@ -199,7 +199,7 @@ def test_metrics_route(client, app, run_processing_json):
 
         assert len(returned_items) == len(expected_items)
 
-        for returned, expected in zip(returned_items, expected_items):
+        for returned, expected in zip(sorted(returned_items, key=lambda r: r["id"]), expected_items):
             assert returned["tablename"] == "metric"
             for input_key, api_key in metric_key_map.items():
                 if expected.get(input_key) is not None:
@@ -233,7 +233,7 @@ def test_files_route(client, app, run_processing_json):
 
         assert len(returned_items) == len(expected_items)
 
-        for returned, expected in zip(returned_items, expected_items):
+        for returned, expected in zip(sorted(returned_items, key=lambda r: r["id"]), expected_items):
             assert returned["tablename"] == "file"
             for input_key, api_key in file_key_map.items():
                 if expected.get(input_key) is not None:
@@ -262,7 +262,7 @@ def test_operations_route(client, app, run_processing_json):
 
         assert len(returned_items) == len(expected_items)
 
-        for returned, expected in zip(returned_items, expected_items):
+        for returned, expected in zip(sorted(returned_items, key=lambda r: r["id"]), expected_items):
             assert returned["tablename"] == "operation"
             for input_key, api_key in operation_key_map.items():
                 if expected.get(input_key) is not None:
@@ -287,7 +287,7 @@ def test_jobs_route(client, app, run_processing_json):
 
         assert len(returned_items) == len(expected_items)
 
-        for returned, expected in zip(returned_items, expected_items):
+        for returned, expected in zip(sorted(returned_items, key=lambda r: r["id"]), expected_items):
             assert returned["tablename"] == "job"
             for key in expected:
                 assert key in returned, f"Missing key: {key}"
