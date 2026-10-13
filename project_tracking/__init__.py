@@ -23,7 +23,9 @@ def _load_prefixed_file_env(app, prefix="C3G"):
     will populate:
         C3G_PROJECT_DATABASES=<content of file>
 
-    Existing non-file variables keep precedence.
+    A *_FILE variable wins over the plain variable of the same name, as in entrypoint.sh: it is always
+    set on purpose by the deployment, while the plain one may be an image default (the Containerfile
+    sets a SQLite C3G_SQLALCHEMY_DATABASE_URI).
     """
     prefix_value = f"{prefix}_"
     for key, file_path in list(os.environ.items()):
@@ -31,8 +33,6 @@ def _load_prefixed_file_env(app, prefix="C3G"):
             continue
 
         target_key = key[:-5]
-        if os.environ.get(target_key):
-            continue
 
         # Convert C3G_SQLALCHEMY_DATABASE_URI -> SQLALCHEMY_DATABASE_URI
         config_key = target_key[len(prefix_value):]

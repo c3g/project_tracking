@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Stop on the first failure (unreadable secret, failed init-db or migration): the container exits
+# with an error instead of serving the API on a database with the wrong schema.
+set -euo pipefail
 
 # Load *_FILE secret files into env vars for use by the flask commands below.
 # The flask app itself also does this via _load_prefixed_file_env(), but the
@@ -31,4 +34,5 @@ if [[ -v C3G_ALEMBIC_UPGRADE ]]; then
   flask --app "$APP" upgrade-all-dbs
 fi
 
-gunicorn "project_tracking:create_app()"  "${@}"
+# exec: gunicorn replaces this shell, so it receives podman's stop signal and shuts down cleanly
+exec gunicorn "project_tracking:create_app()"  "${@}"

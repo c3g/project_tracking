@@ -27,17 +27,17 @@ def test_loads_c3g_file_backed_env_vars(monkeypatch, tmp_path):
     }
 
 
-def test_explicit_env_beats_file_backed_env(monkeypatch, tmp_path):
-    """If C3G_* is set directly, C3G_*_FILE should not override it."""
+def test_file_backed_env_beats_plain_env(monkeypatch, tmp_path):
+    """C3G_*_FILE overrides C3G_*, e.g. the SQLite default set by the Containerfile."""
     file_uri = "postgresql+psycopg2://user:pw@host/from_file"
-    direct_uri = "postgresql+psycopg2://user:pw@host/from_direct_env"
+    image_default_uri = "sqlite:////sqlite/tracking_db.sql"
 
     uri_file = tmp_path / "c3g_sqlalchemy_database_uri.secret"
     uri_file.write_text(file_uri + "\n", encoding="utf-8")
 
-    monkeypatch.setenv("C3G_SQLALCHEMY_DATABASE_URI", direct_uri)
+    monkeypatch.setenv("C3G_SQLALCHEMY_DATABASE_URI", image_default_uri)
     monkeypatch.setenv("C3G_SQLALCHEMY_DATABASE_URI_FILE", str(uri_file))
 
     app = create_app(test_config={})
 
-    assert app.config["SQLALCHEMY_DATABASE_URI"] == direct_uri
+    assert app.config["SQLALCHEMY_DATABASE_URI"] == file_uri
