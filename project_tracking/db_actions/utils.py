@@ -6,10 +6,31 @@ Utility functions for db_actions package.
 from sqlalchemy import select, or_
 
 # Local modules
-from .errors import DidNotFindError
+from .errors import DidNotFindError, EnumValueError, enum_values
 from .. import database
 from .. import model
 from ..model import Project
+
+def to_enum(enum_class, value):
+    """Convert an exact enum value (e.g. '1' for a lane), raising EnumValueError otherwise."""
+    try:
+        return enum_class(value)
+    except ValueError as error:
+        raise EnumValueError(enum=enum_class, value=value) from error
+
+
+def check_enum(errors, enum_class, value, key, entity, name, optional=False):
+    """
+    Append a message to errors when value is not an exact value of enum_class.
+    With optional, None (null or missing key) is accepted.
+    """
+    if optional and value is None:
+        return
+    if value not in {member.value for member in enum_class}:
+        errors.append(
+            f"'{entity}' '{name}' has an invalid '{key}' {value!r}: expected one of {enum_values(enum_class)}."
+        )
+
 
 def is_explicit_regex(s):
     """

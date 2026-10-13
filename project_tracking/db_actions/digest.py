@@ -419,6 +419,10 @@ def extract_file_uri(file, location_endpoint):
     return None
 
 
+# Readsets not to analyse: left out of the readset file with a warning
+SKIPPED_READSET_STATES = (StateEnum.ON_HOLD, StateEnum.INVALID)
+
+
 def digest_readset_file(project_id: str, digest_data, session):
     """
     Digesting readset file fields for GenPipes
@@ -447,6 +451,11 @@ def digest_readset_file(project_id: str, digest_data, session):
     )
 
     for readset in readsets:
+        if readset.state in SKIPPED_READSET_STATES:
+            ret["DB_ACTION_WARNING"].append(
+                f"Skipping 'Readset' '{readset.name}' of 'Sample' '{readset.sample.name}': its state is '{readset.state.value}'."
+            )
+            continue
         file_map = {"R1": None, "R2": None, "bam": None, "bed": None}
         readset_files = [
             file for op in readset.operations if op.name == "run_processing"

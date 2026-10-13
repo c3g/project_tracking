@@ -285,3 +285,28 @@ def test_sample_match_across_ingestions(client, run_processing_json):
     assert json.loads(response.text)["DB_ACTION_OUTPUT"] == [
         {"Specimen": "MoHQ-JG-9-23", "Sample_N": late_normal[vb.SAMPLE_NAME], "Sample_T": tumour[vb.SAMPLE_NAME]}
     ]
+
+
+def test_digest_readset_file_skips_on_hold_and_invalid(client, run_processing_json, readset_file_json):
+    """ON_HOLD and INVALID readsets are left out of the readset file, with a warning."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    states = {
+        "MoHQ-JG-9-23-15000863775-19933DT.A01433_0157_1": "ON_HOLD",
+        "MoHQ-CM-1-3-15000936286-19866DN.A01433_0157_2": "INVALID",
+    }
+    for specimen in run_processing_json[vb.SPECIMEN]:
+        for sample in specimen[vb.SAMPLE]:
+            for readset in sample[vb.READSET]:
+                if readset[vb.READSET_NAME] in states:
+                    readset[vb.READSET_STATE] = states[readset[vb.READSET_NAME]]
+
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
+    response = client.get(f'project/{project_name}/digest_readset_file?json={json.dumps(readset_file_json)}')
+    assert response.status_code == 200
+    body = json.loads(response.text)
+
+    expected = [row for row in READSET_FILE["DB_ACTION_OUTPUT"] if row["Readset"] not in states]
+    assert sorted(body["DB_ACTION_OUTPUT"], key=lambda x: x["Readset"]) == sorted(expected, key=lambda x: x["Readset"])
+    for readset_name, state in states.items():
+        assert any(f"'{readset_name}'" in warning and f"'{state}'" in warning for warning in body["DB_ACTION_WARNING"])

@@ -53,4 +53,9 @@ class EnumValueError(Error):
         if message:
             self.message = message
         else:
-            self.message = f"'{value}' is not a valid value for '{enum}'. Valid values are: {', '.join(enum.__members__.keys())}"
+            self.message = f"{value!r} is not a valid value for '{enum.__name__}'. Valid values are: {enum_values(enum)}"
+
+
+def enum_values(enum_class):
+    """Valid values of an enum, as payloads must send them."""
+    return ", ".join(repr(member.value) for member in enum_class)

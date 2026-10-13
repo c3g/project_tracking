@@ -13,6 +13,7 @@ from sqlalchemy.orm.exc import UnmappedClassError
 
 # Local modules
 from .errors import DidNotFindError, RequestError
+from .utils import to_enum
 from .. import vocabulary as vb
 from .. import database
 from .. import model
@@ -493,6 +494,20 @@ def cascade_action(instance, table_name, session, ret, action, direction):
                         cascade_action(child_instance, child_name, session, ret, action, direction)
 
 
+def edit_value(the_table, column, value):
+    """
+    Value to store in the_table.column: for an enum column, the member matching value (exact value,
+    e.g. 'ON_HOLD' or lane '1', or member name, e.g. lane 'ONE'), raising EnumValueError otherwise.
+    """
+    column_type = getattr(the_table.__table__.columns.get(column), "type", None)
+    enum_class = getattr(column_type, "enum_class", None)
+    if enum_class is None or value is None or isinstance(value, enum_class):
+        return value
+    if isinstance(value, str) and value in enum_class.__members__:
+        return enum_class[value]
+    return to_enum(enum_class, value)
+
+
 def edit(ingest_data, session, cascade_mode=None, dry_run=False):
     """
     Edition of the database based on ingested_data
@@ -511,6 +526,7 @@ def edit(ingest_data, session, cascade_mode=None, dry_run=False):
 
     for table in ingest_data[vb.MODIFICATION]:
         the_table = getattr(model, table[vb.TABLE].title())
+        new_value = edit_value(the_table, table[vb.COLUMN], table[vb.NEW])
         if table[vb.ID]:
             for current_id in set(table[vb.ID]):
                 stmt = select(the_table).where(the_table.id == current_id)
@@ -519,10 +535,10 @@ def edit(ingest_data, session, cascade_mode=None, dry_run=False):
                     raise DidNotFindError(table=table[vb.TABLE], attribute="id", query=current_id)
                 old = getattr(selected_entry, table[vb.COLUMN])
                 # Skip the edit if the new value is the same as the old one
-                if old == table[vb.NEW]:
+                if old == new_value:
                     ret["DB_ACTION_WARNING"].append(f"Table '{table[vb.TABLE]}' with id '{current_id}' already has '{table[vb.COLUMN]}' with value '{old}'. Skipping...")
                 else:
-                    setattr(selected_entry, table[vb.COLUMN], table[vb.NEW])
+                    setattr(selected_entry, table[vb.COLUMN], new_value)
                     new = getattr(selected_entry, table[vb.COLUMN])
                     ret["DB_ACTION_OUTPUT"].append(f"Table '{table[vb.TABLE]}' edited: column '{table[vb.COLUMN]}' with id '{current_id}' changes from '{old}' to '{new}'.")
         else:

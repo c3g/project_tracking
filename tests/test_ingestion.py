@@ -236,3 +236,106 @@ def test_run_processing_rejects_malformed_oncotree_code(not_app_db, run_processi
     assert "LU-AD" in error.value.message[0]
     assert not_app_db.execute(select(model.Sample)).first() is None
 
+
+
+def _readset_state(session, readset_name):
+    return session.execute(select(model.Readset.state).where(model.Readset.name == readset_name)).scalar_one()
+
+
+def _readsets(data):
+    return [readset for specimen in data[vb.SPECIMEN] for sample in specimen[vb.SAMPLE] for readset in sample[vb.READSET]]
+
+
+def test_run_processing_readset_state(not_app_db, run_processing_json):
+    """Exact states are stored as sent; a missing or null state gives VALID, a null metric flag no flag."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+
+    data = copy.deepcopy(run_processing_json)
+    readsets = _readsets(data)
+    readsets[0][vb.READSET_STATE] = "ON_HOLD"
+    readsets[1][vb.READSET_STATE] = "INVALID"
+    readsets[2][vb.READSET_STATE] = None
+    readsets[3].pop(vb.READSET_STATE, None)
+    readsets[0][vb.METRIC][0][vb.METRIC_FLAG] = None
+    db_actions.ingest_run_processing(project_id, data, not_app_db)
+
+    expected = [model.StateEnum.ON_HOLD, model.StateEnum.INVALID, model.StateEnum.VALID, model.StateEnum.VALID]
+    assert [_readset_state(not_app_db, readset[vb.READSET_NAME]) for readset in readsets[:4]] == expected
+
+
+def test_run_processing_rejects_invalid_enum_values(client, run_processing_json):
+    """All invalid enum values are listed in one clear error, not a 500, and nothing is written."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+
+    data = copy.deepcopy(run_processing_json)
+    readsets = _readsets(data)
+    readsets[0][vb.READSET_STATE] = "on_hold"
+    readsets[1][vb.READSET_LANE] = 4
+    readsets[2][vb.READSET_SEQUENCING_TYPE] = "PAIRED"
+    readsets[3][vb.METRIC][0][vb.METRIC_FLAG] = "OK"
+    response = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(data))
+    errors = json.loads(response.data)["DB_ACTION_ERROR"]
+
+    assert len(errors) == 4
+    assert f"'{readsets[0][vb.READSET_NAME]}' has an invalid 'readset_state' 'on_hold'" in errors[0]
+    assert "'ON_HOLD'" in errors[0]
+    assert "invalid 'readset_lane' 4: expected one of '1', '2'" in errors[1]
+    assert "invalid 'readset_sequencing_type' 'PAIRED'" in errors[2]
+    assert "invalid 'metric_flag' 'OK'" in errors[3] and readsets[3][vb.READSET_NAME] in errors[3]
+
+    response = client.get(f'project/{project_name}/readsets')
+    assert not json.loads(response.data).get("DB_ACTION_OUTPUT")
+
+
+def test_genpipes_rejects_invalid_enum_values(not_app_db, run_processing_json, genpipes_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+
+    data = copy.deepcopy(genpipes_json)
+    job = data[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0]
+    job[vb.JOB_STATUS] = "DONE"
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_genpipes(project_id, data, not_app_db)
+    assert len(error.value.message) == 1
+    assert f"'{job[vb.JOB_NAME]}'" in error.value.message[0] and "invalid 'job_status' 'DONE'" in error.value.message[0]
+    assert not_app_db.execute(select(model.Job).where(model.Job.name == job[vb.JOB_NAME])).first() is None
+
+
+def test_edit_enum_column(client, run_processing_json):
+    """edit takes an exact enum value or member name; anything else is a clear error and nothing changes."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
+
+    def edit(column, new):
+        payload = {"modification": [{"table": "readset", "column": column, "id": [1], "new": new}]}
+        return json.loads(client.post('modification/edit', data=json.dumps(payload)).data)
+
+    def readset():
+        return json.loads(client.get(f'project/{project_name}/readsets/1').data)["DB_ACTION_OUTPUT"][0]
+
+    assert "DB_ACTION_ERROR" not in edit("state", "ON_HOLD")
+    assert readset()["state"] == "ON_HOLD"
+    assert "already has 'state'" in edit("state", "ON_HOLD")["DB_ACTION_WARNING"][0]
+
+    body = edit("state", "on_hold")
+    assert "'on_hold' is not a valid value for 'StateEnum'" in body["DB_ACTION_ERROR"]
+    assert readset()["state"] == "ON_HOLD"
+
+    edit("lane", "4")
+    assert readset()["lane"] == "4"
+    edit("lane", "FIVE")
+    assert readset()["lane"] == "5"
+
+
+def test_files_rejects_invalid_state_filter(client, run_processing_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
+    response = client.get(f'project/{project_name}/files?json={json.dumps({"state": "valid"})}')
+    assert "'valid' is not a valid value for 'StateEnum'" in json.loads(response.data)["DB_ACTION_ERROR"]

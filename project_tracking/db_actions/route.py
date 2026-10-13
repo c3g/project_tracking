@@ -10,6 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
 # Local modules
+from .utils import to_enum
 from ..model import (
     Project,
     Specimen,
@@ -193,9 +194,7 @@ def files(project_id, session, deliverable=None, specimen_id=None, sample_id=Non
         stmt = stmt.where(File.deliverable.is_(deliverable))
     if state is not None:
         # Filter files based on state
-        stmt = stmt.where(File.state == StateEnum(state))
-
-    # logger.debug(str(stmt.compile(compile_kwargs={"literal_binds": True})))
+        stmt = stmt.where(File.state == to_enum(StateEnum, state))
 
     result = session.execute(stmt).scalars().all()
 

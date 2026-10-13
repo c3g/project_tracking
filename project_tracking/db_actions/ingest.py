@@ -16,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 # Local modules
 from .errors import DidNotFindError, RequestError, UniqueConstraintError
 from .route import projects
+from .utils import check_enum
 from .. import vocabulary as vb
 from .. import database
 from ..model import (
@@ -76,6 +77,43 @@ def normalize_oncotree_codes(ingest_data):
         raise RequestError(message=invalid)
 
 
+def check_run_processing_enums(ingest_data):
+    """
+    Check every enum field of a run_processing payload before anything is written; raises RequestError
+    listing all invalid values. Values must be exact (e.g. 'ON_HOLD', lane '1'); readset_state and
+    metric_flag may be null or missing.
+    """
+    invalid = []
+    for specimen_json in ingest_data[vb.SPECIMEN]:
+        for sample_json in specimen_json[vb.SAMPLE]:
+            for readset_json in sample_json[vb.READSET]:
+                name = readset_json[vb.READSET_NAME]
+                check_enum(invalid, LaneEnum, readset_json.get(vb.READSET_LANE), vb.READSET_LANE, "Readset", name)
+                check_enum(invalid, SequencingTypeEnum, readset_json.get(vb.READSET_SEQUENCING_TYPE), vb.READSET_SEQUENCING_TYPE, "Readset", name)
+                check_enum(invalid, StateEnum, readset_json.get(vb.READSET_STATE), vb.READSET_STATE, "Readset", name, optional=True)
+                for metric_json in readset_json[vb.METRIC]:
+                    check_enum(invalid, FlagEnum, metric_json.get(vb.METRIC_FLAG), vb.METRIC_FLAG, "Metric", f"{metric_json[vb.METRIC_NAME]}' of 'Readset' '{name}", optional=True)
+    if invalid:
+        raise RequestError(message=invalid)
+
+
+def check_genpipes_enums(ingest_data):
+    """
+    Check every enum field of a genpipes payload before anything is written; raises RequestError
+    listing all invalid values. job_status and metric_flag may be null or missing.
+    """
+    invalid = []
+    for sample_json in ingest_data[vb.SAMPLE]:
+        for readset_json in sample_json[vb.READSET]:
+            for job_json in readset_json[vb.JOB]:
+                name = f"{job_json[vb.JOB_NAME]}' of 'Readset' '{readset_json[vb.READSET_NAME]}"
+                check_enum(invalid, StatusEnum, job_json.get(vb.JOB_STATUS) or None, vb.JOB_STATUS, "Job", name, optional=True)
+                for metric_json in job_json.get(vb.METRIC, []):
+                    check_enum(invalid, FlagEnum, metric_json.get(vb.METRIC_FLAG), vb.METRIC_FLAG, "Metric", f"{metric_json[vb.METRIC_NAME]}' of 'Job' '{name}", optional=True)
+    if invalid:
+        raise RequestError(message=invalid)
+
+
 def ingest_run_processing(project_id: str, ingest_data: dict, session):
     """Ingesting run for MoH"""
     if not isinstance(ingest_data, dict):
@@ -95,6 +133,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
     if message:
         raise UniqueConstraintError(message=message)
     normalize_oncotree_codes(ingest_data)
+    check_run_processing_enums(ingest_data)
 
     operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
@@ -195,7 +234,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                     adapter1=readset_json[vb.READSET_ADAPTER1],
                     adapter2=readset_json[vb.READSET_ADAPTER2],
                     sequencing_type=SequencingTypeEnum(readset_json[vb.READSET_SEQUENCING_TYPE]),
-                    state=StateEnum(readset_json.get(vb.READSET_STATE, "VALID")),
+                    state=StateEnum(readset_json.get(vb.READSET_STATE) or StateEnum.VALID.value),
                     sample=sample,
                     experiment=experiment,
                     run=run,
@@ -258,10 +297,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                         metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
                     else:
                         metric_deliverable = False
-                    if vb.METRIC_FLAG in metric_json:
-                        metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG])
-                    else:
-                        metric_flag = None
+                    metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG]) if metric_json.get(vb.METRIC_FLAG) else None
                     _, warning = Metric.get_or_create(
                         name=metric_json[vb.METRIC_NAME],
                         value=metric_json[vb.METRIC_VALUE],
@@ -473,6 +509,7 @@ def ingest_genpipes(project_id: str, ingest_data, session):
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
     force = ingest_data.get(vb.FORCE, False)
+    check_genpipes_enums(ingest_data)
 
     job = None
 
@@ -601,7 +638,7 @@ def ingest_genpipes(project_id: str, ingest_data, session):
                     if vb.METRIC in job_json:
                         for metric_json in job_json[vb.METRIC]:
                             metric_deliverable = metric_json.get(vb.METRIC_DELIVERABLE, False)
-                            metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG]) if vb.METRIC_FLAG in metric_json else None
+                            metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG]) if metric_json.get(vb.METRIC_FLAG) else None
                             # Before adding a new metric for the current Readset make sure an existing one doesn't exist otherwise update it
                             metric, warning = Metric.get_or_create(
                                 name=metric_json[vb.METRIC_NAME],
