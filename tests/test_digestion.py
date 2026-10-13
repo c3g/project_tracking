@@ -208,3 +208,80 @@ def test_digest_api(client, run_processing_json, readset_file_json, app):
 
     with app.app_context():
         s = database.get_session()
+
+
+def _clone_sample(sample_json, new_name):
+    """Copy a run_processing sample under a new name (readsets, files and uris renamed too)."""
+    return json.loads(json.dumps(sample_json).replace(sample_json[vb.SAMPLE_NAME], new_name))
+
+
+def test_digest_pair_file_matched_samples(client, run_processing_json):
+    """Pairs follow sample_matched_sample_name when declared, specimen otherwise."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    cm_specimen = next(s for s in run_processing_json[vb.SPECIMEN] if s[vb.SPECIMEN_NAME] == "MoHQ-CM-1-3")
+    samples = {s[vb.SAMPLE_NAME]: s for s in cm_specimen[vb.SAMPLE]}
+    tumour = samples["MoHQ-CM-1-3-15000863775-19933DT"]
+    normal = samples["MoHQ-CM-1-3-15000936286-19866DN"]
+    normal_2 = _clone_sample(normal, "MoHQ-CM-1-3-15000936286-2DN")
+    tumour_1 = _clone_sample(tumour, "MoHQ-CM-1-3-F10-1DT1")
+
+    # Tumour declared before the normals in the payload
+    tumour[vb.SAMPLE_MATCHED_SAMPLE_NAME] = [normal[vb.SAMPLE_NAME], normal_2[vb.SAMPLE_NAME]]
+    tumour_1[vb.SAMPLE_MATCHED_SAMPLE_NAME] = [normal[vb.SAMPLE_NAME], "MoHQ-CM-1-3-NOT-INGESTED"]
+    # Declared on the normal side only
+    normal_2[vb.SAMPLE_MATCHED_SAMPLE_NAME] = [tumour_1[vb.SAMPLE_NAME]]
+    cm_specimen[vb.SAMPLE].extend([normal_2, tumour_1])
+
+    client.post(f'admin/create_project/{project_name}')
+    response = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
+    assert response.status_code == 200
+    assert any("MoHQ-CM-1-3-NOT-INGESTED" in warning for warning in json.loads(response.text)["DB_ACTION_WARNING"])
+
+    digest_json = {
+        vb.SPECIMEN_NAME: ["MoHQ-CM-1-3", "MoHQ-JG-9-23"],
+        vb.EXPERIMENT_NUCLEIC_ACID_TYPE: "DNA"
+    }
+    response = client.get(f'project/{project_name}/digest_pair_file?json={json.dumps(digest_json)}')
+    assert response.status_code == 200
+    body = json.loads(response.text)
+
+    def key(row):
+        return (row["Specimen"], row["Sample_N"] or "", row["Sample_T"] or "")
+
+    expected = [
+        {"Specimen": "MoHQ-CM-1-3", "Sample_N": "MoHQ-CM-1-3-15000936286-19866DN", "Sample_T": "MoHQ-CM-1-3-15000863775-19933DT"},
+        {"Specimen": "MoHQ-CM-1-3", "Sample_N": "MoHQ-CM-1-3-15000936286-2DN", "Sample_T": "MoHQ-CM-1-3-15000863775-19933DT"},
+        {"Specimen": "MoHQ-CM-1-3", "Sample_N": "MoHQ-CM-1-3-15000936286-19866DN", "Sample_T": "MoHQ-CM-1-3-F10-1DT1"},
+        {"Specimen": "MoHQ-CM-1-3", "Sample_N": "MoHQ-CM-1-3-15000936286-2DN", "Sample_T": "MoHQ-CM-1-3-F10-1DT1"},
+        # No metadata: fallback on specimen
+        {"Specimen": "MoHQ-JG-9-23", "Sample_N": "MoHQ-JG-9-23-15000936286-19866DN", "Sample_T": "MoHQ-JG-9-23-15000863775-19933DT"},
+    ]
+    assert sorted(body["DB_ACTION_OUTPUT"], key=key) == sorted(expected, key=key)
+
+
+def test_sample_match_across_ingestions(client, run_processing_json):
+    """A match declared before the other sample exists is created when that sample is ingested declaring it back."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    jg_specimen = next(s for s in run_processing_json[vb.SPECIMEN] if s[vb.SPECIMEN_NAME] == "MoHQ-JG-9-23")
+    tumour = next(s for s in jg_specimen[vb.SAMPLE] if s[vb.SAMPLE_TUMOUR])
+    late_normal = _clone_sample(
+        next(s for s in jg_specimen[vb.SAMPLE] if not s[vb.SAMPLE_TUMOUR]),
+        "MoHQ-JG-9-23-B1-2DN"
+    )
+    tumour[vb.SAMPLE_MATCHED_SAMPLE_NAME] = [late_normal[vb.SAMPLE_NAME]]
+
+    client.post(f'admin/create_project/{project_name}')
+    response = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
+    assert any(late_normal[vb.SAMPLE_NAME] in warning for warning in json.loads(response.text)["DB_ACTION_WARNING"])
+
+    late_normal[vb.SAMPLE_MATCHED_SAMPLE_NAME] = [tumour[vb.SAMPLE_NAME]]
+    second_run = dict(run_processing_json, run_name="second_run", run_ext_id="2")
+    second_run[vb.SPECIMEN] = [dict(jg_specimen, sample=[late_normal])]
+    response = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(second_run))
+    assert response.status_code == 200
+
+    digest_json = {vb.SAMPLE_NAME: [tumour[vb.SAMPLE_NAME], late_normal[vb.SAMPLE_NAME]], vb.EXPERIMENT_NUCLEIC_ACID_TYPE: "DNA"}
+    response = client.get(f'project/{project_name}/digest_pair_file?json={json.dumps(digest_json)}')
+    assert json.loads(response.text)["DB_ACTION_OUTPUT"] == [
+        {"Specimen": "MoHQ-JG-9-23", "Sample_N": late_normal[vb.SAMPLE_NAME], "Sample_T": tumour[vb.SAMPLE_NAME]}
+    ]

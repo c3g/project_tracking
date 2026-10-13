@@ -136,12 +136,19 @@ def create_sample_schema(include_relationships=True, **kwargs):
 
         if include_relationships:
             readset_ids = fields.Method("get_readset_ids")
+            matched_sample_ids = fields.Method("get_matched_sample_ids")
 
         def get_readset_ids(self, obj):
             """
             Get associated readset IDs.
             """
             return obj.readset_ids
+
+        def get_matched_sample_ids(self, obj):
+            """
+            Get IDs of samples to be analysed with this one.
+            """
+            return obj.matched_sample_ids
 
     return SampleSchema(**kwargs)
 

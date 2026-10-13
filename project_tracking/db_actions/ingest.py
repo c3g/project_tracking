@@ -122,6 +122,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
     if warning:
         ret["DB_ACTION_WARNING"].append(warning)
 
+    samples_to_match = []
     for specimen_json in ingest_data[vb.SPECIMEN]:
         specimen = Specimen.from_name(
             name=specimen_json[vb.SPECIMEN_NAME],
@@ -142,6 +143,8 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                 specimen=specimen,
                 session=session
                 )
+            if sample_json.get(vb.SAMPLE_MATCHED_SAMPLE_NAME):
+                samples_to_match.append((sample, sample_json[vb.SAMPLE_MATCHED_SAMPLE_NAME]))
             for readset_json in sample_json[vb.READSET]:
                 if readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE]:
                     kit_expiration_date = datetime.strptime(readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE], vb.DATE_FMT)
@@ -254,6 +257,11 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                 if not message:
                     raise UniqueConstraintError(message=str(error.orig)) from error
                 raise UniqueConstraintError(message=message) from error
+
+    # Resolved once every sample of the payload exists, so JSON order doesn't matter
+    for sample, matched_names in samples_to_match:
+        ret["DB_ACTION_WARNING"].extend(sample.add_matches(matched_names, session))
+    session.flush()
 
     operation_id = operation.id
     job_id = job.id

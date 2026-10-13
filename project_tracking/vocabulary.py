@@ -37,6 +37,7 @@ SAMPLE_EXT_SRC = "sample_ext_src"
 SAMPLE_NAME = "sample_name"
 SAMPLE_ALIAS = "sample_alias"
 SAMPLE_TUMOUR = "sample_tumour"
+SAMPLE_MATCHED_SAMPLE_NAME = "sample_matched_sample_name"
 
 # experiment table
 EXPERIMENT_SEQUENCING_TECHNOLOGY = "experiment_sequencing_technology"

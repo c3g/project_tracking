@@ -147,6 +147,15 @@ class Base(DeclarativeBase):
     }
 
 
+sample_match = Table(
+    "sample_match",
+    Base.metadata,
+    Column("sample_id", ForeignKey("sample.id", ondelete="CASCADE"), primary_key=True),
+    Column("matched_sample_id", ForeignKey("sample.id", ondelete="CASCADE"), primary_key=True),
+    Index("ix_sample_match_matched_sample_id", "matched_sample_id"),
+)
+
+
 readset_file = Table(
     "readset_file",
     Base.metadata,
@@ -421,6 +430,19 @@ class Sample(BaseTable):
 
     specimen: Mapped[Specimen] = relationship(back_populates="samples")
     readsets: Mapped[list[Readset]] = relationship(back_populates="sample", cascade="all, delete")
+    # A match is symmetric but stored once: use matched_samples to read both directions
+    matches_to: Mapped[list[Sample]] = relationship(
+        secondary=sample_match,
+        primaryjoin=lambda: Sample.id == sample_match.c.sample_id,
+        secondaryjoin=lambda: Sample.id == sample_match.c.matched_sample_id,
+        back_populates="matches_from",
+    )
+    matches_from: Mapped[list[Sample]] = relationship(
+        secondary=sample_match,
+        primaryjoin=lambda: Sample.id == sample_match.c.matched_sample_id,
+        secondaryjoin=lambda: Sample.id == sample_match.c.sample_id,
+        back_populates="matches_to",
+    )
 
     @property
     def readset_ids(self) -> list[int]:
@@ -428,6 +450,46 @@ class Sample(BaseTable):
         Get all readset ids associated with the sample.
         """
         return [r.id for r in self.readsets if not r.deprecated and not r.deleted]
+
+    @property
+    def matched_samples(self) -> list[Sample]:
+        """
+        Samples to be analysed with this one, whichever side declared the match.
+        """
+        return list({
+            s.id: s for s in self.matches_to + self.matches_from if not s.deprecated and not s.deleted
+        }.values())
+
+    @property
+    def matched_sample_ids(self) -> list[int]:
+        """
+        Get ids of the samples matched with this one.
+        """
+        return [s.id for s in self.matched_samples]
+
+    def add_matches(self, names, session):
+        """
+        Link this sample to the existing samples named in names; returns warnings for names not found yet.
+        """
+        warnings = []
+        already_matched = {s.name for s in self.matched_samples}
+        for name in names:
+            if name == self.name or name in already_matched:
+                continue
+            matched = session.query(Sample).filter(
+                Sample.name == name,
+                Sample.deprecated.is_(False),
+                Sample.deleted.is_(False)
+            ).first()
+            if matched is None:
+                warnings.append(
+                    f"'Sample' '{self.name}' is matched with 'Sample' '{name}' which doesn't exist yet. "
+                    f"The match will be created when '{name}' is ingested declaring '{self.name}'."
+                )
+                continue
+            self.matches_to.append(matched)
+            already_matched.add(name)
+        return warnings
 
     @classmethod
     def from_name(cls, name, specimen, alias=None, tumour=None, session=None, deprecated=False, deleted=False):

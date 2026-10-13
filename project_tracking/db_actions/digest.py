@@ -88,12 +88,20 @@ def select_samples_from_specimens(session, ret, digest_data, nucleic_acid_type, 
             readsets = sample.readsets
             if readsets:
                 first_readset = readsets[0]
-                if first_readset.experiment.nucleic_acid_type == nucleic_acid_type and not sample.deprecated and not sample.deleted:
-                    samples.append(sample)
-                else:
+                if sample.deleted:
+                    ret["DB_ACTION_WARNING"].append(
+                        f"'Sample' with 'name' '{sample.name}' is deleted. Skipping..."
+                    )
+                elif sample.deprecated:
+                    ret["DB_ACTION_WARNING"].append(
+                        f"'Sample' with 'name' '{sample.name}' is deprecated. Skipping..."
+                    )
+                elif first_readset.experiment.nucleic_acid_type != nucleic_acid_type:
                     ret["DB_ACTION_WARNING"].append(
                         f"'Sample' with 'name' '{sample.name}' only exists with 'nucleic_acid_type' '{first_readset.experiment.nucleic_acid_type.value}' on database. Skipping..."
                     )
+                else:
+                    samples.append(sample)
             else:
                 ret["DB_ACTION_WARNING"].append(
                     f"'Sample' with 'name' '{sample.name}' has no associated readsets. Skipping..."
@@ -136,12 +144,20 @@ def select_samples_from_samples(session, ret, digest_data, nucleic_acid_type, pr
         readsets = sample.readsets
         if readsets:
             first_readset = readsets[0]
-            if first_readset.experiment.nucleic_acid_type == nucleic_acid_type and not sample.deprecated and not sample.deleted:
-                filtered.append(sample)
-            else:
+            if sample.deleted:
+                ret["DB_ACTION_WARNING"].append(
+                    f"'Sample' with 'name' '{sample.name}' is deleted. Skipping..."
+                )
+            elif sample.deprecated:
+                ret["DB_ACTION_WARNING"].append(
+                    f"'Sample' with 'name' '{sample.name}' is deprecated. Skipping..."
+                )
+            elif first_readset.experiment.nucleic_acid_type != nucleic_acid_type:
                 ret["DB_ACTION_WARNING"].append(
                     f"'Sample' with 'name' '{sample.name}' only exists with 'nucleic_acid_type' '{first_readset.experiment.nucleic_acid_type.value}' on database. Skipping..."
                 )
+            else:
+                filtered.append(sample)
         else:
             ret["DB_ACTION_WARNING"].append(
                 f"'Sample' with 'name' '{sample.name}' has no associated readsets. Skipping..."
@@ -188,12 +204,20 @@ def select_samples_from_readsets(session, ret, digest_data, nucleic_acid_type, p
             readsets = sample.readsets
             if readsets:
                 first_readset = readsets[0]
-                if first_readset.experiment.nucleic_acid_type == nucleic_acid_type and not sample.deprecated and not sample.deleted:
-                    samples.append(sample)
-                else:
+                if sample.deleted:
+                    ret["DB_ACTION_WARNING"].append(
+                        f"'Sample' with 'name' '{sample.name}' is deleted. Skipping..."
+                    )
+                elif sample.deprecated:
+                    ret["DB_ACTION_WARNING"].append(
+                        f"'Sample' with 'name' '{sample.name}' is deprecated. Skipping..."
+                    )
+                elif first_readset.experiment.nucleic_acid_type != nucleic_acid_type:
                     ret["DB_ACTION_WARNING"].append(
                         f"'Sample' with 'name' '{sample.name}' only exists with 'nucleic_acid_type' '{first_readset.experiment.nucleic_acid_type.value}' on database. Skipping..."
                     )
+                else:
+                    samples.append(sample)
             else:
                 ret["DB_ACTION_WARNING"].append(
                     f"'Sample' with 'name' '{sample.name}' has no associated readsets. Skipping..."
@@ -250,12 +274,20 @@ def select_readsets_from_specimens(session, ret, digest_data, nucleic_acid_type,
     for specimen in specimens:
         for sample in specimen.samples:
             for readset in sample.readsets:
-                if readset.experiment.nucleic_acid_type == nucleic_acid_type and not readset.deprecated and not readset.deleted:
-                    readsets.append(readset)
-                else:
+                if readset.deleted:
+                    ret["DB_ACTION_WARNING"].append(
+                        f"'Readset' '{readset.name}' is deleted. Skipping..."
+                    )
+                elif readset.deprecated:
+                    ret["DB_ACTION_WARNING"].append(
+                        f"'Readset' '{readset.name}' is deprecated. Skipping..."
+                    )
+                elif readset.experiment.nucleic_acid_type != nucleic_acid_type:
                     ret["DB_ACTION_WARNING"].append(
                         f"'Readset' '{readset.name}' only exists with 'nucleic_acid_type' '{readset.experiment.nucleic_acid_type.value}'. Skipping..."
                     )
+                else:
+                    readsets.append(readset)
 
     return readsets
 
@@ -303,12 +335,20 @@ def select_readsets_from_samples(session, ret, digest_data, nucleic_acid_type, p
 
     for sample in samples:
         for readset in sample.readsets:
-            if readset.experiment.nucleic_acid_type == nucleic_acid_type and not readset.deprecated and not readset.deleted:
-                readsets.append(readset)
-            else:
+            if readset.deleted:
+                ret["DB_ACTION_WARNING"].append(
+                    f"'Readset' '{readset.name}' is deleted. Skipping..."
+                )
+            elif readset.deprecated:
+                ret["DB_ACTION_WARNING"].append(
+                    f"'Readset' '{readset.name}' is deprecated. Skipping..."
+                )
+            elif readset.experiment.nucleic_acid_type != nucleic_acid_type:
                 ret["DB_ACTION_WARNING"].append(
                     f"'Readset' '{readset.name}' only exists with 'nucleic_acid_type' '{readset.experiment.nucleic_acid_type.value}'. Skipping..."
                 )
+            else:
+                readsets.append(readset)
 
     return readsets
 
@@ -351,12 +391,20 @@ def select_readsets_from_readsets(session, ret, digest_data, nucleic_acid_type, 
     filtered = []
 
     for readset in readsets:
-        if readset.experiment.nucleic_acid_type == nucleic_acid_type and not readset.deprecated and not readset.deleted:
-            filtered.append(readset)
-        else:
+        if readset.deleted:
+            ret["DB_ACTION_WARNING"].append(
+                f"'Readset' '{readset.name}' is deleted. Skipping..."
+            )
+        elif readset.deprecated:
+            ret["DB_ACTION_WARNING"].append(
+                f"'Readset' '{readset.name}' is deprecated. Skipping..."
+            )
+        elif readset.experiment.nucleic_acid_type != nucleic_acid_type:
             ret["DB_ACTION_WARNING"].append(
                 f"'Readset' '{readset.name}' only exists with 'nucleic_acid_type' '{readset.experiment.nucleic_acid_type.value}'. Skipping..."
             )
+        else:
+            filtered.append(readset)
 
     return filtered
 
@@ -458,10 +506,10 @@ def digest_pair_file(project_id: str, digest_data, session):
         - experiment_nucleic_acid_type
         - Specimen/Sample/Readset identifiers
     Returns:
-        - A list of specimen/sample tumor-normal pairs
+        - A list of specimen/sample tumor-normal pairs, one row per tumour/normal association.
+          Pairs come from Sample.matched_samples (declared on either side); a tumour without
+          any declared match falls back to the unmatched normals of its specimen.
     """
-    pair_dict = {}
-    samples = []
     ret = {
         "DB_ACTION_WARNING": [],
         "DB_ACTION_OUTPUT": []
@@ -478,23 +526,51 @@ def digest_pair_file(project_id: str, digest_data, session):
         select_samples_from_readsets(session, ret, digest_data, nucleic_acid_type, project_id)
     )
 
-    # Build tumor-normal pair dictionary
-    for sample in samples:
-        specimen_name = sample.specimen.name
-        if specimen_name not in pair_dict:
-            pair_dict[specimen_name] = {"T": None, "N": None}
-        if sample.tumour:
-            pair_dict[specimen_name]["T"] = sample.name
-        else:
-            pair_dict[specimen_name]["N"] = sample.name
+    # Same sample can be selected through several identifiers
+    samples = list({sample.id: sample for sample in samples}.values())
 
-    # Format output
-    for specimen_name, dict_tn in pair_dict.items():
-        ret["DB_ACTION_OUTPUT"].append({
-            "Specimen": specimen_name,
-            "Sample_N": dict_tn["N"],
-            "Sample_T": dict_tn["T"]
-        })
+    selected_ids = {sample.id for sample in samples}
+    matches = {sample.id: set(sample.matched_sample_ids) for sample in samples}
+    for sample in samples:
+        for matched in sample.matched_samples:
+            if matched.id not in selected_ids:
+                ret["DB_ACTION_WARNING"].append(
+                    f"'Sample' '{sample.name}' is matched with 'Sample' '{matched.name}' which is not part of the selection for 'nucleic_acid_type' '{nucleic_acid_type.value}'. Ignoring this match."
+                )
+
+    tumours = [sample for sample in samples if sample.tumour]
+    normals = [sample for sample in samples if not sample.tumour]
+    paired_normals = set()
+
+    for tumour in tumours:
+        partners = [normal for normal in normals if normal.id in matches[tumour.id]]
+        if not matches[tumour.id]:
+            # Fallback when no match is declared: pair by specimen
+            partners = [
+                normal for normal in normals
+                if normal.specimen_id == tumour.specimen_id and not matches[normal.id]
+            ]
+        if not partners:
+            ret["DB_ACTION_OUTPUT"].append({
+                "Specimen": tumour.specimen.name,
+                "Sample_N": None,
+                "Sample_T": tumour.name
+            })
+        for normal in partners:
+            paired_normals.add(normal.name)
+            ret["DB_ACTION_OUTPUT"].append({
+                "Specimen": tumour.specimen.name,
+                "Sample_N": normal.name,
+                "Sample_T": tumour.name
+            })
+
+    for normal in normals:
+        if normal.name not in paired_normals:
+            ret["DB_ACTION_OUTPUT"].append({
+                "Specimen": normal.specimen.name,
+                "Sample_N": normal.name,
+                "Sample_T": None
+            })
 
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
