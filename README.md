@@ -905,3 +905,13 @@ Change the models in `project_tracking/model.py`, then add an Alembic revision i
 `migration/alembic/versions/` so existing databases get the change with `upgrade-all-dbs`
 (new databases get it directly from `init-db`). On a database at the latest revision,
 `alembic -x db_url=<URI> check` reports any difference left between the models and the migrations.
+
+Then regenerate the database diagram (`docs/database.dbml` and `docs/data/database.svg`, see
+[docs/README.md](docs/README.md)), and add any new table to a stage of `STAGES` in
+`project_tracking/dbml.py`:
+
+```bash
+utils/update_database_diagram.sh
+```
+
+`tests/test_dbml.py` and the Database Diagram workflow fail while the diagram is out of date.
