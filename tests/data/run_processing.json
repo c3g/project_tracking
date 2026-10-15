@@ -21,7 +21,7 @@
                     "sample_ext_src": null,
                     "sample_name": "MoHQ-JG-9-23-15000863775-19933DT",
                     "sample_tumour": true,
-                    "sample_matched_sample_name": ["MoHQ-JG-9-23-15000936286-19866DN"],
+                    "sample_group_name": ["MoHQ-JG-9-23_G1"],
                     "readset": [
                         {
                             "experiment_sequencing_technology": null,
@@ -80,7 +80,7 @@
                     "sample_ext_src": null,
                     "sample_name": "MoHQ-JG-9-23-15000936286-19866DN",
                     "sample_tumour": false,
-                    "sample_matched_sample_name": ["MoHQ-JG-9-23-15000863775-19933DT"],
+                    "sample_group_name": ["MoHQ-JG-9-23_G1"],
                     "readset": [
                         {
                             "experiment_sequencing_technology": null,
@@ -148,6 +148,7 @@
                     "sample_ext_src": null,
                     "sample_name": "MoHQ-CM-1-3-6929-1RT",
                     "sample_tumour": true,
+                    "sample_group_name": "MoHQ-CM-1-3_G1",
                     "readset": [
                         {
                             "experiment_sequencing_technology": null,
@@ -330,7 +331,7 @@
                     "sample_ext_src": null,
                     "sample_name": "MoHQ-CM-1-3-15000863775-19933DT",
                     "sample_tumour": true,
-                    "sample_matched_sample_name": ["MoHQ-CM-1-3-15000936286-19866DN"],
+                    "sample_group_name": ["MoHQ-CM-1-3_G1"],
                     "readset": [
                         {
                             "experiment_sequencing_technology": null,
@@ -389,7 +390,7 @@
                     "sample_ext_src": null,
                     "sample_name": "MoHQ-CM-1-3-15000936286-19866DN",
                     "sample_tumour": false,
-                    "sample_matched_sample_name": ["MoHQ-CM-1-3-15000863775-19933DT"],
+                    "sample_group_name": ["MoHQ-CM-1-3_G1"],
                     "readset": [
                         {
                             "experiment_sequencing_technology": null,

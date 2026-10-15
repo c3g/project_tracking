@@ -37,7 +37,10 @@ SAMPLE_EXT_SRC = "sample_ext_src"
 SAMPLE_NAME = "sample_name"
 SAMPLE_ALIAS = "sample_alias"
 SAMPLE_TUMOUR = "sample_tumour"
-SAMPLE_MATCHED_SAMPLE_NAME = "sample_matched_sample_name"
+# Groups of samples analysed together
+SAMPLE_GROUP_NAME = "sample_group_name"
+SAMPLE_GROUP_ADD = "add"
+SAMPLE_GROUP_REMOVE = "remove"
 SAMPLE_ONCOTREE_CODE = "sample_oncotree_code"
 SAMPLE_CANCER_TYPE = "sample_cancer_type"
 

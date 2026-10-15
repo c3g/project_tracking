@@ -11,6 +11,7 @@ from .model import (
     Project,
     Specimen,
     Sample,
+    SampleGroup,
     Readset,
     Experiment,
     Operation,
@@ -152,7 +153,7 @@ def create_sample_schema(include_relationships=True, **kwargs):
 
         if include_relationships:
             readset_ids = fields.Method("get_readset_ids")
-            matched_sample_ids = fields.Method("get_matched_sample_ids")
+            sample_group_ids = fields.Method("get_sample_group_ids")
 
         def get_readset_ids(self, obj):
             """
@@ -160,13 +161,40 @@ def create_sample_schema(include_relationships=True, **kwargs):
             """
             return obj.readset_ids
 
-        def get_matched_sample_ids(self, obj):
+        def get_sample_group_ids(self, obj):
             """
-            Get IDs of samples to be analysed with this one.
+            Get IDs of the groups of samples analysed with this one.
             """
-            return obj.matched_sample_ids
+            return obj.sample_group_ids
 
     return SampleSchema(**kwargs)
+
+def create_sample_group_schema(include_relationships=True, **kwargs):
+    """
+    SampleGroupSchema factory function to create schema with or without relationships.
+    """
+    class SampleGroupSchema(BaseSchema):
+        """
+        SampleGroupSchema with optional relationship-like fields
+        """
+        class Meta:
+            """
+            SampleGroupSchema Meta
+            """
+            model = SampleGroup
+            load_instance = True
+            include_fk = True
+
+        if include_relationships:
+            sample_ids = fields.Method("get_sample_ids")
+
+        def get_sample_ids(self, obj):
+            """
+            Get IDs of the samples of the group.
+            """
+            return obj.sample_ids
+
+    return SampleGroupSchema(**kwargs)
 
 def create_experiment_schema(include_relationships=True, **kwargs):
     """
@@ -432,6 +460,7 @@ SCHEMA_FACTORIES = {
     Project: create_project_schema,
     Specimen: create_specimen_schema,
     Sample: create_sample_schema,
+    SampleGroup: create_sample_group_schema,
     Experiment: create_experiment_schema,
     Run: create_run_schema,
     Readset: create_readset_schema,

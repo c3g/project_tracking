@@ -16,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 # Local modules
 from .errors import DidNotFindError, RequestError, UniqueConstraintError
 from .route import projects
+from .sample_group import check_sample_groups, add_samples_to_groups
 from .utils import check_enum
 from ..analysis import RESERVED_OPERATION_NAMES, analysis_operations
 from .. import vocabulary as vb
@@ -179,6 +180,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
     if message:
         raise UniqueConstraintError(message=message)
     normalize_tumour_metadata(ingest_data)
+    check_sample_groups(ingest_data, session)
     check_run_processing_payload(ingest_data)
 
     operation, warning = Operation.from_attributes(
@@ -230,7 +232,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
     if warning:
         ret["DB_ACTION_WARNING"].append(warning)
 
-    samples_to_match = []
+    samples_groups = []
     for specimen_json in ingest_data[vb.SPECIMEN]:
         specimen = Specimen.from_name(
             name=specimen_json[vb.SPECIMEN_NAME],
@@ -259,8 +261,8 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                 warning = sample.set_cancer_type(sample_json[vb.SAMPLE_CANCER_TYPE], force=force)
                 if warning:
                     ret["DB_ACTION_WARNING"].append(warning)
-            if sample_json.get(vb.SAMPLE_MATCHED_SAMPLE_NAME):
-                samples_to_match.append((sample, sample_json[vb.SAMPLE_MATCHED_SAMPLE_NAME]))
+            if sample_json.get(vb.SAMPLE_GROUP_NAME):
+                samples_groups.append((sample, sample_json[vb.SAMPLE_GROUP_NAME]))
             for readset_json in sample_json[vb.READSET]:
                 if readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE]:
                     kit_expiration_date = datetime.strptime(readset_json[vb.EXPERIMENT_KIT_EXPIRATION_DATE], vb.DATE_FMT)
@@ -371,10 +373,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                     raise UniqueConstraintError(message=str(error.orig)) from error
                 raise UniqueConstraintError(message=message) from error
 
-    # Resolved once every sample of the payload exists, so JSON order doesn't matter
-    for sample, matched_names in samples_to_match:
-        ret["DB_ACTION_WARNING"].extend(sample.add_matches(matched_names, session))
-    session.flush()
+    ret["DB_ACTION_WARNING"].extend(add_samples_to_groups(samples_groups, session))
 
     operation_id = operation.id
     job_id = job.id

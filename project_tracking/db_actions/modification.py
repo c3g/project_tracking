@@ -14,6 +14,7 @@ from sqlalchemy.orm.exc import UnmappedClassError
 # Local modules
 from .errors import DidNotFindError, RequestError
 from .utils import to_enum
+from .sample_group import group_name_problem
 from .. import vocabulary as vb
 from .. import database
 from .. import model
@@ -494,6 +495,42 @@ def cascade_action(instance, table_name, session, ret, action, direction):
                         cascade_action(child_instance, child_name, session, ret, action, direction)
 
 
+def model_table(name):
+    """
+    Model class of a table, by table name (e.g. 'readset', 'sample_group') or class name (e.g. 'SampleGroup').
+    Raises RequestError listing the tables otherwise.
+    """
+    tables = {mapper.class_.__tablename__: mapper.class_ for mapper in model.Base.registry.mappers}
+    key = str(name).lower()
+    for tablename, cls in tables.items():
+        if key in (tablename, cls.__name__.lower()):
+            return cls
+    raise RequestError(f"'table' '{name}' doesn't exist: expected one of {', '.join(repr(t) for t in sorted(tables))}.")
+
+
+def check_edit(the_table, column, new_value, ids, session):
+    """
+    Refuse edits breaking a rule the generic edit can't see: sample group names are oncoanalyser group ids, unique,
+    and a group holds samples of its specimen only.
+    """
+    if the_table is model.SampleGroup and column == "specimen_id":
+        raise RequestError(
+            "'sample_group' 'specimen_id' can't be edited: a group holds samples of its specimen only. "
+            "Create a group for the other specimen instead."
+        )
+    if the_table is model.SampleGroup and column == "name":
+        problem = group_name_problem(new_value)
+        if problem:
+            raise RequestError(problem)
+        if len(set(ids)) > 1:
+            raise RequestError(f"'sample_group' names are unique: can't give '{new_value}' to several groups.")
+        existing = session.execute(
+            select(model.SampleGroup).where(model.SampleGroup.name == new_value, model.SampleGroup.id.not_in(ids))
+        ).scalar_one_or_none()
+        if existing is not None:
+            raise RequestError(f"'SampleGroup' '{new_value}' already exists.")
+
+
 def edit_value(the_table, column, value):
     """
     Value to store in the_table.column: for an enum column, the member matching value (exact value,
@@ -525,9 +562,10 @@ def edit(ingest_data, session, cascade_mode=None, dry_run=False):
         raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
 
     for table in ingest_data[vb.MODIFICATION]:
-        the_table = getattr(model, table[vb.TABLE].title())
+        the_table = model_table(table[vb.TABLE])
         new_value = edit_value(the_table, table[vb.COLUMN], table[vb.NEW])
         if table[vb.ID]:
+            check_edit(the_table, table[vb.COLUMN], new_value, table[vb.ID], session)
             for current_id in set(table[vb.ID]):
                 stmt = select(the_table).where(the_table.id == current_id)
                 selected_entry = session.execute(stmt).scalar_one_or_none()
@@ -571,8 +609,8 @@ def delete(ingest_data, session, cascade_mode=None, dry_run=False):
         raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
 
     for table in ingest_data[vb.MODIFICATION]:
-        table_name = table[vb.TABLE].title()
-        the_table = getattr(model, table_name.title())
+        the_table = model_table(table[vb.TABLE])
+        table_name = the_table.__name__
         if table[vb.ID]:
             for current_id in set(table[vb.ID]):
                 stmt = select(the_table).where(the_table.id == current_id)
@@ -620,8 +658,8 @@ def undelete(ingest_data, session, cascade_mode=None, dry_run=False):
         raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
 
     for table in ingest_data[vb.MODIFICATION]:
-        table_name = table[vb.TABLE].title()
-        the_table = getattr(model, table_name.title())
+        the_table = model_table(table[vb.TABLE])
+        table_name = the_table.__name__
         if table[vb.ID]:
             for current_id in set(table[vb.ID]):
                 stmt = select(the_table).where(the_table.id == current_id)
@@ -711,8 +749,8 @@ def deprecate(ingest_data, session, cascade_mode=None, dry_run=False):
         raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
 
     for table in ingest_data[vb.MODIFICATION]:
-        table_name = table[vb.TABLE].title()
-        the_table = getattr(model, table_name)
+        the_table = model_table(table[vb.TABLE])
+        table_name = the_table.__name__
         if table[vb.ID]:
             for current_id in set(table[vb.ID]):
                 stmt = select(the_table).where(the_table.id == current_id)
@@ -761,8 +799,8 @@ def undeprecate(ingest_data, session, cascade_mode=None, dry_run=False):
         raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
 
     for table in ingest_data[vb.MODIFICATION]:
-        table_name = table[vb.TABLE].title()
-        the_table = getattr(model, table_name)
+        the_table = model_table(table[vb.TABLE])
+        table_name = the_table.__name__
         if table[vb.ID]:
             for current_id in set(table[vb.ID]):
                 stmt = select(the_table).where(the_table.id == current_id)
@@ -853,8 +891,8 @@ def curate(ingest_data, session, cascade_mode=None, dry_run=False):
         raise RequestError("No 'table' provided under 'modification' list, this JSON is malformed.")
 
     for table in ingest_data[vb.MODIFICATION]:
-        table_name = table[vb.TABLE].title()
-        the_table = getattr(model, table_name)
+        the_table = model_table(table[vb.TABLE])
+        table_name = the_table.__name__
         if table[vb.ID]:
             for current_id in set(table[vb.ID]):
                 stmt = select(the_table).where(the_table.id == current_id)

@@ -147,12 +147,12 @@ class Base(DeclarativeBase):
     }
 
 
-sample_match = Table(
-    "sample_match",
+sample_group_member = Table(
+    "sample_group_member",
     Base.metadata,
+    Column("sample_group_id", ForeignKey("sample_group.id", ondelete="CASCADE"), primary_key=True),
     Column("sample_id", ForeignKey("sample.id", ondelete="CASCADE"), primary_key=True),
-    Column("matched_sample_id", ForeignKey("sample.id", ondelete="CASCADE"), primary_key=True),
-    Index("ix_sample_match_matched_sample_id", "matched_sample_id"),
+    Index("ix_sample_group_member_sample_id", "sample_id"),
 )
 
 
@@ -361,6 +361,7 @@ class Specimen(BaseTable):
 
     project: Mapped[Project] = relationship(back_populates="specimens")
     samples: Mapped[list[Sample]] = relationship(back_populates="specimen", cascade="all, delete")
+    sample_groups: Mapped[list[SampleGroup]] = relationship(back_populates="specimen", cascade="all, delete")
 
     @property
     def readset_ids(self) -> list[int]:
@@ -434,19 +435,7 @@ class Sample(BaseTable):
 
     specimen: Mapped[Specimen] = relationship(back_populates="samples")
     readsets: Mapped[list[Readset]] = relationship(back_populates="sample", cascade="all, delete")
-    # A match is symmetric but stored once: use matched_samples to read both directions
-    matches_to: Mapped[list[Sample]] = relationship(
-        secondary=sample_match,
-        primaryjoin=lambda: Sample.id == sample_match.c.sample_id,
-        secondaryjoin=lambda: Sample.id == sample_match.c.matched_sample_id,
-        back_populates="matches_from",
-    )
-    matches_from: Mapped[list[Sample]] = relationship(
-        secondary=sample_match,
-        primaryjoin=lambda: Sample.id == sample_match.c.matched_sample_id,
-        secondaryjoin=lambda: Sample.id == sample_match.c.sample_id,
-        back_populates="matches_to",
-    )
+    sample_groups: Mapped[list[SampleGroup]] = relationship(secondary=sample_group_member, back_populates="samples")
 
     @property
     def readset_ids(self) -> list[int]:
@@ -456,20 +445,18 @@ class Sample(BaseTable):
         return [r.id for r in self.readsets if not r.deprecated and not r.deleted]
 
     @property
-    def matched_samples(self) -> list[Sample]:
+    def live_sample_groups(self) -> list[SampleGroup]:
         """
-        Samples to be analysed with this one, whichever side declared the match.
+        Groups of samples analysed with this one, deprecated and deleted groups left out.
         """
-        return list({
-            s.id: s for s in self.matches_to + self.matches_from if not s.deprecated and not s.deleted
-        }.values())
+        return [g for g in self.sample_groups if not g.deprecated and not g.deleted]
 
     @property
-    def matched_sample_ids(self) -> list[int]:
+    def sample_group_ids(self) -> list[int]:
         """
-        Get ids of the samples matched with this one.
+        Get ids of the groups this sample belongs to.
         """
-        return [s.id for s in self.matched_samples]
+        return [g.id for g in self.live_sample_groups]
 
     def set_oncotree_code(self, code, force=False):
         """
@@ -498,30 +485,6 @@ class Sample(BaseTable):
             f"'Sample' '{self.name}' already has '{column}' '{old_value}', keeping it instead of '{value}'. "
             f"If this change is expected, ingest with force or edit the sample."
         )
-
-    def add_matches(self, names, session):
-        """
-        Link this sample to the existing samples named in names; returns warnings for names not found yet.
-        """
-        warnings = []
-        already_matched = {s.name for s in self.matched_samples}
-        for name in names:
-            if name == self.name or name in already_matched:
-                continue
-            matched = session.query(Sample).filter(
-                Sample.name == name,
-                Sample.deprecated.is_(False),
-                Sample.deleted.is_(False)
-            ).first()
-            if matched is None:
-                warnings.append(
-                    f"'Sample' '{self.name}' is matched with 'Sample' '{name}' which doesn't exist yet. "
-                    f"The match will be created when '{name}' is ingested declaring '{self.name}'."
-                )
-                continue
-            self.matches_to.append(matched)
-            already_matched.add(name)
-        return warnings
 
     @classmethod
     def from_name(cls, name, specimen, alias=None, tumour=None, session=None, deprecated=False, deleted=False):
@@ -556,6 +519,45 @@ class Sample(BaseTable):
 
         return sample
 
+
+
+class SampleGroup(BaseTable):
+    """
+    SampleGroup: samples of one specimen analysed together, e.g. a tumour/normal duo or a trio with the tumour RNA.
+    A sample can be in several groups (e.g. a normal shared by two tumours).
+        id integer [PK]
+        specimen_id integer [ref: > specimen.id]
+        name text (unique)
+        deprecated boolean
+        deleted boolean
+        creation timestamp
+        modification timestamp
+        extra_metadata json
+    """
+    __tablename__ = "sample_group"
+    __table_args__ = (
+        Index("ix_sample_group_specimen_id", "specimen_id"),
+    )
+
+    specimen_id: Mapped[int] = mapped_column(ForeignKey("specimen.id"), default=None)
+    name: Mapped[str] = mapped_column(default=None, nullable=False, unique=True)
+
+    specimen: Mapped[Specimen] = relationship(back_populates="sample_groups")
+    samples: Mapped[list[Sample]] = relationship(secondary=sample_group_member, back_populates="sample_groups")
+
+    @property
+    def live_samples(self) -> list[Sample]:
+        """
+        Samples of the group, deprecated and deleted samples left out.
+        """
+        return [s for s in self.samples if not s.deprecated and not s.deleted]
+
+    @property
+    def sample_ids(self) -> list[int]:
+        """
+        Get ids of the samples of the group.
+        """
+        return [s.id for s in self.live_samples]
 
 class Experiment(BaseTable):
     """

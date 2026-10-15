@@ -1177,6 +1177,41 @@ def digest_oncoanalyser_samplesheet(project_id: str, digest_data):
         )
     return jsonify(result)
 
+
+@bp.route('/<string:project>/sample_groups', methods=['GET'])
+@convcheck_project
+@parse_json_get(expected_keys={"specimen_name", "sample_group_name"})
+def sample_groups(project_id: str, digest_data):
+    """
+    GET: optional json holding specimen_name and/or sample_group_name lists to filter on
+    return: the sample groups with their specimen and sample names
+    """
+    with session_scope() as session:
+        result = db_actions.sample_groups(
+            project_id=project_id,
+            digest_data=digest_data,
+            session=session
+        )
+    return jsonify(result)
+
+
+@bp.route('/<string:project>/sample_group', methods=['POST'])
+@convcheck_project
+@parse_json_input
+def sample_group(project_id: str, ingest_data):
+    """
+    POST: json holding sample_group_name and add and/or remove (sample names)
+    return: the group with its specimen and sample names. Adding to a group that doesn't exist creates it, a group
+    left without samples is deleted. Groups are renamed, deprecated or deleted with the modification routes.
+    """
+    with session_scope() as session:
+        result = db_actions.edit_sample_group(
+            project_id=project_id,
+            ingest_data=ingest_data,
+            session=session
+        )
+    return jsonify(result)
+
 @bp.route('/<string:project>/digest_unanalyzed', methods=['GET'])
 @convcheck_project
 @parse_json_get()

@@ -19,6 +19,7 @@ from ..model import (
     Project,
     Specimen,
     Sample,
+    SampleGroup,
     Experiment,
     Run,
     Readset,
@@ -532,26 +533,92 @@ def run_flowcell(run_name):
     return match.group(1) if match else run_name
 
 
+def _group_readset_loads(groups_loader):
+    """
+    Eager loads of the group samples' readsets with what a samplesheet row needs.
+    """
+    readsets = groups_loader.selectinload(SampleGroup.samples).selectinload(Sample.readsets)
+    return [
+        groups_loader.selectinload(SampleGroup.specimen),
+        readsets.selectinload(Readset.experiment),
+        readsets.selectinload(Readset.run),
+        readsets.selectinload(Readset.operations).selectinload(Operation.jobs).selectinload(Job.files),
+        readsets.selectinload(Readset.files).selectinload(File.locations),
+    ]
+
+
+def select_sample_groups(session, ret, digest_data, project_id):
+    """
+    Live groups of the specimens in specimen_name/specimen_id and the groups in sample_group_name, by name.
+    Warns for specimens without groups, samples in no group and group names not found.
+    """
+    groups = {}
+    specimen_filters = []
+    if digest_data.get(vb.SPECIMEN_NAME):
+        specimen_filters.append(Specimen.name.in_(digest_data[vb.SPECIMEN_NAME]))
+    if digest_data.get(vb.SPECIMEN_ID):
+        specimen_filters.append(Specimen.id.in_(digest_data[vb.SPECIMEN_ID]))
+    if specimen_filters:
+        stmt = (
+            select(Specimen)
+            .where(or_(*specimen_filters), Specimen.project_id == project_id)
+            .options(selectinload(Specimen.samples).selectinload(Sample.sample_groups),
+                     *_group_readset_loads(selectinload(Specimen.sample_groups)))
+        )
+        for specimen in session.execute(stmt).scalars().all():
+            specimen_groups = [g for g in specimen.sample_groups if not g.deprecated and not g.deleted]
+            if not specimen_groups:
+                ret["DB_ACTION_WARNING"].append(f"'Specimen' '{specimen.name}' has no 'SampleGroup': nothing to analyse.")
+                continue
+            for group in specimen_groups:
+                groups[group.id] = group
+            for sample in specimen.samples:
+                if not sample.deprecated and not sample.deleted and not sample.live_sample_groups:
+                    ret["DB_ACTION_WARNING"].append(
+                        f"'Sample' '{sample.name}' of 'Specimen' '{specimen.name}' is in no 'SampleGroup': left out."
+                    )
+
+    names = digest_data.get(vb.SAMPLE_GROUP_NAME) or []
+    if names:
+        stmt = (
+            select(SampleGroup)
+            .join(SampleGroup.specimen)
+            .where(SampleGroup.name.in_(names), Specimen.project_id == project_id)
+            .options(*_group_readset_loads(selectinload(SampleGroup.specimen).selectinload(Specimen.sample_groups)))
+        )
+        found = {group.name: group for group in session.execute(stmt).scalars().all()}
+        for name in names:
+            group = found.get(name)
+            if group is None:
+                ret["DB_ACTION_WARNING"].append(f"'SampleGroup' '{name}' doesn't exist in this project.")
+            elif group.deleted or group.deprecated:
+                ret["DB_ACTION_WARNING"].append(f"'SampleGroup' '{name}' is {'deleted' if group.deleted else 'deprecated'}. Skipping...")
+            else:
+                groups[group.id] = group
+    return sorted(groups.values(), key=lambda group: (group.specimen.name, group.name))
+
+
 def digest_oncoanalyser_samplesheet(project_id: str, digest_data, session):
     """
-    Digesting samplesheet fields for nf-core/oncoanalyser, one row per readset with its R1/R2 fastq files
+    Digesting samplesheet fields for nf-core/oncoanalyser: one samplesheet per sample group, one row per readset
+    with its R1/R2 fastq files
 
     Expects:
-        - specimen_name or specimen_id: every readset of the specimens is analysed
+        - specimen_name/specimen_id (every group of the specimens) and/or sample_group_name
         - location_endpoint
         - Optional: experiment_nucleic_acid_type, both DNA and RNA readsets when missing
     Returns:
-        - Samplesheet rows with the specimen as group_id and subject_id. Readsets without both fastq files at the
-          endpoint are left out with a warning. Raises RequestError when a specimen has several samples of the same
-          sample_type and sequence_type, which oncoanalyser can't take in one group.
+        - Samplesheet rows with the group name as group_id and the specimen as subject_id. Readsets without both
+          fastq files at the endpoint are left out with a warning. Raises RequestError when a group has several
+          samples of the same sample_type and sequence_type, which oncoanalyser can't take.
     """
     ret = {
         "DB_ACTION_WARNING": [],
         "DB_ACTION_OUTPUT": []
     }
 
-    if not (digest_data.get(vb.SPECIMEN_NAME) or digest_data.get(vb.SPECIMEN_ID)):
-        raise RequestError(message="'specimen_name' or 'specimen_id' is required: oncoanalyser analyses every readset of a specimen.")
+    if not (digest_data.get(vb.SPECIMEN_NAME) or digest_data.get(vb.SPECIMEN_ID) or digest_data.get(vb.SAMPLE_GROUP_NAME)):
+        raise RequestError(message="'specimen_name', 'specimen_id' or 'sample_group_name' is required: oncoanalyser analyses the sample groups.")
     location_endpoint = digest_data.get(vb.LOCATION_ENDPOINT)
     nucleic_acid_type = digest_data.get(vb.EXPERIMENT_NUCLEIC_ACID_TYPE)
     if nucleic_acid_type:
@@ -559,72 +626,87 @@ def digest_oncoanalyser_samplesheet(project_id: str, digest_data, session):
     else:
         nucleic_acid_type = None
 
-    readsets = select_readsets_from_specimens(session, ret, digest_data, nucleic_acid_type, project_id)
+    conflicts = []
+    for group in select_sample_groups(session, ret, digest_data, project_id):
+        rows = []
+        for sample in group.live_samples:
+            for readset in sample.readsets:
+                if readset.deleted or readset.deprecated:
+                    ret["DB_ACTION_WARNING"].append(
+                        f"'Readset' '{readset.name}' is {'deleted' if readset.deleted else 'deprecated'}. Skipping..."
+                    )
+                    continue
+                if nucleic_acid_type is not None and readset.experiment.nucleic_acid_type != nucleic_acid_type:
+                    continue
+                if readset.state in SKIPPED_READSET_STATES:
+                    ret["DB_ACTION_WARNING"].append(
+                        f"Skipping 'Readset' '{readset.name}' of 'Sample' '{sample.name}': its state is '{readset.state.value}'."
+                    )
+                    continue
+                file_map = readset_file_map(readset, location_endpoint, ret)
+                if not (file_map["R1"] and file_map["R2"]):
+                    ret["DB_ACTION_WARNING"].append(
+                        f"Skipping 'Readset' '{readset.name}' of 'Sample' '{sample.name}': no R1 and R2 fastq 'File' in '{location_endpoint}'."
+                    )
+                    continue
+                rows.append((readset, file_map))
 
-    rows = []
-    for readset in readsets:
-        if readset.state in SKIPPED_READSET_STATES:
-            ret["DB_ACTION_WARNING"].append(
-                f"Skipping 'Readset' '{readset.name}' of 'Sample' '{readset.sample.name}': its state is '{readset.state.value}'."
-            )
-            continue
-        file_map = readset_file_map(readset, location_endpoint, ret)
-        if not (file_map["R1"] and file_map["R2"]):
-            ret["DB_ACTION_WARNING"].append(
-                f"Skipping 'Readset' '{readset.name}' of 'Sample' '{readset.sample.name}': no R1 and R2 fastq 'File' in '{location_endpoint}'."
-            )
-            continue
-        rows.append((readset, file_map))
+        # oncoanalyser takes one sample per sample_type and sequence_type in a group
+        roles = {}
+        for readset, _ in rows:
+            roles.setdefault((readset.sample.tumour, readset.experiment.nucleic_acid_type), set()).add(readset.sample.name)
+        conflicts.extend(
+            f"'SampleGroup' '{group.name}' has several {'tumor' if tumour else 'normal'} {nucleic_acid.value} samples: "
+            f"{', '.join(repr(name) for name in sorted(names))}. oncoanalyser takes one per group: remove the extra "
+            f"samples from the group or set their readsets to 'ON_HOLD'."
+            for (tumour, nucleic_acid), names in roles.items() if len(names) > 1
+        )
 
-    # oncoanalyser takes one sample per sample_type and sequence_type in a group
-    group_samples = {}
-    for readset, _ in rows:
-        key = (readset.sample.specimen.name, readset.sample.tumour, readset.experiment.nucleic_acid_type)
-        group_samples.setdefault(key, set()).add(readset.sample.name)
-    conflicts = [
-        f"'Specimen' '{specimen}' has several {'tumor' if tumour else 'normal'} {nucleic_acid_type.value} samples: "
-        f"{', '.join(repr(name) for name in sorted(names))}. oncoanalyser takes one per group: set the readsets of the "
-        f"samples not to analyse now to 'ON_HOLD'."
-        for (specimen, tumour, nucleic_acid_type), names in group_samples.items() if len(names) > 1
-    ]
+        # Rows by DNA before RNA, tumour before normal, sample, lane and run
+        rows.sort(key=lambda row: (
+            row[0].experiment.nucleic_acid_type.value, not row[0].sample.tumour,
+            row[0].sample.name, int(row[0].lane.value), row[0].run.name or ""
+        ))
+        for readset, file_map in rows:
+            ret["DB_ACTION_OUTPUT"].append(samplesheet_row(group, readset, file_map, ret))
+
     if conflicts:
         raise RequestError(message=conflicts)
-
-    # Rows by specimen, then DNA before RNA, tumour before normal, sample, lane and run
-    rows.sort(key=lambda row: (
-        row[0].sample.specimen.name, row[0].experiment.nucleic_acid_type.value, not row[0].sample.tumour,
-        row[0].sample.name, int(row[0].lane.value), row[0].run.name or ""
-    ))
-    for readset, file_map in rows:
-        lane = f"{int(readset.lane.value):03d}"
-        info = f"library_id:{readset.name};lane:{lane}"
-        flowcell = run_flowcell(readset.run.name) if readset.run else None
-        if flowcell:
-            info += f";flowcell:{flowcell}"
-        cancer_type = readset.sample.cancer_type
-        if readset.sample.tumour and cancer_type:
-            if ONCOANALYSER_INFO_VALUE.match(cancer_type):
-                info += f";cancer_type:{cancer_type}"
-            else:
-                ret["DB_ACTION_WARNING"].append(
-                    f"'Sample' '{readset.sample.name}' 'cancer_type' '{cancer_type}' left out of 'Readset' '{readset.name}' info: "
-                    f"oncoanalyser takes no spaces, ';', ':' or ',' in it."
-                )
-        ret["DB_ACTION_OUTPUT"].append({
-            "group_id": readset.sample.specimen.name,
-            "subject_id": readset.sample.specimen.name,
-            "sample_id": readset.sample.name,
-            "sample_type": "tumor" if readset.sample.tumour else "normal",
-            "sequence_type": readset.experiment.nucleic_acid_type.value.lower(),
-            "filetype": "fastq",
-            "info": info,
-            "filepath": f"{file_map['R1']};{file_map['R2']}"
-        })
 
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
 
     return ret  # Let Flask jsonify this
+
+
+def samplesheet_row(group, readset, file_map, ret):
+    """
+    The oncoanalyser samplesheet row of a readset of group.
+    """
+    lane = f"{int(readset.lane.value):03d}"
+    info = f"library_id:{readset.name};lane:{lane}"
+    flowcell = run_flowcell(readset.run.name) if readset.run else None
+    if flowcell:
+        info += f";flowcell:{flowcell}"
+    cancer_type = readset.sample.cancer_type
+    if readset.sample.tumour and cancer_type:
+        if ONCOANALYSER_INFO_VALUE.match(cancer_type):
+            info += f";cancer_type:{cancer_type}"
+        else:
+            ret["DB_ACTION_WARNING"].append(
+                f"'Sample' '{readset.sample.name}' 'cancer_type' '{cancer_type}' left out of 'Readset' '{readset.name}' info: "
+                f"oncoanalyser takes no spaces, ';', ':' or ',' in it."
+            )
+    return {
+        "group_id": group.name,
+        "subject_id": group.specimen.name,
+        "sample_id": readset.sample.name,
+        "sample_type": "tumor" if readset.sample.tumour else "normal",
+        "sequence_type": readset.experiment.nucleic_acid_type.value.lower(),
+        "filetype": "fastq",
+        "info": info,
+        "filepath": f"{file_map['R1']};{file_map['R2']}"
+    }
 
 
 def digest_pair_file(project_id: str, digest_data, session):
@@ -636,8 +718,8 @@ def digest_pair_file(project_id: str, digest_data, session):
         - Specimen/Sample/Readset identifiers
     Returns:
         - A list of specimen/sample tumor-normal pairs, one row per tumour/normal association.
-          Pairs come from Sample.matched_samples (declared on either side); a tumour without
-          any declared match falls back to the unmatched normals of its specimen.
+          Pairs come from the sample groups: every tumour and normal of a group. A tumour in no group
+          falls back to the normals of its specimen that are in no group either.
     """
     ret = {
         "DB_ACTION_WARNING": [],
@@ -659,25 +741,27 @@ def digest_pair_file(project_id: str, digest_data, session):
     samples = list({sample.id: sample for sample in samples}.values())
 
     selected_ids = {sample.id for sample in samples}
-    matches = {sample.id: set(sample.matched_sample_ids) for sample in samples}
+    groups = {sample.id: {group.id for group in sample.live_sample_groups} for sample in samples}
     for sample in samples:
-        for matched in sample.matched_samples:
-            if matched.id not in selected_ids:
-                ret["DB_ACTION_WARNING"].append(
-                    f"'Sample' '{sample.name}' is matched with 'Sample' '{matched.name}' which is not part of the selection for 'nucleic_acid_type' '{nucleic_acid_type.value}'. Ignoring this match."
-                )
+        for group in sample.live_sample_groups:
+            for member in group.live_samples:
+                has_type = any(r.experiment.nucleic_acid_type == nucleic_acid_type for r in member.readsets if not r.deleted and not r.deprecated)
+                if member.id not in selected_ids and member.tumour != sample.tumour and has_type:
+                    ret["DB_ACTION_WARNING"].append(
+                        f"'Sample' '{sample.name}' is grouped with 'Sample' '{member.name}' in 'SampleGroup' '{group.name}', which is not part of the selection. Ignoring this pair."
+                    )
 
     tumours = [sample for sample in samples if sample.tumour]
     normals = [sample for sample in samples if not sample.tumour]
     paired_normals = set()
 
     for tumour in tumours:
-        partners = [normal for normal in normals if normal.id in matches[tumour.id]]
-        if not matches[tumour.id]:
-            # Fallback when no match is declared: pair by specimen
+        partners = [normal for normal in normals if groups[tumour.id] & groups[normal.id]]
+        if not groups[tumour.id]:
+            # Fallback for a tumour in no group: pair by specimen
             partners = [
                 normal for normal in normals
-                if normal.specimen_id == tumour.specimen_id and not matches[normal.id]
+                if normal.specimen_id == tumour.specimen_id and not groups[normal.id]
             ]
         if not partners:
             ret["DB_ACTION_OUTPUT"].append({

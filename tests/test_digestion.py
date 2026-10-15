@@ -215,8 +215,8 @@ def _clone_sample(sample_json, new_name):
     return json.loads(json.dumps(sample_json).replace(sample_json[vb.SAMPLE_NAME], new_name))
 
 
-def test_digest_pair_file_matched_samples(client, run_processing_json):
-    """Pairs follow sample_matched_sample_name when declared, specimen otherwise."""
+def test_digest_pair_file_sample_groups(client, run_processing_json):
+    """Pairs are the tumour/normal combinations of each sample group, by specimen for samples in no group."""
     project_name = run_processing_json[vb.PROJECT_NAME]
     cm_specimen = next(s for s in run_processing_json[vb.SPECIMEN] if s[vb.SPECIMEN_NAME] == "MoHQ-CM-1-3")
     samples = {s[vb.SAMPLE_NAME]: s for s in cm_specimen[vb.SAMPLE]}
@@ -225,17 +225,23 @@ def test_digest_pair_file_matched_samples(client, run_processing_json):
     normal_2 = _clone_sample(normal, "MoHQ-CM-1-3-15000936286-2DN")
     tumour_1 = _clone_sample(tumour, "MoHQ-CM-1-3-F10-1DT1")
 
-    # Tumour declared before the normals in the payload
-    tumour[vb.SAMPLE_MATCHED_SAMPLE_NAME] = [normal[vb.SAMPLE_NAME], normal_2[vb.SAMPLE_NAME]]
-    tumour_1[vb.SAMPLE_MATCHED_SAMPLE_NAME] = [normal[vb.SAMPLE_NAME], "MoHQ-CM-1-3-NOT-INGESTED"]
-    # Declared on the normal side only
-    normal_2[vb.SAMPLE_MATCHED_SAMPLE_NAME] = [tumour_1[vb.SAMPLE_NAME]]
+    # A sample can be in several groups, e.g. the normals here
+    tumour[vb.SAMPLE_GROUP_NAME] = ["MoHQ-CM-1-3_G1", "MoHQ-CM-1-3_G2"]
+    normal[vb.SAMPLE_GROUP_NAME] = ["MoHQ-CM-1-3_G1", "MoHQ-CM-1-3_G3"]
+    normal_2[vb.SAMPLE_GROUP_NAME] = ["MoHQ-CM-1-3_G2", "MoHQ-CM-1-3_G3"]
+    tumour_1[vb.SAMPLE_GROUP_NAME] = "MoHQ-CM-1-3_G3"
     cm_specimen[vb.SAMPLE].extend([normal_2, tumour_1])
+    # No group: fallback on specimen
+    for specimen in run_processing_json[vb.SPECIMEN]:
+        if specimen[vb.SPECIMEN_NAME] == "MoHQ-JG-9-23":
+            for sample in specimen[vb.SAMPLE]:
+                sample.pop(vb.SAMPLE_GROUP_NAME, None)
 
     client.post(f'admin/create_project/{project_name}')
     response = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
     assert response.status_code == 200
-    assert any("MoHQ-CM-1-3-NOT-INGESTED" in warning for warning in json.loads(response.text)["DB_ACTION_WARNING"])
+    created = [w for w in json.loads(response.text)["DB_ACTION_WARNING"] if w.startswith("Created 'SampleGroup'")]
+    assert len(created) == 3
 
     digest_json = {
         vb.SPECIMEN_NAME: ["MoHQ-CM-1-3", "MoHQ-JG-9-23"],
@@ -253,14 +259,13 @@ def test_digest_pair_file_matched_samples(client, run_processing_json):
         {"Specimen": "MoHQ-CM-1-3", "Sample_N": "MoHQ-CM-1-3-15000936286-2DN", "Sample_T": "MoHQ-CM-1-3-15000863775-19933DT"},
         {"Specimen": "MoHQ-CM-1-3", "Sample_N": "MoHQ-CM-1-3-15000936286-19866DN", "Sample_T": "MoHQ-CM-1-3-F10-1DT1"},
         {"Specimen": "MoHQ-CM-1-3", "Sample_N": "MoHQ-CM-1-3-15000936286-2DN", "Sample_T": "MoHQ-CM-1-3-F10-1DT1"},
-        # No metadata: fallback on specimen
         {"Specimen": "MoHQ-JG-9-23", "Sample_N": "MoHQ-JG-9-23-15000936286-19866DN", "Sample_T": "MoHQ-JG-9-23-15000863775-19933DT"},
     ]
     assert sorted(body["DB_ACTION_OUTPUT"], key=key) == sorted(expected, key=key)
 
 
-def test_sample_match_across_ingestions(client, run_processing_json):
-    """A match declared before the other sample exists is created when that sample is ingested declaring it back."""
+def test_sample_group_across_ingestions(client, run_processing_json):
+    """A sample ingested later joins the group by naming it: the duo grows into a trio, under the same name."""
     project_name = run_processing_json[vb.PROJECT_NAME]
     jg_specimen = next(s for s in run_processing_json[vb.SPECIMEN] if s[vb.SPECIMEN_NAME] == "MoHQ-JG-9-23")
     tumour = next(s for s in jg_specimen[vb.SAMPLE] if s[vb.SAMPLE_TUMOUR])
@@ -268,23 +273,26 @@ def test_sample_match_across_ingestions(client, run_processing_json):
         next(s for s in jg_specimen[vb.SAMPLE] if not s[vb.SAMPLE_TUMOUR]),
         "MoHQ-JG-9-23-B1-2DN"
     )
-    tumour[vb.SAMPLE_MATCHED_SAMPLE_NAME] = [late_normal[vb.SAMPLE_NAME]]
+    tumour[vb.SAMPLE_GROUP_NAME] = ["MoHQ-JG-9-23_G2"]
 
     client.post(f'admin/create_project/{project_name}')
-    response = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
-    assert any(late_normal[vb.SAMPLE_NAME] in warning for warning in json.loads(response.text)["DB_ACTION_WARNING"])
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
 
-    late_normal[vb.SAMPLE_MATCHED_SAMPLE_NAME] = [tumour[vb.SAMPLE_NAME]]
+    late_normal[vb.SAMPLE_GROUP_NAME] = ["MoHQ-JG-9-23_G2"]
     second_run = dict(run_processing_json, run_name="second_run", run_ext_id="2")
     second_run[vb.SPECIMEN] = [dict(jg_specimen, sample=[late_normal])]
     response = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(second_run))
     assert response.status_code == 200
+    assert "DB_ACTION_WARNING" not in json.loads(response.text) or not any(
+        w.startswith("Created 'SampleGroup'") for w in json.loads(response.text)["DB_ACTION_WARNING"])
 
     digest_json = {vb.SAMPLE_NAME: [tumour[vb.SAMPLE_NAME], late_normal[vb.SAMPLE_NAME]], vb.EXPERIMENT_NUCLEIC_ACID_TYPE: "DNA"}
     response = client.get(f'project/{project_name}/digest_pair_file?json={json.dumps(digest_json)}')
     assert json.loads(response.text)["DB_ACTION_OUTPUT"] == [
         {"Specimen": "MoHQ-JG-9-23", "Sample_N": late_normal[vb.SAMPLE_NAME], "Sample_T": tumour[vb.SAMPLE_NAME]}
     ]
+    groups = json.loads(client.get(f'project/{project_name}/sample_groups?json={json.dumps({"sample_group_name": ["MoHQ-JG-9-23_G2"]})}').text)
+    assert groups["DB_ACTION_OUTPUT"][0]["sample_name"] == sorted([tumour[vb.SAMPLE_NAME], late_normal[vb.SAMPLE_NAME]])
 
 
 def test_digest_readset_file_skips_on_hold_and_invalid(client, run_processing_json, readset_file_json):
@@ -335,6 +343,7 @@ def test_digest_unanalyzed_leaves_out_analysed_readsets(client, run_processing_j
 
 
 ONCOANALYSER_SPECIMEN = "MoHQ-CM-1-3"
+ONCOANALYSER_GROUP = "MoHQ-CM-1-3_G1"
 ONCOANALYSER_DIR = "/lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Unaligned"
 
 
@@ -368,7 +377,7 @@ def _samplesheet(client, project_name, query):
 
 
 def test_digest_oncoanalyser_samplesheet(client, run_processing_json):
-    """One fastq row per readset, DNA and RNA together, grouped by specimen: DNA tumour, DNA normal, then RNA by lane."""
+    """One fastq row per readset of the group, DNA and RNA together: DNA tumour, DNA normal, then RNA by lane."""
     project_name = run_processing_json[vb.PROJECT_NAME]
     client.post(f'admin/create_project/{project_name}')
     client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(_oncoanalyser_json(run_processing_json)))
@@ -385,7 +394,7 @@ def test_digest_oncoanalyser_samplesheet(client, run_processing_json):
         ("MoHQ-CM-1-3-6929-1RT", "tumor", "rna", "library_id:MoHQ-CM-1-3-6929-1RT.A01433_0157_2;lane:002;flowcell:HM3NHDSX2"),
         ("MoHQ-CM-1-3-6929-1RT", "tumor", "rna", "library_id:MoHQ-CM-1-3-6929-1RT.A01433_0157_3;lane:003;flowcell:HM3NHDSX2"),
     ]
-    assert all(row["group_id"] == row["subject_id"] == ONCOANALYSER_SPECIMEN and row["filetype"] == "fastq" for row in rows)
+    assert all(row["group_id"] == ONCOANALYSER_GROUP and row["subject_id"] == ONCOANALYSER_SPECIMEN and row["filetype"] == "fastq" for row in rows)
     assert rows[0]["filepath"] == (
         f"{ONCOANALYSER_DIR}.1/MoHQ-CM-1-3-15000863775-19933DT.A01433_0157_1_L001_R1_001.fastq.gz;"
         f"{ONCOANALYSER_DIR}.1/MoHQ-CM-1-3-15000863775-19933DT.A01433_0157_1_L001_R2_001.fastq.gz"
@@ -398,9 +407,13 @@ def test_digest_oncoanalyser_samplesheet(client, run_processing_json):
     _, body = _samplesheet(client, project_name, {"specimen_name": [ONCOANALYSER_SPECIMEN], "location_endpoint": "abacus", "experiment_nucleic_acid_type": "RNA"})
     assert {row["sequence_type"] for row in body["DB_ACTION_OUTPUT"]} == {"rna"}
 
+    _, body = _samplesheet(client, project_name, {"sample_group_name": [ONCOANALYSER_GROUP, "MoHQ-CM-1-3_G404"], "location_endpoint": "abacus"})
+    assert body["DB_ACTION_OUTPUT"] == rows
+    assert body["DB_ACTION_WARNING"] == ["'SampleGroup' 'MoHQ-CM-1-3_G404' doesn't exist in this project."]
+
     _, body = _samplesheet(client, project_name, {"sample_name": ["MoHQ-CM-1-3-6929-1RT"], "location_endpoint": "abacus"})
     assert "DB_ACTION_OUTPUT" not in body
-    assert "'specimen_name' or 'specimen_id' is required" in body["DB_ACTION_ERROR"]
+    assert "'specimen_name', 'specimen_id' or 'sample_group_name' is required" in body["DB_ACTION_ERROR"]
 
 
 def test_digest_oncoanalyser_samplesheet_cancer_type(client, run_processing_json):
@@ -438,7 +451,7 @@ def test_digest_oncoanalyser_samplesheet_skips(client, run_processing_json):
 
     status, body = _samplesheet(client, project_name, {"specimen_name": ["MoHQ-JG-9-23", ONCOANALYSER_SPECIMEN], "location_endpoint": "abacus"})
     assert status == 200
-    assert {row["group_id"] for row in body["DB_ACTION_OUTPUT"]} == {ONCOANALYSER_SPECIMEN}
+    assert {row["group_id"] for row in body["DB_ACTION_OUTPUT"]} == {ONCOANALYSER_GROUP}
     assert len(body["DB_ACTION_OUTPUT"]) == 4
     warnings = body["DB_ACTION_WARNING"]
     assert any("'MoHQ-CM-1-3-6929-1RT.A01433_0157_3'" in w and "'ON_HOLD'" in w for w in warnings)
@@ -447,7 +460,7 @@ def test_digest_oncoanalyser_samplesheet_skips(client, run_processing_json):
 
 
 def test_digest_oncoanalyser_samplesheet_one_sample_per_type(client, run_processing_json):
-    """Two DNA tumours of one specimen can't go in one oncoanalyser group: rejected until one is put ON_HOLD."""
+    """Two DNA tumours in one group can't go in one oncoanalyser samplesheet: rejected until one leaves the group."""
     project_name = run_processing_json[vb.PROJECT_NAME]
     data = _oncoanalyser_json(run_processing_json)
     for specimen in data[vb.SPECIMEN]:
@@ -463,14 +476,45 @@ def test_digest_oncoanalyser_samplesheet_one_sample_per_type(client, run_process
 
     _, body = _samplesheet(client, project_name, query)
     assert "DB_ACTION_OUTPUT" not in body
-    assert any("'MoHQ-CM-1-3-15000863775-19933DT', 'MoHQ-CM-1-3-15000863775-2DT'" in e and "'ON_HOLD'" in e for e in body["DB_ACTION_ERROR"])
+    assert any(f"'SampleGroup' '{ONCOANALYSER_GROUP}'" in e and "'MoHQ-CM-1-3-15000863775-19933DT', 'MoHQ-CM-1-3-15000863775-2DT'" in e
+               for e in body["DB_ACTION_ERROR"])
 
-    readsets = json.loads(client.get(f'project/{project_name}/readsets?json={json.dumps({"sample_name": "MoHQ-CM-1-3-15000863775-19933DT"})}').text)
-    on_hold = {"modification": [{"table": "readset", "column": "state", "new": "ON_HOLD", "id": [r["id"] for r in readsets["DB_ACTION_OUTPUT"]]}]}
-    assert "DB_ACTION_ERROR" not in json.loads(client.post('modification/edit', data=json.dumps(on_hold)).text)
+    edit = {"sample_group_name": ONCOANALYSER_GROUP, "remove": ["MoHQ-CM-1-3-15000863775-19933DT"]}
+    assert "DB_ACTION_ERROR" not in json.loads(client.post(f'project/{project_name}/sample_group', data=json.dumps(edit)).text)
     _, body = _samplesheet(client, project_name, query)
-    assert "MoHQ-CM-1-3-15000863775-2DT" in {row["sample_id"] for row in body["DB_ACTION_OUTPUT"]}
-    assert "MoHQ-CM-1-3-15000863775-19933DT" not in {row["sample_id"] for row in body["DB_ACTION_OUTPUT"]}
+    sample_ids = {row["sample_id"] for row in body["DB_ACTION_OUTPUT"]}
+    assert "MoHQ-CM-1-3-15000863775-2DT" in sample_ids and "MoHQ-CM-1-3-15000863775-19933DT" not in sample_ids
+    assert "'Sample' 'MoHQ-CM-1-3-15000863775-19933DT' of 'Specimen' 'MoHQ-CM-1-3' is in no 'SampleGroup': left out." in body["DB_ACTION_WARNING"]
+
+
+def test_digest_oncoanalyser_samplesheet_two_groups(client, run_processing_json):
+    """A specimen with a duo and a trio sharing the normal gives one samplesheet per group."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    data = _oncoanalyser_json(run_processing_json)
+    for specimen in data[vb.SPECIMEN]:
+        if specimen[vb.SPECIMEN_NAME] == ONCOANALYSER_SPECIMEN:
+            samples = {s[vb.SAMPLE_NAME]: s for s in specimen[vb.SAMPLE]}
+            relapse = _clone_sample(samples["MoHQ-CM-1-3-15000863775-19933DT"], "MoHQ-CM-1-3-15000863775-2DT")
+            for readset in relapse[vb.READSET]:
+                readset[vb.FILE] = _fastq_files(readset[vb.READSET_NAME], readset[vb.READSET_LANE])
+            relapse[vb.SAMPLE_GROUP_NAME] = ["MoHQ-CM-1-3_G2"]
+            samples["MoHQ-CM-1-3-15000936286-19866DN"][vb.SAMPLE_GROUP_NAME] = [ONCOANALYSER_GROUP, "MoHQ-CM-1-3_G2"]
+            specimen[vb.SAMPLE].append(relapse)
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(data))
+
+    _, body = _samplesheet(client, project_name, {"specimen_name": [ONCOANALYSER_SPECIMEN], "location_endpoint": "abacus"})
+    by_group = {}
+    for row in body["DB_ACTION_OUTPUT"]:
+        by_group.setdefault(row["group_id"], []).append((row["sample_id"], row["sequence_type"]))
+    assert by_group == {
+        ONCOANALYSER_GROUP: [
+            ("MoHQ-CM-1-3-15000863775-19933DT", "dna"), ("MoHQ-CM-1-3-15000936286-19866DN", "dna"),
+            ("MoHQ-CM-1-3-6929-1RT", "rna"), ("MoHQ-CM-1-3-6929-1RT", "rna"), ("MoHQ-CM-1-3-6929-1RT", "rna"),
+        ],
+        "MoHQ-CM-1-3_G2": [("MoHQ-CM-1-3-15000863775-2DT", "dna"), ("MoHQ-CM-1-3-15000936286-19866DN", "dna")],
+    }
+    assert {row["subject_id"] for row in body["DB_ACTION_OUTPUT"]} == {ONCOANALYSER_SPECIMEN}
 
 
 def test_digest_oncoanalyser_samplesheet_same_lane_twice(client, run_processing_json):

@@ -616,27 +616,57 @@ migrations. Run `db-revisions` again to confirm.
 
 ## Sample metadata at ingestion
 
-Three optional keys can be set on each sample of a `run_processing` JSON.
+Four optional keys can be set on each sample of a `run_processing` JSON.
 
-### `sample_matched_sample_name`: samples analysed together
+### `sample_group_name`: samples analysed together
 
-A list of sample names this sample must be analysed with, e.g. a tumour and the patient's normal(s):
+The groups this sample belongs to, e.g. a tumour/normal duo, or a trio with the tumour RNA. One analysis
+runs per group. Give a name or a list of names:
 
 ```json
-{"sample_name": "MoHQ-CM-201-70-M10-1DT", "sample_tumour": true,
- "sample_matched_sample_name": ["MoHQ-CM-201-70-M10-1DN", "MoHQ-CM-201-70-M10-2DN"], "readset": [...]}
+{"sample_name": "MoHQ-CM-5-208-596350-1DT", "sample_tumour": true, "sample_group_name": "MoHQ-CM-5-208_G1", "readset": [...]}
+{"sample_name": "MoHQ-CM-5-208-596355-1DN", "sample_tumour": false, "sample_group_name": ["MoHQ-CM-5-208_G1", "MoHQ-CM-5-208_G2"], "readset": [...]}
 ```
 
-- A match works in both directions: declaring it on one sample is enough.
-- Samples of the same payload are linked whatever their order. A named sample that does not exist
-  yet only gives a warning; the link is made when that sample is ingested and names this one back.
-  **Fill the key on both tumours and normals** so later runs still create the link.
-- Links are stored by sample id, so renaming a sample keeps them. Curating a sample removes its links.
+- The first sample naming a group creates it, for the sample's specimen. Later samples, in the same
+  payload or in a later run, join it: when the RNA arrives with `"sample_group_name": "MoHQ-CM-5-208_G1"`,
+  the duo becomes a trio under the same name. Each group created is reported in `DB_ACTION_WARNING`, so a
+  misspelled name doesn't go unnoticed.
+- A sample can be in several groups, e.g. a normal shared by two tumours.
+- A group holds samples of one specimen only. Names use letters, digits, `_`, `.` and `-` (128 characters
+  max): the name becomes oncoanalyser's `group_id`. Otherwise the whole payload is rejected before
+  anything is written.
+- Ingestion only adds: re-ingesting a sample without the key, or with other names, keeps its groups.
+  Use [`/sample_group`](#editing-sample-groups) to remove or move a sample, and `edit` to rename a group.
+  Curating a sample removes it from its groups.
 
-`digest_pair_file` uses these links: one `Specimen,Sample_N,Sample_T` row per tumour/normal match,
-with physical sample names. A tumour matched with two normals gives two rows. Samples without any
-declared match fall back to the previous behaviour: tumours are paired with the unmatched normals of
-the same specimen. `digest_readset_file` is unchanged.
+`digest_pair_file` uses the groups: one `Specimen,Sample_N,Sample_T` row per tumour/normal pair of a
+group, with physical sample names. A tumour grouped with two normals gives two rows. Tumours in no group
+fall back to the previous behaviour: they're paired with the normals of the same specimen that are in no
+group either. `digest_readset_file` is unchanged.
+
+### Editing sample groups
+
+- `GET /project/<project>/sample_groups` (`pt-cli sample_group list`) lists the groups with their id,
+  specimen and sample names. Filter with `specimen_name` and `sample_group_name` lists.
+- `POST /project/<project>/sample_group` (`pt-cli sample_group edit`) changes the samples of one group:
+
+```json
+{"sample_group_name": "MoHQ-CM-5-208_G1", "add": ["MoHQ-CM-5-208-596349-1RT"], "remove": ["MoHQ-CM-5-208-596355-1DN"]}
+```
+
+- `add` on a group that doesn't exist creates it. The samples must exist in the project and belong to the
+  group's specimen. A group left without samples is deleted.
+- Problems are all listed in `DB_ACTION_ERROR`, and nothing changes then.
+- A group is renamed, deprecated, deleted or curated like any other entry, with the modification routes
+  on the `sample_group` table. `edit` keeps the name format and uniqueness, and refuses to change a
+  group's `specimen_id`:
+
+```json
+{"modification": [{"table": "sample_group", "id": [1], "column": "name", "new": "MoHQ-CM-5-208_G3"}]}
+```
+
+- A deprecated or deleted group can't be joined at ingestion, and is left out of the samplesheets.
 
 ### `sample_oncotree_code`: tumour type
 
@@ -765,21 +795,24 @@ default, so later changes to the default don't reach a deployment that overrides
 
 `GET /project/<project>/digest_oncoanalyser_samplesheet` (`pt-cli digest oncoanalyser_samplesheet`) gives
 the [nf-core/oncoanalyser samplesheet](https://nf-co.re/oncoanalyser/latest/docs/usage/#samplesheet) of
-every readset of the given specimens (`specimen_name` or `specimen_id`) at `location_endpoint`.
-`experiment_nucleic_acid_type` is optional: DNA and RNA readsets go in one samplesheet when it's missing.
+[sample groups](#sample_group_name-samples-analysed-together): every group of the given specimens
+(`specimen_name` or `specimen_id`) and the groups named in `sample_group_name`, with the readsets at
+`location_endpoint`. `experiment_nucleic_acid_type` is optional: DNA and RNA readsets go together when
+it's missing. pt-cli writes one `<group>.samplesheet.csv` per group.
 
 ```bash
-pt-cli --project MOH-Q digest oncoanalyser_samplesheet --specimen_name MoHQ-CM-5-208 --endpoint abacus -o samplesheet.csv
+pt-cli --project MOH-Q digest oncoanalyser_samplesheet --specimen_name MoHQ-CM-5-208 --endpoint abacus --output-dir samplesheets/
 ```
 
 ```csv
 group_id,subject_id,sample_id,sample_type,sequence_type,filetype,info,filepath
-MoHQ-CM-5-208,MoHQ-CM-5-208,MoHQ-CM-5-208-596350-1DT,tumor,dna,fastq,library_id:MoHQ-CM-5-208-596350-1DT.A01433_0157_1;lane:001;flowcell:HM3NHDSX2;cancer_type:Lung,/path/R1.fastq.gz;/path/R2.fastq.gz
+MoHQ-CM-5-208_G1,MoHQ-CM-5-208,MoHQ-CM-5-208-596350-1DT,tumor,dna,fastq,library_id:MoHQ-CM-5-208-596350-1DT.A01433_0157_1;lane:001;flowcell:HM3NHDSX2;cancer_type:Lung,/path/R1.fastq.gz;/path/R2.fastq.gz
 ```
 
 | Column | Value |
 |---|---|
-| `group_id`, `subject_id` | Specimen name |
+| `group_id` | Sample group name |
+| `subject_id` | Specimen name |
 | `sample_id` | Sample name |
 | `sample_type` | `tumor` or `normal`, from `sample.tumour` |
 | `sequence_type` | `dna` or `rna`, from the experiment |
@@ -787,7 +820,8 @@ MoHQ-CM-5-208,MoHQ-CM-5-208,MoHQ-CM-5-208-596350-1DT,tumor,dna,fastq,library_id:
 | `info` | `library_id:<readset name>;lane:<lane on 3 digits>;flowcell:<flowcell>`, plus `;cancer_type:<sample.cancer_type>` on tumour rows |
 | `filepath` | `<R1>;<R2>`: the readset's `run_processing` fastq files at `location_endpoint` |
 
-- One row per readset, sorted by specimen, then DNA before RNA, tumour before normal, sample and lane.
+- One row per readset, by group, then DNA before RNA, tumour before normal, sample and lane.
+- Samples in no group, and specimens without groups, are left out with a warning.
 - The readset name is the library id, so every readset is its own read group. Lanes of one library are
   therefore deduplicated separately.
 - The flowcell comes from the run name, an Illumina run folder: `220420_A01433_0157_BHM3NHDSX2_…` gives
@@ -796,9 +830,9 @@ MoHQ-CM-5-208,MoHQ-CM-5-208,MoHQ-CM-5-208-596350-1DT,tumor,dna,fastq,library_id:
   already turns spaces into underscores; a cancer type with `;`, `:` or `,` is left out with a warning.
 - Readsets without both fastq files at the endpoint (e.g. BAM-only readsets), `ON_HOLD` and `INVALID`
   readsets are left out with a warning.
-- oncoanalyser takes one sample per `sample_type` and `sequence_type` in a group. A specimen with, e.g., two
-  DNA tumours is rejected with the sample names: set the readsets of the samples not to analyse now to
-  `ON_HOLD` (`pt-cli edit` on `readset.state`).
+- oncoanalyser takes one sample per `sample_type` and `sequence_type` in a group. A group with, e.g., two
+  DNA tumours is rejected with the group and sample names: remove the extra sample from the group, or set
+  its readsets to `ON_HOLD`.
 
 ## Query filtering syntax
 

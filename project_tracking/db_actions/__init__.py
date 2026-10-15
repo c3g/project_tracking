@@ -39,6 +39,11 @@ from .modification import (
     curate
 )
 
+from .sample_group import (
+    sample_groups,
+    edit_sample_group
+)
+
 from .utils import (
     name_to_id,
     uri_to_id,
@@ -62,6 +67,9 @@ __all__ = [
 
     # Modification functions
     "edit", "delete", "undelete", "deprecate", "undeprecate", "curate",
+
+    # Sample group functions
+    "sample_groups", "edit_sample_group",
 
     # Utilities
     "name_to_id", "uri_to_id", "select_all_projects", "project_exists",
