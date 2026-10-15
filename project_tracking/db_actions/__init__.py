@@ -25,7 +25,7 @@ from .digest import (
 from .ingest import (
     ingest_run_processing,
     ingest_transfer,
-    ingest_genpipes,
+    ingest_analysis,
     ingest_delivery
 )
 
@@ -57,7 +57,7 @@ __all__ = [
     "digest_delivery",
 
     # Ingest functions
-    "ingest_run_processing", "ingest_transfer", "ingest_genpipes", "ingest_delivery",
+    "ingest_run_processing", "ingest_transfer", "ingest_analysis", "ingest_delivery",
 
     # Modification functions
     "edit", "delete", "undelete", "deprecate", "undeprecate", "curate",

@@ -657,8 +657,8 @@ Enum fields only accept their exact values: no trimming, no case change, and a l
 | `run_processing` | `readset_lane` | `"1"` to `"8"` | error |
 | `run_processing` | `readset_sequencing_type` | `SINGLE_END`, `PAIRED_END` | error |
 | `run_processing` | `readset_state` | `VALID`, `ON_HOLD`, `INVALID`, `DELIVERED` | `VALID` |
-| `run_processing`, `genpipes` | `metric_flag` | `PASS`, `WARNING`, `FAILED`, `MISSING`, `NOT_APPLICABLE` | no flag |
-| `genpipes` | `job_status` | `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, `OUT_OF_MEMORY`, `CANCELLED` | job skipped |
+| `run_processing`, `analysis` | `metric_flag` | `PASS`, `WARNING`, `FAILED`, `MISSING`, `NOT_APPLICABLE` | no flag |
+| `analysis` | `job_status` | `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, `OUT_OF_MEMORY`, `CANCELLED` | job skipped |
 
 - An ingest payload with invalid values is rejected before anything is written. The error lists every
   invalid value with its readset, job or metric and the valid values.

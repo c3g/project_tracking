@@ -77,7 +77,7 @@ def normalize_oncotree_codes(ingest_data):
         raise RequestError(message=invalid)
 
 
-def check_run_processing_enums(ingest_data):
+def check_run_processing_payload(ingest_data):
     """
     Check every enum field of a run_processing payload before anything is written; raises RequestError
     listing all invalid values. Values must be exact (e.g. 'ON_HOLD', lane '1'); readset_state and
@@ -97,9 +97,9 @@ def check_run_processing_enums(ingest_data):
         raise RequestError(message=invalid)
 
 
-def check_genpipes_enums(ingest_data):
+def check_analysis_payload(ingest_data):
     """
-    Check every enum field of a genpipes payload before anything is written; raises RequestError
+    Check every enum field of an analysis payload before anything is written; raises RequestError
     listing all invalid values. job_status and metric_flag may be null or missing.
     """
     invalid = []
@@ -133,7 +133,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
     if message:
         raise UniqueConstraintError(message=message)
     normalize_oncotree_codes(ingest_data)
-    check_run_processing_enums(ingest_data)
+    check_run_processing_payload(ingest_data)
 
     operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
@@ -493,8 +493,8 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
     # return [operation, jobs]
     return ret
 
-def ingest_genpipes(project_id: str, ingest_data, session):
-    """Ingesting GenPipes run"""
+def ingest_analysis(project_id: str, ingest_data, session):
+    """Ingesting an analysis operation (e.g. a GenPipes run)"""
     if not isinstance(ingest_data, dict):
         ingest_data = json.loads(ingest_data)
 
@@ -509,7 +509,7 @@ def ingest_genpipes(project_id: str, ingest_data, session):
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
     force = ingest_data.get(vb.FORCE, False)
-    check_genpipes_enums(ingest_data)
+    check_analysis_payload(ingest_data)
 
     job = None
 

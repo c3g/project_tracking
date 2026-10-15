@@ -1088,16 +1088,16 @@ def ingest_transfer(project_id: str, ingest_data):
     return jsonify(result)
 
 
-@bp.route('/<string:project>/ingest_genpipes', methods=['POST'])
+@bp.route('/<string:project>/ingest_analysis', methods=['POST'])
 @convcheck_project
 @parse_json_input
-def ingest_genpipes(project_id: str, ingest_data):
+def ingest_analysis(project_id: str, ingest_data):
     """
-    POST: json describing genpipes analysis
+    POST: json describing an analysis operation (e.g. a GenPipes run)
     return: The Operation object and Jobs associated
     """
     result = fetch_and_format(
-        db_actions.ingest_genpipes,
+        db_actions.ingest_analysis,
         project_id=project_id,
         ingest_data=ingest_data
         )

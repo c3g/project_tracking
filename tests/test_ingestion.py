@@ -39,8 +39,8 @@ def test_create_api(client, run_processing_json, transfer_json, genpipes_json, d
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['platform'] == "beluga"
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['project_id'] == 1
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['status'] == "COMPLETED"
-    # Test ingesting genpipes
-    response = client.post(f'project/{project_name}/ingest_genpipes', data=json.dumps(genpipes_json))
+    # Test ingesting an analysis
+    response = client.post(f'project/{project_name}/ingest_analysis', data=json.dumps(genpipes_json))
     assert response.status_code == 200
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['cmd_line'] == "module purge\nmodule load python/3.10.2 mugqic/genpipes/4.2.0\nrnaseq_light.py \n    -j slurm \n    -r readset.txt \n    -s 1-5 \n    -c $MUGQIC_PIPELINES_HOME/pipelines/rnaseq_light/rnaseq_light.base.ini \n        $MUGQIC_PIPELINES_HOME/pipelines/common_ini/beluga.ini \n        $MUGQIC_PIPELINES_HOME/resources/genomes/config/Homo_sapiens.GRCh38.ini \n        RNA_light.custom.ini \n  > RNASeq_light_run.sh\nrm -r RNA_CHUNKS;\nmkdir RNA_CHUNKS;\n$MUGQIC_PIPELINES_HOME/utils/chunk_genpipes.sh -n 100 RNASeq_light_run.sh RNA_CHUNKS"
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['id'] == 3
@@ -49,8 +49,8 @@ def test_create_api(client, run_processing_json, transfer_json, genpipes_json, d
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['platform'] == "beluga"
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['project_id'] == 1
     assert json.loads(response.data)["DB_ACTION_OUTPUT"][0]['status'] == "COMPLETED"
-    # Test ingesting genpipes a 2nd time to make sure it fetches the already existing entrities and links the new information to them
-    response = client.post(f'project/{project_name}/ingest_genpipes', data=json.dumps(genpipes_json))
+    # Test ingesting an analysis a 2nd time to make sure it fetches the already existing entrities and links the new information to them
+    response = client.post(f'project/{project_name}/ingest_analysis', data=json.dumps(genpipes_json))
     assert json.loads(response.data)["DB_ACTION_WARNING"] == ["OperationConfig with id 1 and name genpipes_ini already exists, informations will be attached to this one.","Operation with id 3 and name genpipes already exists, informations will be attached to this one.","Job with id 3 and name trimmomatic already exists, informations will be attached to this one.","Warning: Location with id 21 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.pair1.fastq.gz already exists, informations will be attached to this one.","Warning: Location with id 22 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.single1.fastq.gz already exists, informations will be attached to this one.","Warning: Location with id 23 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.pair2.fastq.gz already exists, informations will be attached to this one.","Warning: Location with id 24 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.single2.fastq.gz already exists, informations will be attached to this one.","Warning: Location with id 25 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_3.trim.log already exists, informations will be attached to this one.","Job with id 4 and name kallisto already exists, informations will be attached to this one.","Warning: Location with id 26 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_transcripts.tsv already exists, informations will be attached to this one.","Warning: Location with id 27 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_genes.tsv already exists, informations will be attached to this one.","Warning: Location with id 28 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/kallisto_quant.log already exists, informations will be attached to this one.","Job with id 5 and name trimmomatic already exists, informations will be attached to this one.","Warning: Location with id 29 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.pair1.fastq.gz already exists, informations will be attached to this one.","Warning: Location with id 30 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.single1.fastq.gz already exists, informations will be attached to this one.","Warning: Location with id 31 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.pair2.fastq.gz already exists, informations will be attached to this one.","Warning: Location with id 32 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.single2.fastq.gz already exists, informations will be attached to this one.","Warning: Location with id 33 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_2.trim.log already exists, informations will be attached to this one.","Job with id 4 and name kallisto already exists, informations will be attached to this one.","Warning: Location with id 26 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_transcripts.tsv already exists, informations will be attached to this one.","Warning: Location with id 27 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_genes.tsv already exists, informations will be attached to this one.","Warning: Location with id 28 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/kallisto_quant.log already exists, informations will be attached to this one.","Job with id 6 and name trimmomatic already exists, informations will be attached to this one.","Warning: Location with id 34 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.pair1.fastq.gz already exists, informations will be attached to this one.","Warning: Location with id 35 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.single1.fastq.gz already exists, informations will be attached to this one.","Warning: Location with id 36 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.pair2.fastq.gz already exists, informations will be attached to this one.","Warning: Location with id 37 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.single2.fastq.gz already exists, informations will be attached to this one.","Warning: Location with id 38 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/trim/MoHQ-CM-1-3-6929-1RT/MoHQ-CM-1-3-6929-1RT.A01433_0157_1.trim.log already exists, informations will be attached to this one.","Job with id 4 and name kallisto already exists, informations will be attached to this one.","Warning: Location with id 26 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_transcripts.tsv already exists, informations will be attached to this one.","Warning: Location with id 27 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/abundance_genes.tsv already exists, informations will be attached to this one.","Warning: Location with id 28 and uri beluga:///lustre03/project/6007512/C3G/projects/MOH_PROCESSING/MAIN/kallisto/MoHQ-CM-1-3-6929-1RT/kallisto_quant.log already exists, informations will be attached to this one."]
     # Test ingesting delivery
     response = client.post(f'project/{project_name}/ingest_delivery', data=json.dumps(delivery_json))
@@ -83,7 +83,7 @@ def test_create(not_app_db, run_processing_json, transfer_json, genpipes_json):
     transfer_out = db_actions.ingest_transfer(project_id, transfer_json, not_app_db)
     assert isinstance(transfer_out["DB_ACTION_OUTPUT"][0], model.Operation)
 
-    genpipes_out = db_actions.ingest_genpipes(project_id, genpipes_json, not_app_db)
+    genpipes_out = db_actions.ingest_analysis(project_id, genpipes_json, not_app_db)
     assert isinstance(genpipes_out["DB_ACTION_OUTPUT"][0], model.Operation)
 
 
@@ -156,7 +156,7 @@ def test_genpipes_skips_file_without_md5sum(not_app_db, run_processing_json, gen
     first_file_name = first_file[vb.FILE_NAME]
     first_file[vb.FILE_MD5SUM] = None
 
-    result = db_actions.ingest_genpipes(project_id, data, not_app_db)
+    result = db_actions.ingest_analysis(project_id, data, not_app_db)
 
     assert any("has no md5sum, skipping" in w for w in result["DB_ACTION_WARNING"])
     assert not_app_db.execute(select(model.File).where(model.File.name == first_file_name)).scalar_one_or_none() is None
@@ -174,7 +174,7 @@ def test_genpipes_force_ingest_file_without_md5sum(not_app_db, run_processing_js
     first_file[vb.FILE_MD5SUM] = None
     data[vb.FORCE] = True
 
-    result = db_actions.ingest_genpipes(project_id, data, not_app_db)
+    result = db_actions.ingest_analysis(project_id, data, not_app_db)
 
     assert any("ingesting anyway (force=True)" in w for w in result["DB_ACTION_WARNING"])
     assert not_app_db.execute(select(model.File).where(model.File.name == first_file_name)).scalar_one_or_none() is not None
@@ -300,7 +300,7 @@ def test_genpipes_rejects_invalid_enum_values(not_app_db, run_processing_json, g
     job = data[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0]
     job[vb.JOB_STATUS] = "DONE"
     with pytest.raises(RequestError) as error:
-        db_actions.ingest_genpipes(project_id, data, not_app_db)
+        db_actions.ingest_analysis(project_id, data, not_app_db)
     assert len(error.value.message) == 1
     assert f"'{job[vb.JOB_NAME]}'" in error.value.message[0] and "invalid 'job_status' 'DONE'" in error.value.message[0]
     assert not_app_db.execute(select(model.Job).where(model.Job.name == job[vb.JOB_NAME])).first() is None
