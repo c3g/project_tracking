@@ -670,6 +670,61 @@ Enum fields only accept their exact values: no trimming, no case change, and a l
 `digest_readset_file` leaves out `ON_HOLD` and `INVALID` readsets, with a warning for each one. To
 include a readset again, change its state with `pt-cli edit` on the `readset.state` column.
 
+## Analysis ingestion
+
+`POST /project/<project>/ingest_analysis` (`pt-cli ingest analysis`) ingests an analysis operation,
+e.g. a GenPipes run. It replaces `ingest_genpipes`. The payload names the tool, the pipeline and the
+protocol:
+
+```json
+{"operation_name": "genpipes", "operation_pipeline": "RnaSeq", "operation_protocol": "cancer", ...}
+{"operation_name": "oncoanalyser", "operation_pipeline": "wgts", ...}
+{"operation_name": "dragen", "operation_pipeline": "somatic", "operation_protocol": "tumor_normal", ...}
+```
+
+- The three values must come from the analysis operations vocabulary, with exact case. Otherwise the
+  whole payload is rejected before anything is written, with the allowed values in the error.
+  `run_processing`, `transfer` and `delivery` are reserved for the other ingest routes.
+- The stored operation has `analysis = true`. `digest_unanalyzed` uses this flag, not operation names.
+- Re-ingesting reuses the existing operation, matched as before on its name, command line, platform,
+  config, status and project. An empty pipeline or protocol is filled in. A **different** stored value
+  is kept, with a warning: use `force` to replace it, or `pt-cli edit` on the `operation` columns.
+- Analyses ingested before this change are named `genpipes` with an empty pipeline and protocol: the
+  migration sets their `analysis` flag. Re-ingesting one with a payload in the new format fills its
+  pipeline and protocol in. Payloads still sending `"operation_name": "GenPipes_<Pipeline>.<protocol>"`
+  are rejected.
+
+### Analysis operations vocabulary
+
+The default vocabulary is `project_tracking/analysis_operations.json`. It lists:
+
+- `genpipes`: the GenPipes 6.2.0 pipelines (their class names) and protocols, with `default` for
+  pipelines that have a single protocol. Update it with each GenPipes release that adds a pipeline or
+  a protocol.
+- `oncoanalyser` (nf-core/oncoanalyser): its `--mode` as pipeline, `wgts` or `targeted`, and no
+  protocol.
+- `dragen` (Illumina DRAGEN run outside GenPipes): its secondary analysis pipelines as pipeline, with
+  `tumor_only` or `tumor_normal` as protocol for `somatic` and no protocol for the others. DRAGEN run
+  by GenPipes stays `genpipes` / `MethylSeq` / `dragen`. Demultiplexing, ORA compression and the
+  reference builder are left out: they aren't analyses of a readset. Put the DRAGEN version in the
+  operation config, not in the protocol.
+
+To change it without a release, copy the file, edit it and set it as `ANALYSIS_OPERATIONS` in the
+config, or as `C3G_ANALYSIS_OPERATIONS` / `C3G_ANALYSIS_OPERATIONS_FILE`. It replaces the whole
+default, so later changes to the default don't reach a deployment that overrides it. For example:
+
+```json
+{
+  "genpipes": {"RnaSeq": ["stringtie", "variants", "cancer"], "RnaSeqLight": ["default"]},
+  "dragen": {"germline": [], "somatic": ["tumor_normal"]}
+}
+```
+
+- `operation_name` → `operation_pipeline` → allowed `operation_protocol` values.
+- `{}`: the tool takes no `operation_pipeline`. `[]`: the pipeline takes no `operation_protocol`.
+- Names use letters, digits, `_`, `.` and `-`, 64 characters max. An invalid vocabulary stops the app
+  at startup with the list of problems.
+
 ---
 
 ## Query filtering syntax

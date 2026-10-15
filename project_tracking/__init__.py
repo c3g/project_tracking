@@ -13,6 +13,7 @@ from sqlalchemy.exc import OperationalError
 from . import db_actions
 from . import api
 from . import database
+from .analysis import DEFAULT_ANALYSIS_OPERATIONS, validate_analysis_operations
 
 
 def _load_prefixed_file_env(app, prefix="C3G"):
@@ -140,6 +141,7 @@ def create_app(test_config=None):
 
     app.config.from_mapping(
         INGEST_FOLDER=app.instance_path,
+        ANALYSIS_OPERATIONS=DEFAULT_ANALYSIS_OPERATIONS,
         SQLALCHEMY_DATABASE_URI=f'sqlite:///{os.path.join(app.instance_path, "tracking_db.sql")}',
     )
     app.config.from_prefixed_env("C3G")
@@ -150,6 +152,8 @@ def create_app(test_config=None):
     else:
         app.config.from_mapping(test_config)
 
+    # Fail at startup rather than at the first analysis ingest
+    validate_analysis_operations(app.config["ANALYSIS_OPERATIONS"])
     _log_database_configuration(app)
 
     try:

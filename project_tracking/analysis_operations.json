@@ -1,0 +1,30 @@
+{
+    "genpipes": {
+        "AmpliconSeq": ["default"],
+        "ChipSeq": ["chipseq", "atacseq"],
+        "CoVSeq": ["default"],
+        "DnaSeq": ["germline_snv", "germline_sv", "germline_high_cov", "somatic_tumor_only", "somatic_fastpass", "somatic_ensemble", "somatic_sv", "somatic_ensemble_sv"],
+        "LongReadDnaSeq": ["nanopore", "nanopore_paired_somatic", "revio"],
+        "MethylSeq": ["bismark", "gembs", "hybrid", "dragen"],
+        "NanoporeCoVSeq": ["default", "basecalling"],
+        "RnaSeq": ["stringtie", "variants", "cancer"],
+        "RnaSeqDeNovoAssembly": ["trinity", "seq2fun"],
+        "RnaSeqLight": ["default"]
+    },
+    "oncoanalyser": {
+        "wgts": [],
+        "targeted": []
+    },
+    "dragen": {
+        "map_align": [],
+        "germline": [],
+        "somatic": ["tumor_only", "tumor_normal"],
+        "enrichment": [],
+        "rna": [],
+        "single_cell_rna": [],
+        "joint_genotyping": [],
+        "methylation": [],
+        "imputation": [],
+        "tso500_ctdna": []
+    }
+}

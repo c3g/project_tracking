@@ -17,6 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from .errors import DidNotFindError, RequestError, UniqueConstraintError
 from .route import projects
 from .utils import check_enum
+from ..analysis import RESERVED_OPERATION_NAMES, analysis_operations
 from .. import vocabulary as vb
 from .. import database
 from ..model import (
@@ -97,12 +98,49 @@ def check_run_processing_payload(ingest_data):
         raise RequestError(message=invalid)
 
 
+def _allowed(values):
+    return ", ".join(repr(value) for value in values) or "none"
+
+
+def check_analysis_operation(invalid, ingest_data):
+    """
+    Append a message to invalid for each operation_name, operation_pipeline or operation_protocol not allowed
+    by the analysis operations vocabulary.
+    """
+    vocabulary = analysis_operations()
+    name = ingest_data.get(vb.OPERATION_NAME)
+    pipeline = ingest_data.get(vb.OPERATION_PIPELINE)
+    protocol = ingest_data.get(vb.OPERATION_PROTOCOL)
+    if name in RESERVED_OPERATION_NAMES:
+        invalid.append(f"'{vb.OPERATION_NAME}' {name!r} is reserved: expected one of {_allowed(vocabulary)}.")
+        return
+    if name not in vocabulary:
+        invalid.append(f"'{vb.OPERATION_NAME}' {name!r} is not an allowed analysis operation: expected one of {_allowed(vocabulary)}.")
+        return
+    pipelines = vocabulary[name]
+    if not pipelines:
+        if pipeline is not None:
+            invalid.append(f"'{vb.OPERATION_NAME}' {name!r} takes no '{vb.OPERATION_PIPELINE}', got {pipeline!r}.")
+        return
+    if pipeline not in pipelines:
+        invalid.append(f"'{vb.OPERATION_PIPELINE}' {pipeline!r} is not allowed for {name!r}: expected one of {_allowed(pipelines)}.")
+        return
+    protocols = pipelines[pipeline]
+    if not protocols:
+        if protocol is not None:
+            invalid.append(f"'{vb.OPERATION_PIPELINE}' {pipeline!r} takes no '{vb.OPERATION_PROTOCOL}', got {protocol!r}.")
+    elif protocol not in protocols:
+        invalid.append(f"'{vb.OPERATION_PROTOCOL}' {protocol!r} is not allowed for {name!r} {pipeline!r}: expected one of {_allowed(protocols)}.")
+
+
 def check_analysis_payload(ingest_data):
     """
-    Check every enum field of an analysis payload before anything is written; raises RequestError
-    listing all invalid values. job_status and metric_flag may be null or missing.
+    Check an analysis payload before anything is written: the operation name, pipeline and protocol against the
+    analysis operations vocabulary, and every enum field (job_status and metric_flag may be null or missing).
+    Raises RequestError listing all problems.
     """
     invalid = []
+    check_analysis_operation(invalid, ingest_data)
     for sample_json in ingest_data[vb.SAMPLE]:
         for readset_json in sample_json[vb.READSET]:
             for job_json in readset_json[vb.JOB]:
@@ -525,7 +563,7 @@ def ingest_analysis(project_id: str, ingest_data, session):
 
     operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
-        name="genpipes",
+        name=ingest_data[vb.OPERATION_NAME],
         cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
         status=StatusEnum("COMPLETED"),
         project=project,
@@ -534,6 +572,11 @@ def ingest_analysis(project_id: str, ingest_data, session):
     )
     if warning:
         ret["DB_ACTION_WARNING"].append(warning)
+    ret["DB_ACTION_WARNING"].extend(operation.set_analysis(
+        ingest_data.get(vb.OPERATION_PIPELINE),
+        ingest_data.get(vb.OPERATION_PROTOCOL),
+        force=force
+    ))
 
     readset_list = []
     if not ingest_data[vb.SAMPLE]:

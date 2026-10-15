@@ -72,6 +72,8 @@ READSET_STATE = "readset_state"
 OPERATION_PLATFORM = "operation_platform"
 OPERATION_CMD_LINE = "operation_cmd_line"
 OPERATION_NAME = "operation_name"
+OPERATION_PIPELINE = "operation_pipeline"
+OPERATION_PROTOCOL = "operation_protocol"
 # Following is not coming from JSON
 # OPERATION_STATUS = "operation_status"
 

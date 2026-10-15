@@ -339,3 +339,150 @@ def test_files_rejects_invalid_state_filter(client, run_processing_json):
     client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
     response = client.get(f'project/{project_name}/files?json={json.dumps({"state": "valid"})}')
     assert "'valid' is not a valid value for 'StateEnum'" in json.loads(response.data)["DB_ACTION_ERROR"]
+
+
+def _analysis_project(session, run_processing_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=session)
+    project_id = db_actions.name_to_id("Project", project_name, session=session)[0]
+    db_actions.ingest_run_processing(project_id, run_processing_json, session)
+    return project_id
+
+
+def _analyses(session):
+    return session.execute(select(model.Operation).where(model.Operation.analysis.is_(True))).scalars().all()
+
+
+def test_analysis_operation_name_pipeline_protocol(not_app_db, run_processing_json, genpipes_json):
+    """The operation keeps the payload name, pipeline and protocol, and is flagged as an analysis."""
+    project_id = _analysis_project(not_app_db, run_processing_json)
+    db_actions.ingest_analysis(project_id, genpipes_json, not_app_db)
+
+    [operation] = _analyses(not_app_db)
+    assert (operation.name, operation.pipeline, operation.protocol) == ("genpipes", "RnaSeqLight", "default")
+    run_processing = not_app_db.execute(select(model.Operation).where(model.Operation.name == "run_processing")).scalar_one()
+    assert run_processing.analysis is False
+
+
+def test_analysis_rejects_operation_outside_vocabulary(not_app_db, run_processing_json, genpipes_json):
+    """Operation name, pipeline and protocol must come from the vocabulary; problems are reported with enum ones."""
+    project_id = _analysis_project(not_app_db, run_processing_json)
+    cases = [
+        ({vb.OPERATION_NAME: "GenPipes_RnaSeq.cancer"}, "'operation_name' 'GenPipes_RnaSeq.cancer' is not an allowed analysis operation: expected one of 'genpipes'"),
+        ({vb.OPERATION_NAME: "run_processing"}, "'operation_name' 'run_processing' is reserved"),
+        ({vb.OPERATION_PIPELINE: "RnaSeqlight"}, "'operation_pipeline' 'RnaSeqlight' is not allowed for 'genpipes': expected one of 'AmpliconSeq'"),
+        ({vb.OPERATION_PIPELINE: None}, "'operation_pipeline' None is not allowed for 'genpipes'"),
+        ({vb.OPERATION_PROTOCOL: "cancer"}, "'operation_protocol' 'cancer' is not allowed for 'genpipes' 'RnaSeqLight': expected one of 'default'"),
+    ]
+    for change, expected in cases:
+        data = copy.deepcopy(genpipes_json)
+        data.update(change)
+        data[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0][vb.JOB_STATUS] = "DONE"
+        with pytest.raises(RequestError) as error:
+            db_actions.ingest_analysis(project_id, data, not_app_db)
+        assert expected in error.value.message[0], (change, error.value.message)
+        assert "invalid 'job_status' 'DONE'" in error.value.message[1]
+    assert _analyses(not_app_db) == []
+
+
+def test_analysis_reingest_fills_pipeline_and_protocol(not_app_db, run_processing_json, genpipes_json):
+    """Re-ingesting reuses the operation: empty pipeline/protocol are filled, a different value needs force."""
+    project_id = _analysis_project(not_app_db, run_processing_json)
+    db_actions.ingest_analysis(project_id, genpipes_json, not_app_db)
+    [operation] = _analyses(not_app_db)
+    # As an analysis ingested before pipeline and protocol existed
+    operation.pipeline = operation.protocol = None
+    not_app_db.flush()
+
+    db_actions.ingest_analysis(project_id, genpipes_json, not_app_db)
+    assert _analyses(not_app_db) == [operation]
+    assert (operation.pipeline, operation.protocol) == ("RnaSeqLight", "default")
+
+    changed = copy.deepcopy(genpipes_json)
+    changed[vb.OPERATION_PIPELINE], changed[vb.OPERATION_PROTOCOL] = "RnaSeq", "cancer"
+    result = db_actions.ingest_analysis(project_id, changed, not_app_db)
+    assert any("already has 'pipeline' 'RnaSeqLight', keeping it instead of 'RnaSeq'" in w for w in result["DB_ACTION_WARNING"])
+    assert (operation.pipeline, operation.protocol) == ("RnaSeqLight", "default")
+
+    changed[vb.FORCE] = True
+    result = db_actions.ingest_analysis(project_id, changed, not_app_db)
+    assert any("'pipeline' updated from 'RnaSeqLight' to 'RnaSeq' (force=True)" in w for w in result["DB_ACTION_WARNING"])
+    assert _analyses(not_app_db) == [operation]
+    assert (operation.pipeline, operation.protocol) == ("RnaSeq", "cancer")
+
+
+def test_analysis_vocabulary_from_config(app, client, run_processing_json, genpipes_json):
+    """ANALYSIS_OPERATIONS from the config replaces the default vocabulary; a tool without pipelines takes none."""
+    app.config["ANALYSIS_OPERATIONS"] = {"custom_tool": {}}
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
+
+    data = copy.deepcopy(genpipes_json)
+    response = json.loads(client.post(f'project/{project_name}/ingest_analysis', data=json.dumps(data)).data)
+    assert "'operation_name' 'genpipes' is not an allowed analysis operation: expected one of 'custom_tool'." in response["DB_ACTION_ERROR"]
+
+    data[vb.OPERATION_NAME] = "custom_tool"
+    response = json.loads(client.post(f'project/{project_name}/ingest_analysis', data=json.dumps(data)).data)
+    assert "'operation_name' 'custom_tool' takes no 'operation_pipeline', got 'RnaSeqLight'." in response["DB_ACTION_ERROR"]
+
+    del data[vb.OPERATION_PIPELINE], data[vb.OPERATION_PROTOCOL]
+    response = json.loads(client.post(f'project/{project_name}/ingest_analysis', data=json.dumps(data)).data)
+    assert "DB_ACTION_ERROR" not in response
+    operation = response["DB_ACTION_OUTPUT"][0]
+    assert (operation["name"], operation["analysis"], operation["pipeline"]) == ("custom_tool", True, None)
+
+
+def test_invalid_analysis_vocabulary_fails_at_startup(monkeypatch):
+    monkeypatch.setenv("C3G_ANALYSIS_OPERATIONS", json.dumps({"genpipes": {"Rna Seq": ["default"]}, "delivery": {}}))
+    with pytest.raises(ValueError) as error:
+        create_app({"TESTING": True})
+    assert "invalid pipeline name 'Rna Seq'" in str(error.value)
+    assert "operation name 'delivery' is reserved" in str(error.value)
+
+
+def test_analysis_oncoanalyser_mode_as_pipeline(not_app_db, run_processing_json, genpipes_json):
+    """oncoanalyser takes its mode (wgts or targeted) as pipeline, and no protocol."""
+    project_id = _analysis_project(not_app_db, run_processing_json)
+    data = copy.deepcopy(genpipes_json)
+    data[vb.OPERATION_NAME], data[vb.OPERATION_PIPELINE] = "oncoanalyser", "wgts"
+
+    with_protocol = copy.deepcopy(data)
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_analysis(project_id, with_protocol, not_app_db)
+    assert "'operation_pipeline' 'wgts' takes no 'operation_protocol', got 'default'." in error.value.message
+
+    without_mode = copy.deepcopy(data)
+    del without_mode[vb.OPERATION_PIPELINE], without_mode[vb.OPERATION_PROTOCOL]
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_analysis(project_id, without_mode, not_app_db)
+    assert "'operation_pipeline' None is not allowed for 'oncoanalyser': expected one of 'wgts', 'targeted'." in error.value.message
+
+    del data[vb.OPERATION_PROTOCOL]
+    db_actions.ingest_analysis(project_id, data, not_app_db)
+    [operation] = _analyses(not_app_db)
+    assert (operation.name, operation.pipeline, operation.protocol) == ("oncoanalyser", "wgts", None)
+
+
+def test_analysis_dragen_somatic_needs_protocol(not_app_db, run_processing_json, genpipes_json):
+    """dragen somatic takes tumor_only or tumor_normal as protocol, the other dragen pipelines take none."""
+    project_id = _analysis_project(not_app_db, run_processing_json)
+    data = copy.deepcopy(genpipes_json)
+    data[vb.OPERATION_NAME], data[vb.OPERATION_PIPELINE] = "dragen", "somatic"
+
+    without_protocol = copy.deepcopy(data)
+    del without_protocol[vb.OPERATION_PROTOCOL]
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_analysis(project_id, without_protocol, not_app_db)
+    assert "'operation_protocol' None is not allowed for 'dragen' 'somatic': expected one of 'tumor_only', 'tumor_normal'." in error.value.message
+
+    germline_with_protocol = copy.deepcopy(data)
+    germline_with_protocol[vb.OPERATION_PIPELINE], germline_with_protocol[vb.OPERATION_PROTOCOL] = "germline", "tumor_only"
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_analysis(project_id, germline_with_protocol, not_app_db)
+    assert "'operation_pipeline' 'germline' takes no 'operation_protocol', got 'tumor_only'." in error.value.message
+
+    data[vb.OPERATION_PROTOCOL] = "tumor_normal"
+    db_actions.ingest_analysis(project_id, data, not_app_db)
+    [operation] = _analyses(not_app_db)
+    assert (operation.name, operation.pipeline, operation.protocol) == ("dragen", "somatic", "tumor_normal")

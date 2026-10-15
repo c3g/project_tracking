@@ -759,6 +759,9 @@ class Operation(BaseTable):
         platform text
         cmd_line text
         name text
+        analysis boolean
+        pipeline text
+        protocol text
         status status
         deprecated boolean
         deleted boolean
@@ -779,6 +782,10 @@ class Operation(BaseTable):
     platform: Mapped[str] = mapped_column(default=None, nullable=True)
     cmd_line: Mapped[str] = mapped_column(default=None, nullable=True)
     name: Mapped[str] = mapped_column(default=None, nullable=True)
+    # Set by ingest_analysis: digest_unanalyzed relies on it, not on operation names
+    analysis: Mapped[bool] = mapped_column(default=False)
+    pipeline: Mapped[str] = mapped_column(default=None, nullable=True)
+    protocol: Mapped[str] = mapped_column(default=None, nullable=True)
     status: Mapped[StatusEnum] = mapped_column(default=StatusEnum.PENDING)
 
     operation_config: Mapped[OperationConfig] = relationship(back_populates="operations")
@@ -793,6 +800,29 @@ class Operation(BaseTable):
         Get all readset ids associated with the operation.
         """
         return [r.id for r in self.readsets if not r.deleted and not r.deprecated]
+
+    def set_analysis(self, pipeline, protocol, force=False):
+        """
+        Mark the operation as an analysis and set its pipeline and protocol: an empty value is filled,
+        a different existing value is only replaced with force. Returns a list of warnings.
+        """
+        self.analysis = True
+        warnings = []
+        for field, value in (("pipeline", pipeline), ("protocol", protocol)):
+            current = getattr(self, field)
+            if value is None or current == value:
+                continue
+            if current is None:
+                setattr(self, field, value)
+            elif force:
+                setattr(self, field, value)
+                warnings.append(f"'Operation' with id {self.id} '{field}' updated from '{current}' to '{value}' (force=True).")
+            else:
+                warnings.append(
+                    f"'Operation' with id {self.id} already has '{field}' '{current}', keeping it instead of '{value}'. "
+                    f"If this change is expected, ingest with force or edit the operation."
+                )
+        return warnings
 
     @classmethod
     def from_attributes(
