@@ -39,6 +39,7 @@ SAMPLE_ALIAS = "sample_alias"
 SAMPLE_TUMOUR = "sample_tumour"
 SAMPLE_MATCHED_SAMPLE_NAME = "sample_matched_sample_name"
 SAMPLE_ONCOTREE_CODE = "sample_oncotree_code"
+SAMPLE_CANCER_TYPE = "sample_cancer_type"
 
 # experiment table
 EXPERIMENT_SEQUENCING_TECHNOLOGY = "experiment_sequencing_technology"

@@ -616,7 +616,7 @@ migrations. Run `db-revisions` again to confirm.
 
 ## Sample metadata at ingestion
 
-Two optional keys can be set on each sample of a `run_processing` JSON.
+Three optional keys can be set on each sample of a `run_processing` JSON.
 
 ### `sample_matched_sample_name`: samples analysed together
 
@@ -646,6 +646,25 @@ The [OncoTree](https://oncotree.mskcc.org/) code of the tumour, e.g. `LUAD`, lef
   rejected before anything is written. Checking the code against the OncoTree list is up to the sender.
 - Re-ingesting a sample that already has a **different** code keeps the stored code and returns a
   warning. Use `force` to replace it, or `pt-cli edit` on the `sample.oncotree_code` column.
+
+### `sample_cancer_type`: cancer type as text
+
+The cancer type in words, e.g. `Lung_Adenocarcinoma`, alongside the OncoTree code. GenPipes has the
+same pair in its cancer ini files (`oncotree_code`, `cancer_type`).
+
+```json
+{"sample_name": "MoHQ-CM-201-70-M10-1DT", "sample_tumour": true,
+ "sample_oncotree_code": "LUAD", "sample_cancer_type": "Lung Adenocarcinoma", "readset": [...]}
+```
+
+is stored as `Lung_Adenocarcinoma`.
+
+- It is free text with its case kept. Spaces become underscores, runs of spaces become one, and leading
+  and trailing ones are dropped, so tools such as oncoanalyser take it as one word on their command lines.
+  An empty string is ignored. A value that isn't a string rejects the whole payload before anything is
+  written.
+- Re-ingesting a sample that already has a **different** type keeps the stored type and returns a
+  warning. Use `force` to replace it, or `pt-cli edit` on the `sample.cancer_type` column.
 
 ## Controlled vocabularies
 

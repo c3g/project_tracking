@@ -238,6 +238,56 @@ def test_run_processing_rejects_malformed_oncotree_code(not_app_db, run_processi
 
 
 
+def _set_cancer_type(data, cancer_type):
+    for specimen_json in data[vb.SPECIMEN]:
+        for sample_json in specimen_json[vb.SAMPLE]:
+            if sample_json[vb.SAMPLE_NAME] == TUMOUR_SAMPLE:
+                sample_json[vb.SAMPLE_CANCER_TYPE] = cancer_type
+
+
+def _cancer_type(session):
+    return session.execute(select(model.Sample.cancer_type).where(model.Sample.name == TUMOUR_SAMPLE)).scalar_one()
+
+
+def test_run_processing_cancer_type(not_app_db, run_processing_json):
+    """Type is stored with underscores for spaces and its case, a conflicting type is kept with a warning, and force replaces it."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+
+    data = copy.deepcopy(run_processing_json)
+    _set_oncotree_code(data, "LUAD")
+    _set_cancer_type(data, " Lung  Adenocarcinoma ")
+    db_actions.ingest_run_processing(project_id, data, not_app_db)
+    assert (_oncotree_code(not_app_db), _cancer_type(not_app_db)) == ("LUAD", "Lung_Adenocarcinoma")
+
+    conflicting_run = _new_run(data, "A01433_0998")
+    _set_cancer_type(conflicting_run, "Lung Squamous Cell Carcinoma")
+    result = db_actions.ingest_run_processing(project_id, conflicting_run, not_app_db)
+    assert any("already has 'cancer_type' 'Lung_Adenocarcinoma', keeping it instead of 'Lung_Squamous_Cell_Carcinoma'" in w for w in result["DB_ACTION_WARNING"])
+    assert _cancer_type(not_app_db) == "Lung_Adenocarcinoma"
+
+    forced_run = _new_run(data, "A01433_0999")
+    _set_cancer_type(forced_run, "Lung Squamous Cell Carcinoma")
+    forced_run[vb.FORCE] = True
+    result = db_actions.ingest_run_processing(project_id, forced_run, not_app_db)
+    assert any("updated from 'Lung_Adenocarcinoma' to 'Lung_Squamous_Cell_Carcinoma'" in w for w in result["DB_ACTION_WARNING"])
+    assert _cancer_type(not_app_db) == "Lung_Squamous_Cell_Carcinoma"
+
+
+def test_run_processing_rejects_non_string_cancer_type(not_app_db, run_processing_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+
+    data = copy.deepcopy(run_processing_json)
+    _set_cancer_type(data, ["Lung", "Adenocarcinoma"])
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_run_processing(project_id, data, not_app_db)
+    assert "invalid 'cancer_type' ['Lung', 'Adenocarcinoma']" in error.value.message[0]
+    assert not_app_db.execute(select(model.Sample)).first() is None
+
+
 def _readset_state(session, readset_name):
     return session.execute(select(model.Readset.state).where(model.Readset.name == readset_name)).scalar_one()
 

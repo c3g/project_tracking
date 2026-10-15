@@ -412,6 +412,7 @@ class Sample(BaseTable):
         alias list
         tumour boolean
         oncotree_code text
+        cancer_type text
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -429,6 +430,7 @@ class Sample(BaseTable):
     alias: Mapped[list] = mapped_column(MutableList.as_mutable(JSON().with_variant(JSONB, 'postgresql')), default=list, nullable=True)
     tumour: Mapped[bool] = mapped_column(default=False)
     oncotree_code: Mapped[str] = mapped_column(default=None, nullable=True)
+    cancer_type: Mapped[str] = mapped_column(default=None, nullable=True)
 
     specimen: Mapped[Specimen] = relationship(back_populates="samples")
     readsets: Mapped[list[Readset]] = relationship(back_populates="sample", cascade="all, delete")
@@ -473,15 +475,27 @@ class Sample(BaseTable):
         """
         Set the OncoTree code; an existing different code is only replaced with force. Returns a warning or None.
         """
-        if self.oncotree_code is None or self.oncotree_code == code:
-            self.oncotree_code = code
+        return self._set_kept_value("oncotree_code", code, force)
+
+    def set_cancer_type(self, cancer_type, force=False):
+        """
+        Set the cancer type; an existing different type is only replaced with force. Returns a warning or None.
+        """
+        return self._set_kept_value("cancer_type", cancer_type, force)
+
+    def _set_kept_value(self, column, value, force):
+        """
+        Set column to value when empty or with force, otherwise keep the stored value. Returns a warning or None.
+        """
+        old_value = getattr(self, column)
+        if old_value is None or old_value == value:
+            setattr(self, column, value)
             return None
         if force:
-            old_code = self.oncotree_code
-            self.oncotree_code = code
-            return f"'Sample' '{self.name}' 'oncotree_code' updated from '{old_code}' to '{code}' (force=True)."
+            setattr(self, column, value)
+            return f"'Sample' '{self.name}' '{column}' updated from '{old_value}' to '{value}' (force=True)."
         return (
-            f"'Sample' '{self.name}' already has 'oncotree_code' '{self.oncotree_code}', keeping it instead of '{code}'. "
+            f"'Sample' '{self.name}' already has '{column}' '{old_value}', keeping it instead of '{value}'. "
             f"If this change is expected, ingest with force or edit the sample."
         )
 

@@ -60,13 +60,21 @@ def unique_constraint_error(session, json_format, ingest_data):
 ONCOTREE_CODE_PATTERN = re.compile(r"^[A-Z0-9]+$")
 
 
-def normalize_oncotree_codes(ingest_data):
+def normalize_tumour_metadata(ingest_data):
     """
-    Uppercase every sample OncoTree code in place; raises RequestError listing all malformed ones.
+    Uppercase every sample OncoTree code and replace the spaces of every cancer type with underscores in place;
+    raises RequestError listing all malformed ones. An empty cancer type is dropped.
     """
     invalid = []
     for specimen_json in ingest_data[vb.SPECIMEN]:
         for sample_json in specimen_json[vb.SAMPLE]:
+            cancer_type = sample_json.get(vb.SAMPLE_CANCER_TYPE)
+            if cancer_type is not None:
+                if not isinstance(cancer_type, str):
+                    invalid.append(f"'Sample' '{sample_json[vb.SAMPLE_NAME]}' has an invalid 'cancer_type' {cancer_type!r} (expected a string, e.g. 'Lung Adenocarcinoma').")
+                else:
+                    # Underscores keep it one word on the command lines of tools such as oncoanalyser
+                    sample_json[vb.SAMPLE_CANCER_TYPE] = "_".join(cancer_type.split()) or None
             code = sample_json.get(vb.SAMPLE_ONCOTREE_CODE)
             if code is None:
                 continue
@@ -170,7 +178,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
     message = unique_constraint_error(session, "run_processing", ingest_data)
     if message:
         raise UniqueConstraintError(message=message)
-    normalize_oncotree_codes(ingest_data)
+    normalize_tumour_metadata(ingest_data)
     check_run_processing_payload(ingest_data)
 
     operation, warning = Operation.from_attributes(
@@ -245,6 +253,10 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                 )
             if sample_json.get(vb.SAMPLE_ONCOTREE_CODE):
                 warning = sample.set_oncotree_code(sample_json[vb.SAMPLE_ONCOTREE_CODE], force=force)
+                if warning:
+                    ret["DB_ACTION_WARNING"].append(warning)
+            if sample_json.get(vb.SAMPLE_CANCER_TYPE):
+                warning = sample.set_cancer_type(sample_json[vb.SAMPLE_CANCER_TYPE], force=force)
                 if warning:
                     ret["DB_ACTION_WARNING"].append(warning)
             if sample_json.get(vb.SAMPLE_MATCHED_SAMPLE_NAME):
