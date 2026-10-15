@@ -1,0 +1,302 @@
+// Generated from project_tracking/model.py by 'flask --app project_tracking dbml': don't edit by hand.
+// Paste it in https://dbdiagram.io to see the diagram.
+//
+// Common fields to all tables but the link tables:
+// deprecated boolean
+// deleted boolean
+// creation timestamp
+// modification timestamp
+// extra_metadata json
+// ext_id integer
+// ext_src text
+
+Table project {
+  id integer [PK]
+  name text [unique, not null]
+  alias list
+
+  indexes {
+    name [name: 'ix_project_name']
+  }
+}
+
+Table specimen {
+  id integer [PK]
+  project_id integer [ref: > project.id, not null]
+  name text [unique, not null]
+  alias list
+  cohort text
+  institution text
+
+  indexes {
+    name [name: 'ix_specimen_name']
+    project_id [name: 'ix_specimen_project_id']
+  }
+}
+
+Table sample {
+  id integer [PK]
+  specimen_id integer [ref: > specimen.id, not null]
+  name text [unique, not null]
+  alias list
+  tumour boolean [not null]
+  oncotree_code text
+  cancer_type text
+
+  indexes {
+    name [name: 'ix_sample_name']
+    specimen_id [name: 'ix_sample_specimen_id']
+  }
+}
+
+Table sample_group {
+  id integer [PK]
+  specimen_id integer [ref: > specimen.id, not null]
+  name text [unique, not null]
+
+  indexes {
+    specimen_id [name: 'ix_sample_group_specimen_id']
+  }
+}
+
+Table sample_group_member {
+  sample_group_id integer [PK, ref: > sample_group.id]
+  sample_id integer [PK, ref: > sample.id]
+
+  indexes {
+    sample_id [name: 'ix_sample_group_member_sample_id']
+  }
+}
+
+Table experiment {
+  id integer [PK]
+  sequencing_technology text
+  type text
+  nucleic_acid_type nucleic_acid_type [not null]
+  library_kit text
+  kit_expiration_date timestamp
+}
+
+Table run {
+  id integer [PK]
+  name text
+  instrument text
+  date timestamp
+}
+
+Table readset {
+  id integer [PK]
+  sample_id integer [ref: > sample.id, not null]
+  experiment_id integer [ref: > experiment.id, not null]
+  run_id integer [ref: > run.id, not null]
+  name text [unique, not null]
+  alias list
+  lane lane
+  adapter1 text
+  adapter2 text
+  sequencing_type sequencing_type
+  state state
+
+  indexes {
+    experiment_id [name: 'ix_readset_experiment_id']
+    name [name: 'ix_readset_name']
+    run_id [name: 'ix_readset_run_id']
+    sample_id [name: 'ix_readset_sample_id']
+  }
+}
+
+Table operation {
+  id integer [PK]
+  project_id integer [ref: > project.id, not null]
+  operation_config_id integer [ref: > operation_config.id]
+  reference_id integer [ref: > reference.id]
+  platform text
+  cmd_line text
+  name text
+  analysis boolean [not null]
+  pipeline text
+  protocol text
+  status status [not null]
+
+  indexes {
+    operation_config_id [name: 'ix_operation_operation_config_id']
+    project_id [name: 'ix_operation_project_id']
+    reference_id [name: 'ix_operation_reference_id']
+  }
+}
+
+Table readset_operation {
+  readset_id integer [PK, ref: > readset.id]
+  operation_id integer [PK, ref: > operation.id]
+
+  indexes {
+    operation_id [name: 'ix_readset_operation_operation_id']
+    (readset_id, operation_id) [name: 'ix_readset_operation_readset_id_operation_id']
+  }
+}
+
+Table reference {
+  id integer [PK]
+  name text
+  alias list
+  assembly text
+  version text
+  taxon_id text
+  source text
+}
+
+Table operation_config {
+  id integer [PK]
+  name text
+  version text
+  md5sum text [unique]
+  data bytes
+}
+
+Table job {
+  id integer [PK]
+  operation_id integer [ref: > operation.id, not null]
+  name text
+  start timestamp
+  stop timestamp
+  status status
+  type text
+
+  indexes {
+    name [name: 'ix_job_name']
+    operation_id [name: 'ix_job_operation_id']
+    status [name: 'ix_job_status']
+  }
+}
+
+Table readset_job {
+  readset_id integer [PK, ref: > readset.id]
+  job_id integer [PK, ref: > job.id]
+
+  indexes {
+    job_id [name: 'ix_readset_job_job_id']
+    (readset_id, job_id) [name: 'ix_readset_job_readset_id_job_id']
+  }
+}
+
+Table metric {
+  id integer [PK]
+  name text [not null]
+  job_id integer [ref: > job.id, not null]
+  value text
+  flag flag
+  deliverable boolean [not null]
+  aggregate aggregate
+
+  indexes {
+    job_id [name: 'ix_metric_job_id']
+    name [name: 'ix_metric_name']
+  }
+}
+
+Table readset_metric {
+  readset_id integer [PK, ref: > readset.id]
+  metric_id integer [PK, ref: > metric.id]
+
+  indexes {
+    metric_id [name: 'ix_readset_metric_metric_id']
+    (readset_id, metric_id) [name: 'ix_readset_metric_readset_id_metric_id']
+  }
+}
+
+Table file {
+  id integer [PK]
+  name text [not null]
+  type text
+  md5sum text
+  deliverable boolean [not null]
+  state state
+
+  indexes {
+    md5sum [name: 'ix_file_md5sum']
+    name [name: 'ix_file_name']
+  }
+}
+
+Table readset_file {
+  readset_id integer [PK, ref: > readset.id]
+  file_id integer [PK, ref: > file.id]
+
+  indexes {
+    file_id [name: 'ix_readset_file_file_id']
+    (readset_id, file_id) [name: 'ix_readset_file_readset_id_file_id']
+  }
+}
+
+Table job_file {
+  job_id integer [PK, ref: > job.id]
+  file_id integer [PK, ref: > file.id]
+
+  indexes {
+    file_id [name: 'ix_job_file_file_id']
+    (job_id, file_id) [name: 'ix_job_file_job_id_file_id']
+  }
+}
+
+Table location {
+  id integer [PK]
+  file_id integer [ref: > file.id, not null]
+  uri text [unique, not null]
+  endpoint text [not null]
+  deliverable boolean [not null]
+
+  indexes {
+    file_id [name: 'ix_location_file_id']
+  }
+}
+
+Enum nucleic_acid_type {
+  DNA
+  RNA
+}
+
+Enum lane {
+  ONE [note: '1']
+  TWO [note: '2']
+  THREE [note: '3']
+  FOUR [note: '4']
+  FIVE [note: '5']
+  SIX [note: '6']
+  SEVEN [note: '7']
+  EIGHT [note: '8']
+}
+
+Enum sequencing_type {
+  SINGLE_END
+  PAIRED_END
+}
+
+Enum state {
+  VALID
+  ON_HOLD
+  INVALID
+  DELIVERED
+}
+
+Enum status {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  OUT_OF_MEMORY
+  CANCELLED
+}
+
+Enum flag {
+  PASS
+  WARNING
+  FAILED
+  MISSING
+  NOT_APPLICABLE
+}
+
+Enum aggregate {
+  SUM
+  AVERAGE
+  N
+}

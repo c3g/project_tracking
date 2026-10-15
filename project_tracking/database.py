@@ -364,3 +364,5 @@ def init_app(app):
     app.cli.add_command(version_command)
     app.cli.add_command(upgrade_all_dbs_command)
     app.cli.add_command(db_revisions_command)
+    from .dbml import dbml_command
+    app.cli.add_command(dbml_command)

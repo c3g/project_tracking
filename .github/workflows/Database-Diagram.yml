@@ -1,0 +1,57 @@
+name: Database Diagram
+
+# The committed diagram (docs/database.dbml, docs/data/database.svg) must follow the models: regenerate it and
+# fail when it changes. Only runs when a file the diagram depends on changes; tests/test_dbml.py, run by PyTest,
+# also checks the DBML on every pull request.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: ['dev', 'main']
+    paths:
+      - 'project_tracking/model.py'
+      - 'project_tracking/dbml.py'
+      - 'docs/database.dbml'
+      - 'docs/data/database.svg'
+      - 'utils/update_database_diagram.sh'
+      - '.github/workflows/Database-Diagram.yml'
+  push:
+    branches: ['main']
+    paths:
+      - 'project_tracking/model.py'
+      - 'project_tracking/dbml.py'
+      - 'docs/database.dbml'
+      - 'docs/data/database.svg'
+      - 'utils/update_database_diagram.sh'
+      - '.github/workflows/Database-Diagram.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check-diagram:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up PDM
+      uses: pdm-project/setup-pdm@v4.1
+      with:
+        python-version: "3.13"
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install dependencies
+      run: pdm install --prod --no-lock
+
+    - name: Regenerate the database diagram
+      run: pdm run utils/update_database_diagram.sh
+
+    - name: Check the committed diagram is up to date
+      run: |
+        if ! git diff --exit-code -- docs/database.dbml docs/data/database.svg; then
+          echo "::error::The database diagram is out of date with the models: run utils/update_database_diagram.sh and commit docs/database.dbml and docs/data/database.svg."
+          exit 1
+        fi
