@@ -332,3 +332,159 @@ def test_digest_unanalyzed_leaves_out_analysed_readsets(client, run_processing_j
 
     client.post('modification/delete', data=json.dumps({"modification": [{"table": "operation", "id": [operation["id"]]}]}))
     assert unanalyzed() == before
+
+
+ONCOANALYSER_SPECIMEN = "MoHQ-CM-1-3"
+ONCOANALYSER_DIR = "/lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq/Unaligned"
+
+
+def _fastq_files(readset_name, lane):
+    """R1 and R2 fastq files of a readset on abacus."""
+    return [
+        {
+            "location_uri": f"abacus://{ONCOANALYSER_DIR}.{lane}/{readset_name}_L00{lane}_{read_type}_001.fastq.gz",
+            "file_name": f"{readset_name}_L00{lane}_{read_type}_001.fastq.gz",
+            "file_md5sum": f"{read_type}{readset_name}",
+            "file_extra_metadata": {"read_type": read_type},
+            "file_deliverable": True,
+        }
+        for read_type in ("R1", "R2")
+    ]
+
+
+def _oncoanalyser_json(run_processing_json):
+    """MoHQ-CM-1-3 DNA readsets get fastq files: the specimen then has a tumour, a normal and an RNA tumour."""
+    for specimen in run_processing_json[vb.SPECIMEN]:
+        for sample in specimen[vb.SAMPLE]:
+            for readset in sample[vb.READSET]:
+                if specimen[vb.SPECIMEN_NAME] == ONCOANALYSER_SPECIMEN and readset[vb.EXPERIMENT_NUCLEIC_ACID_TYPE] == "DNA":
+                    readset[vb.FILE] = _fastq_files(readset[vb.READSET_NAME], readset[vb.READSET_LANE])
+    return run_processing_json
+
+
+def _samplesheet(client, project_name, query):
+    response = client.get(f'project/{project_name}/digest_oncoanalyser_samplesheet?json={json.dumps(query)}')
+    return response.status_code, json.loads(response.text)
+
+
+def test_digest_oncoanalyser_samplesheet(client, run_processing_json):
+    """One fastq row per readset, DNA and RNA together, grouped by specimen: DNA tumour, DNA normal, then RNA by lane."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(_oncoanalyser_json(run_processing_json)))
+
+    status, body = _samplesheet(client, project_name, {"specimen_name": [ONCOANALYSER_SPECIMEN], "location_endpoint": "abacus"})
+    assert status == 200
+    assert "DB_ACTION_WARNING" not in body
+    rows = body["DB_ACTION_OUTPUT"]
+    rna_dir = "/lb/robot/research/processing/novaseq/2022/220420_A01433_0157_BHM3NHDSX2_MoHRun08-novaseq"
+    assert [(row["sample_id"], row["sample_type"], row["sequence_type"], row["info"]) for row in rows] == [
+        ("MoHQ-CM-1-3-15000863775-19933DT", "tumor", "dna", "library_id:MoHQ-CM-1-3-15000863775-19933DT.A01433_0157_1;lane:001;flowcell:HM3NHDSX2"),
+        ("MoHQ-CM-1-3-15000936286-19866DN", "normal", "dna", "library_id:MoHQ-CM-1-3-15000936286-19866DN.A01433_0157_2;lane:002;flowcell:HM3NHDSX2"),
+        ("MoHQ-CM-1-3-6929-1RT", "tumor", "rna", "library_id:MoHQ-CM-1-3-6929-1RT.A01433_0157_1;lane:001;flowcell:HM3NHDSX2"),
+        ("MoHQ-CM-1-3-6929-1RT", "tumor", "rna", "library_id:MoHQ-CM-1-3-6929-1RT.A01433_0157_2;lane:002;flowcell:HM3NHDSX2"),
+        ("MoHQ-CM-1-3-6929-1RT", "tumor", "rna", "library_id:MoHQ-CM-1-3-6929-1RT.A01433_0157_3;lane:003;flowcell:HM3NHDSX2"),
+    ]
+    assert all(row["group_id"] == row["subject_id"] == ONCOANALYSER_SPECIMEN and row["filetype"] == "fastq" for row in rows)
+    assert rows[0]["filepath"] == (
+        f"{ONCOANALYSER_DIR}.1/MoHQ-CM-1-3-15000863775-19933DT.A01433_0157_1_L001_R1_001.fastq.gz;"
+        f"{ONCOANALYSER_DIR}.1/MoHQ-CM-1-3-15000863775-19933DT.A01433_0157_1_L001_R2_001.fastq.gz"
+    )
+    assert rows[4]["filepath"] == (
+        f"{rna_dir}/Unaligned.3/Project_MES1431/Sample_MoHQ-CM-1-3-6929-1RT_2-2053929/MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L003_R1_001.fastq.gz;"
+        f"{rna_dir}/Unaligned.3/Project_MES1431/Sample_MoHQ-CM-1-3-6929-1RT_2-2053929/MoHQ-CM-1-3-6929-1RT_2-2053929_S2_L003_R2_001.fastq.gz"
+    )
+
+    _, body = _samplesheet(client, project_name, {"specimen_name": [ONCOANALYSER_SPECIMEN], "location_endpoint": "abacus", "experiment_nucleic_acid_type": "RNA"})
+    assert {row["sequence_type"] for row in body["DB_ACTION_OUTPUT"]} == {"rna"}
+
+    _, body = _samplesheet(client, project_name, {"sample_name": ["MoHQ-CM-1-3-6929-1RT"], "location_endpoint": "abacus"})
+    assert "DB_ACTION_OUTPUT" not in body
+    assert "'specimen_name' or 'specimen_id' is required" in body["DB_ACTION_ERROR"]
+
+
+def test_digest_oncoanalyser_samplesheet_cancer_type(client, run_processing_json):
+    """The tumour samples' cancer type goes in info when oncoanalyser can take it, otherwise it's left out with a warning."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    data = _oncoanalyser_json(run_processing_json)
+    cancer_types = {"MoHQ-CM-1-3-15000863775-19933DT": "Lung", "MoHQ-CM-1-3-6929-1RT": "Lung;Adenocarcinoma",
+                    "MoHQ-CM-1-3-15000936286-19866DN": "Lung"}
+    for specimen in data[vb.SPECIMEN]:
+        for sample in specimen[vb.SAMPLE]:
+            if sample[vb.SAMPLE_NAME] in cancer_types:
+                sample[vb.SAMPLE_CANCER_TYPE] = cancer_types[sample[vb.SAMPLE_NAME]]
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(data))
+
+    _, body = _samplesheet(client, project_name, {"specimen_name": [ONCOANALYSER_SPECIMEN], "location_endpoint": "abacus"})
+    info = {row["sample_id"]: row["info"] for row in body["DB_ACTION_OUTPUT"]}
+    assert info["MoHQ-CM-1-3-15000863775-19933DT"].endswith(";cancer_type:Lung")
+    assert "cancer_type" not in info["MoHQ-CM-1-3-15000936286-19866DN"]
+    assert "cancer_type" not in info["MoHQ-CM-1-3-6929-1RT"]
+    assert len([w for w in body["DB_ACTION_WARNING"] if "'Lung;Adenocarcinoma' left out" in w]) == 3
+
+
+def test_digest_oncoanalyser_samplesheet_skips(client, run_processing_json):
+    """Readsets without fastq files at the endpoint, ON_HOLD and INVALID readsets are left out with a warning."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    data = _oncoanalyser_json(run_processing_json)
+    for specimen in data[vb.SPECIMEN]:
+        for sample in specimen[vb.SAMPLE]:
+            for readset in sample[vb.READSET]:
+                if readset[vb.READSET_NAME] == "MoHQ-CM-1-3-6929-1RT.A01433_0157_3":
+                    readset[vb.READSET_STATE] = "ON_HOLD"
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(data))
+
+    status, body = _samplesheet(client, project_name, {"specimen_name": ["MoHQ-JG-9-23", ONCOANALYSER_SPECIMEN], "location_endpoint": "abacus"})
+    assert status == 200
+    assert {row["group_id"] for row in body["DB_ACTION_OUTPUT"]} == {ONCOANALYSER_SPECIMEN}
+    assert len(body["DB_ACTION_OUTPUT"]) == 4
+    warnings = body["DB_ACTION_WARNING"]
+    assert any("'MoHQ-CM-1-3-6929-1RT.A01433_0157_3'" in w and "'ON_HOLD'" in w for w in warnings)
+    for readset_name in ("MoHQ-JG-9-23-15000863775-19933DT.A01433_0157_1", "MoHQ-JG-9-23-15000936286-19866DN.A01433_0157_2"):
+        assert any(f"'{readset_name}'" in w and "no R1 and R2 fastq 'File' in 'abacus'" in w for w in warnings)
+
+
+def test_digest_oncoanalyser_samplesheet_one_sample_per_type(client, run_processing_json):
+    """Two DNA tumours of one specimen can't go in one oncoanalyser group: rejected until one is put ON_HOLD."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    data = _oncoanalyser_json(run_processing_json)
+    for specimen in data[vb.SPECIMEN]:
+        if specimen[vb.SPECIMEN_NAME] == ONCOANALYSER_SPECIMEN:
+            tumour = next(s for s in specimen[vb.SAMPLE] if s[vb.SAMPLE_NAME] == "MoHQ-CM-1-3-15000863775-19933DT")
+            second = _clone_sample(tumour, "MoHQ-CM-1-3-15000863775-2DT")
+            for readset in second[vb.READSET]:
+                readset[vb.FILE] = _fastq_files(readset[vb.READSET_NAME], readset[vb.READSET_LANE])
+            specimen[vb.SAMPLE].append(second)
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(data))
+    query = {"specimen_name": [ONCOANALYSER_SPECIMEN], "location_endpoint": "abacus"}
+
+    _, body = _samplesheet(client, project_name, query)
+    assert "DB_ACTION_OUTPUT" not in body
+    assert any("'MoHQ-CM-1-3-15000863775-19933DT', 'MoHQ-CM-1-3-15000863775-2DT'" in e and "'ON_HOLD'" in e for e in body["DB_ACTION_ERROR"])
+
+    readsets = json.loads(client.get(f'project/{project_name}/readsets?json={json.dumps({"sample_name": "MoHQ-CM-1-3-15000863775-19933DT"})}').text)
+    on_hold = {"modification": [{"table": "readset", "column": "state", "new": "ON_HOLD", "id": [r["id"] for r in readsets["DB_ACTION_OUTPUT"]]}]}
+    assert "DB_ACTION_ERROR" not in json.loads(client.post('modification/edit', data=json.dumps(on_hold)).text)
+    _, body = _samplesheet(client, project_name, query)
+    assert "MoHQ-CM-1-3-15000863775-2DT" in {row["sample_id"] for row in body["DB_ACTION_OUTPUT"]}
+    assert "MoHQ-CM-1-3-15000863775-19933DT" not in {row["sample_id"] for row in body["DB_ACTION_OUTPUT"]}
+
+
+def test_digest_oncoanalyser_samplesheet_same_lane_twice(client, run_processing_json):
+    """A lane sequenced on two runs: each readset is its own library_id, with its run's flowcell."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    data = _oncoanalyser_json(run_processing_json)
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(data))
+    second_run = json.loads(json.dumps(data).replace("A01433_0157_BHM3NHDSX2", "A01433_0999_BHM9ZZDSX2").replace("A01433_0157", "A01433_0999"))
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(second_run))
+
+    _, body = _samplesheet(client, project_name, {"specimen_name": [ONCOANALYSER_SPECIMEN], "location_endpoint": "abacus", "experiment_nucleic_acid_type": "DNA"})
+    assert "DB_ACTION_ERROR" not in body
+    assert [row["info"] for row in body["DB_ACTION_OUTPUT"] if row["sample_id"] == "MoHQ-CM-1-3-15000863775-19933DT"] == [
+        "library_id:MoHQ-CM-1-3-15000863775-19933DT.A01433_0157_1;lane:001;flowcell:HM3NHDSX2",
+        "library_id:MoHQ-CM-1-3-15000863775-19933DT.A01433_0999_1;lane:001;flowcell:HM9ZZDSX2",
+    ]

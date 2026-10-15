@@ -1160,6 +1160,23 @@ def digest_pair_file(project_id: str, digest_data):
     return jsonify(result)
 
 
+@bp.route('/<string:project>/digest_oncoanalyser_samplesheet', methods=['GET'])
+@convcheck_project
+@parse_json_get()
+def digest_oncoanalyser_samplesheet(project_id: str, digest_data):
+    """
+    GET: json holding the list of Specimen/Sample/Readset Name or id AND location endpoint, optionally
+    experiment nucleic_acid_type (DNA and RNA when missing)
+    return: all information to create an nf-core/oncoanalyser samplesheet, one row per readset
+    """
+    with session_scope() as session:
+        result = db_actions.digest_oncoanalyser_samplesheet(
+            project_id=project_id,
+            digest_data=digest_data,
+            session=session
+        )
+    return jsonify(result)
+
 @bp.route('/<string:project>/digest_unanalyzed', methods=['GET'])
 @convcheck_project
 @parse_json_get()

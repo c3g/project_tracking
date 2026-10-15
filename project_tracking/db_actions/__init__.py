@@ -18,6 +18,7 @@ from .route import (
 from .digest import (
     digest_readset_file,
     digest_pair_file,
+    digest_oncoanalyser_samplesheet,
     digest_unanalyzed,
     digest_delivery
 )
@@ -53,7 +54,7 @@ __all__ = [
     "jobs", "readsets", "specimens", "samples", "samples_pair",
 
     # Digest functions
-    "digest_readset_file", "digest_pair_file", "digest_unanalyzed",
+    "digest_readset_file", "digest_pair_file", "digest_oncoanalyser_samplesheet", "digest_unanalyzed",
     "digest_delivery",
 
     # Ingest functions

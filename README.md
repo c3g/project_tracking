@@ -699,7 +699,8 @@ Enum fields only accept their exact values: no trimming, no case change, and a l
 
 ### Readset state
 
-`digest_readset_file` leaves out `ON_HOLD` and `INVALID` readsets, with a warning for each one. To
+`digest_readset_file` and `digest_oncoanalyser_samplesheet` leave out `ON_HOLD` and `INVALID` readsets,
+with a warning for each one. To
 include a readset again, change its state with `pt-cli edit` on the `readset.state` column.
 
 ## Analysis ingestion
@@ -759,6 +760,45 @@ default, so later changes to the default don't reach a deployment that overrides
   at startup with the list of problems.
 
 ---
+
+## oncoanalyser samplesheet
+
+`GET /project/<project>/digest_oncoanalyser_samplesheet` (`pt-cli digest oncoanalyser_samplesheet`) gives
+the [nf-core/oncoanalyser samplesheet](https://nf-co.re/oncoanalyser/latest/docs/usage/#samplesheet) of
+every readset of the given specimens (`specimen_name` or `specimen_id`) at `location_endpoint`.
+`experiment_nucleic_acid_type` is optional: DNA and RNA readsets go in one samplesheet when it's missing.
+
+```bash
+pt-cli --project MOH-Q digest oncoanalyser_samplesheet --specimen_name MoHQ-CM-5-208 --endpoint abacus -o samplesheet.csv
+```
+
+```csv
+group_id,subject_id,sample_id,sample_type,sequence_type,filetype,info,filepath
+MoHQ-CM-5-208,MoHQ-CM-5-208,MoHQ-CM-5-208-596350-1DT,tumor,dna,fastq,library_id:MoHQ-CM-5-208-596350-1DT.A01433_0157_1;lane:001;flowcell:HM3NHDSX2;cancer_type:Lung,/path/R1.fastq.gz;/path/R2.fastq.gz
+```
+
+| Column | Value |
+|---|---|
+| `group_id`, `subject_id` | Specimen name |
+| `sample_id` | Sample name |
+| `sample_type` | `tumor` or `normal`, from `sample.tumour` |
+| `sequence_type` | `dna` or `rna`, from the experiment |
+| `filetype` | `fastq` |
+| `info` | `library_id:<readset name>;lane:<lane on 3 digits>;flowcell:<flowcell>`, plus `;cancer_type:<sample.cancer_type>` on tumour rows |
+| `filepath` | `<R1>;<R2>`: the readset's `run_processing` fastq files at `location_endpoint` |
+
+- One row per readset, sorted by specimen, then DNA before RNA, tumour before normal, sample and lane.
+- The readset name is the library id, so every readset is its own read group. Lanes of one library are
+  therefore deduplicated separately.
+- The flowcell comes from the run name, an Illumina run folder: `220420_A01433_0157_BHM3NHDSX2_…` gives
+  `HM3NHDSX2`, MiSeq `…_000000000-ABCDE` gives `000000000-ABCDE`. Another run name is used as is.
+- oncoanalyser passes `cancer_type` unquoted on command lines and splits `info` on `;` and `:`. Ingestion
+  already turns spaces into underscores; a cancer type with `;`, `:` or `,` is left out with a warning.
+- Readsets without both fastq files at the endpoint (e.g. BAM-only readsets), `ON_HOLD` and `INVALID`
+  readsets are left out with a warning.
+- oncoanalyser takes one sample per `sample_type` and `sequence_type` in a group. A specimen with, e.g., two
+  DNA tumours is rejected with the sample names: set the readsets of the samples not to analyse now to
+  `ON_HOLD` (`pt-cli edit` on `readset.state`).
 
 ## Query filtering syntax
 
