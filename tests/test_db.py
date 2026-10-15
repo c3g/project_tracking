@@ -349,16 +349,16 @@ def test_init_db_stamps_only_databases_it_creates():
         assert result.exit_code == 0, result.output
         assert _alembic_revision(db_uri) == _alembic_head()
 
-        # Simulate a database created before the sample_group migration
+        # Simulate a database created at release 3.1.6, before the 3c7f1a2d9e64 migration
         engine = create_engine(db_uri)
         with engine.begin() as connection:
             connection.execute(text("DROP TABLE sample_group_member"))
             connection.execute(text("DROP TABLE sample_group"))
-            connection.execute(text("UPDATE alembic_version SET version_num = 'f2b6c8d41e17'"))
+            connection.execute(text("UPDATE alembic_version SET version_num = '64a560017524'"))
         result = runner.invoke(args=['init-db', '--db-uri', db_uri])
         assert result.exit_code == 0, result.output
         assert 'already has tables: left unchanged' in result.output
-        assert _alembic_revision(db_uri) == 'f2b6c8d41e17'
+        assert _alembic_revision(db_uri) == '64a560017524'
         # The pending migration must still be able to create it
         with engine.connect() as connection:
             assert 'sample_group' not in sqlalchemy.inspect(connection).get_table_names()

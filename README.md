@@ -608,9 +608,10 @@ podman run --rm "${PT_SECRETS[@]}" --entrypoint sh ghcr.io/c3g/project_tracking:
   'alembic -x db_url="$(cat /run/secrets/C3G_SQLALCHEMY_DATABASE_URI)" stamp <revision>'
 ```
 
-For a database created from the models at revision `64a560017524` (before the `sample_match` and
-`oncotree_code` migrations), stamp `64a560017524`; the next restart then applies the pending
-migrations. Run `db-revisions` again to confirm.
+For a database created from the models at revision `64a560017524` (release 3.1.6, before the
+`3c7f1a2d9e64` migration adding sample metadata, analysis operations and sample groups), stamp
+`64a560017524`; the next restart then applies the pending migration. Run `db-revisions` again to
+confirm.
 
 ---
 
