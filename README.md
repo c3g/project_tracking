@@ -647,7 +647,20 @@ The [OncoTree](https://oncotree.mskcc.org/) code of the tumour, e.g. `LUAD`, lef
 - Re-ingesting a sample that already has a **different** code keeps the stored code and returns a
   warning. Use `force` to replace it, or `pt-cli edit` on the `sample.oncotree_code` column.
 
-## Enum values
+## Controlled vocabularies
+
+There are two kinds of controlled vocabularies. Pick the kind by what the code does with the values:
+
+| Kind | Use it when | Defined in | Changing it |
+|---|---|---|---|
+| Enum | The code acts on specific values, e.g. skips `ON_HOLD` readsets or filters on `VALID` | `*Enum` classes in `project_tracking/model.py`, PostgreSQL enum types | Code change, Alembic migration and release |
+| Analysis vocabulary | The code only checks that an external name is known, e.g. GenPipes pipelines and protocols | `project_tracking/analysis_operations.json`, overridable in the config | Edit the JSON file, or the config override without a release |
+
+Both kinds are checked before anything is written, accept exact values only, and list the allowed values
+in their errors. `GET /vocabulary` (`pt-cli vocabulary`) returns the values in use: every enum, the
+active analysis vocabulary (the config override when set) and the reserved operation names.
+
+### Enum values
 
 Enum fields only accept their exact values: no trimming, no case change, and a lane is the string
 `"1"`, not the number `1`.
@@ -711,7 +724,8 @@ The default vocabulary is `project_tracking/analysis_operations.json`. It lists:
 
 To change it without a release, copy the file, edit it and set it as `ANALYSIS_OPERATIONS` in the
 config, or as `C3G_ANALYSIS_OPERATIONS` / `C3G_ANALYSIS_OPERATIONS_FILE`. It replaces the whole
-default, so later changes to the default don't reach a deployment that overrides it. For example:
+default, so later changes to the default don't reach a deployment that overrides it: compare with
+`GET /vocabulary`. For example:
 
 ```json
 {

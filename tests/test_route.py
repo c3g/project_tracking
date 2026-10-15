@@ -323,3 +323,16 @@ def test_routes_return_rows_ordered_by_id(client, app, run_processing_json):
             ids = [row["id"] for row in client.get(f"/project/TestProject/{route}").json["DB_ACTION_OUTPUT"]]
             assert ids, route
             assert ids == sorted(ids), route
+
+
+def test_vocabulary_route(app, client):
+    """The vocabulary route lists the model enums and the analysis vocabulary in use."""
+    data = client.get("/vocabulary").json["DB_ACTION_OUTPUT"][0]
+    assert data["enums"]["LaneEnum"] == ["1", "2", "3", "4", "5", "6", "7", "8"]
+    assert data["enums"]["StateEnum"] == ["VALID", "ON_HOLD", "INVALID", "DELIVERED"]
+    assert "FlagEnum" in data["enums"] and "StatusEnum" in data["enums"]
+    assert data["analysis_operations"]["genpipes"]["RnaSeq"] == ["stringtie", "variants", "cancer"]
+    assert data["reserved_operation_names"] == ["run_processing", "transfer", "delivery"]
+
+    app.config["ANALYSIS_OPERATIONS"] = {"custom_tool": {}}
+    assert client.get("/vocabulary").json["DB_ACTION_OUTPUT"][0]["analysis_operations"] == {"custom_tool": {}}
