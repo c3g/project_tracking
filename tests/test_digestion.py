@@ -310,3 +310,25 @@ def test_digest_readset_file_skips_on_hold_and_invalid(client, run_processing_js
     assert sorted(body["DB_ACTION_OUTPUT"], key=lambda x: x["Readset"]) == sorted(expected, key=lambda x: x["Readset"])
     for readset_name, state in states.items():
         assert any(f"'{readset_name}'" in warning and f"'{state}'" in warning for warning in body["DB_ACTION_WARNING"])
+
+
+def test_digest_unanalyzed_leaves_out_analysed_readsets(client, run_processing_json, genpipes_json):
+    """Readsets linked to a live analysis operation are not unanalyzed; deleting the analysis brings them back."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
+    query = {"readset_name": True, "experiment_nucleic_acid_type": "RNA", "location_endpoint": "abacus"}
+
+    def unanalyzed():
+        response = client.get(f'project/{project_name}/digest_unanalyzed?json={json.dumps(query)}')
+        return sorted(json.loads(response.text)["DB_ACTION_OUTPUT"][0]["readset_name"])
+
+    analysed = sorted({readset[vb.READSET_NAME] for sample in genpipes_json[vb.SAMPLE] for readset in sample[vb.READSET]})
+    before = unanalyzed()
+    assert set(analysed) <= set(before)
+
+    operation = json.loads(client.post(f'project/{project_name}/ingest_analysis', data=json.dumps(genpipes_json)).text)["DB_ACTION_OUTPUT"][0]
+    assert unanalyzed() == sorted(set(before) - set(analysed))
+
+    client.post('modification/delete', data=json.dumps({"modification": [{"table": "operation", "id": [operation["id"]]}]}))
+    assert unanalyzed() == before

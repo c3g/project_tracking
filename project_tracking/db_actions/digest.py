@@ -5,7 +5,7 @@ Digesting data from the database
 import logging
 
 # Third-party modules
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, and_
 from sqlalchemy.orm import selectinload
 
 # Local modules
@@ -672,8 +672,12 @@ def digest_unanalyzed(project_id: str, digest_data, session):
         Readset.deleted.is_(False),
     )
 
-    # Join and filter for unanalyzed (no genpipes operation)
-    stmt = stmt.join(Readset.operations).where(Operation.name.notilike("%genpipes%"))
+    # Unanalyzed: no live analysis operation (see ingest_analysis) linked to the readset
+    stmt = stmt.where(~Readset.operations.any(and_(
+        Operation.analysis.is_(True),
+        Operation.deprecated.is_(False),
+        Operation.deleted.is_(False),
+    )))
 
     # Optional filters
     if run_id:
