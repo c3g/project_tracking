@@ -21,3 +21,6 @@ pdm*
 .DS_Store
 
 tests/data/real_data
+
+# Claude Code local settings and worktrees
+.claude/
