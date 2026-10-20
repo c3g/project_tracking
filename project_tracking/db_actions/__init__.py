@@ -46,6 +46,8 @@ from .sample_group import (
 
 from .utils import (
     name_to_id,
+    project_name_to_id,
+    find_project_by_name,
     uri_to_id,
     select_all_projects,
     project_exists
@@ -72,7 +74,7 @@ __all__ = [
     "sample_groups", "edit_sample_group",
 
     # Utilities
-    "name_to_id", "uri_to_id", "select_all_projects", "project_exists",
+    "name_to_id", "project_name_to_id", "find_project_by_name", "uri_to_id", "select_all_projects", "project_exists",
 
     # Error handling
     "Error"

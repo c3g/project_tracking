@@ -84,7 +84,7 @@ def convcheck_project(func):
                 ]
             }), 400
         else:
-            project_id = db_actions.name_to_id("Project", project)
+            project_id = db_actions.project_name_to_id(project)
             # Handle empty list case as non-existent project
             if isinstance(project_id, list) and not project_id:
                 with session_scope() as session:

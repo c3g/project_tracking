@@ -10,7 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
 # Local modules
-from .utils import to_enum
+from .utils import find_project_by_name, to_enum
 from ..model import (
     Project,
     Specimen,
@@ -628,7 +628,8 @@ def samples_pair(project_id, session, pair: bool, specimen_id=None, deprecated=F
 def create_project(project_name, session, ext_id=None, ext_src=None):
     """
     Creating new project
-    Returns project even if it already exist
+    Returns project even if it already exist, also when the name only differs by case (project names are
+    matched ignoring case, like the database routing)
     """
 
     ret = {
@@ -638,7 +639,9 @@ def create_project(project_name, session, ext_id=None, ext_src=None):
 
     # Check if the project already exists
     stmt = select(Project).filter_by(name=project_name)
-    result = session.scalars(stmt).first()
+    result = find_project_by_name(session, project_name)
+    if result is not None and result.name != project_name:
+        ret["DB_ACTION_WARNING"].append(f"'Project' '{result.name}' already exists: '{project_name}' not created.")
 
     if not result:
         # Create a new project if it doesn't exist

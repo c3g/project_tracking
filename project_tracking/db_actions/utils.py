@@ -3,10 +3,10 @@ Utility functions for db_actions package.
 """
 
 # Third-party
-from sqlalchemy import select, or_
+from sqlalchemy import func, select, or_
 
 # Local modules
-from .errors import DidNotFindError, EnumValueError, enum_values
+from .errors import DidNotFindError, EnumValueError, RequestError, enum_values
 from .. import database
 from .. import model
 from ..model import Project
@@ -162,6 +162,32 @@ def name_to_id(model_class, name, session=None):
 
     the_class = getattr(model, model_class)
     return _resolve_ids(the_class, the_class.name, name, session, model_class, "name")
+
+def project_name_to_id(name, session=None):
+    """
+    Id of the project named name, ignoring case like the database routing (PROJECT_DATABASES): 'moh-q' finds 'MOH-Q'.
+    An exact match wins over projects whose names only differ by case; several of those are ambiguous.
+    """
+    if session is None:
+        session = database.get_session()
+
+    projects = session.execute(select(Project.id, Project.name).where(func.lower(Project.name) == name.lower())).all()
+    exact = [project.id for project in projects if project.name == name]
+    if exact:
+        return exact
+    if not projects:
+        raise DidNotFindError(table="Project", attribute="name", query=name)
+    if len(projects) > 1:
+        names = ", ".join(repr(project.name) for project in projects)
+        raise RequestError(message=f"'Project' '{name}' is ambiguous: it matches {names}. Use the exact name.")
+    return [projects[0].id]
+
+def find_project_by_name(session, name):
+    """
+    The project named name ignoring case, the exact match first, or None.
+    """
+    projects = session.scalars(select(Project).where(func.lower(Project.name) == name.lower())).all()
+    return next((p for p in projects if p.name == name), projects[0] if projects else None)
 
 def uri_to_id(model_class, uri, session=None):
     """

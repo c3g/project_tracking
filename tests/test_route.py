@@ -1,5 +1,10 @@
 """Test cases for the project tracking routes."""
-from project_tracking import database, db_actions
+import json
+
+import pytest
+
+from project_tracking import database, db_actions, model
+from project_tracking.db_actions.errors import RequestError
 
 def reset_database(session, run_processing_json):
     """
@@ -336,3 +341,38 @@ def test_vocabulary_route(app, client):
 
     app.config["ANALYSIS_OPERATIONS"] = {"custom_tool": {}}
     assert client.get("/vocabulary").json["DB_ACTION_OUTPUT"][0]["analysis_operations"] == {"custom_tool": {}}
+
+
+def test_project_name_ignores_case(client, run_processing_json):
+    """Project routes find the project whatever the case of its name, like the database routing does."""
+    project_name = run_processing_json["project_name"]
+    client.post(f'admin/create_project/{project_name}')
+    response = client.post(f'project/{project_name.lower()}/ingest_run_processing', data=json.dumps(run_processing_json))
+    assert response.status_code == 200, response.text
+    specimens = json.loads(client.get(f'project/{project_name.upper()}/specimens').text)["DB_ACTION_OUTPUT"]
+    assert specimens
+
+    missing = json.loads(client.get('project/NOT-A-PROJECT/specimens').text)
+    assert missing["DB_ACTION_ERROR"] == "'Project' with 'name' 'NOT-A-PROJECT' doesn't exist in the database"
+
+
+def test_create_project_reuses_name_differing_by_case(client):
+    """Creating 'moh-q' when 'MOH-Q' exists returns 'MOH-Q' with a warning instead of a second project."""
+    created = json.loads(client.post('admin/create_project/MOH-Q').text)["DB_ACTION_OUTPUT"][0]
+    body = json.loads(client.post('admin/create_project/moh-q').text)
+    assert body["DB_ACTION_OUTPUT"][0]["id"] == created["id"]
+    assert body["DB_ACTION_WARNING"] == ["'Project' 'MOH-Q' already exists: 'moh-q' not created."]
+    assert [p["name"] for p in json.loads(client.get('project').text)["DB_ACTION_OUTPUT"]] == ["MOH-Q"]
+
+
+def test_project_name_case_ambiguity(app):
+    """Projects created before names were matched ignoring case: the exact name wins, another case is ambiguous."""
+    with app.app_context():
+        session = database.get_session()
+        session.add_all([model.Project(name="MOH-Q"), model.Project(name="moh-q")])
+        session.commit()
+        exact = db_actions.project_name_to_id("moh-q", session=session)
+        assert [session.get(model.Project, i).name for i in exact] == ["moh-q"]
+        with pytest.raises(RequestError) as error:
+            db_actions.project_name_to_id("Moh-Q", session=session)
+        assert error.value.message == "'Project' 'Moh-Q' is ambiguous: it matches 'MOH-Q', 'moh-q'. Use the exact name."
