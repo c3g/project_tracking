@@ -131,7 +131,8 @@ def group_to_json(group):
 
 def sample_groups(project_id, digest_data, session):
     """
-    Groups of the project, optionally only those of the specimens in specimen_name or named in sample_group_name.
+    Groups of the project, optionally only those of the specimens in specimen_name, named in sample_group_name or
+    holding a sample named in sample_name.
     """
     stmt = select(SampleGroup).join(SampleGroup.specimen).where(Specimen.project_id == project_id).order_by(SampleGroup.id)
     digest_data = digest_data or {}
@@ -139,6 +140,8 @@ def sample_groups(project_id, digest_data, session):
         stmt = stmt.where(Specimen.name.in_(digest_data[vb.SPECIMEN_NAME]))
     if digest_data.get(vb.SAMPLE_GROUP_NAME):
         stmt = stmt.where(SampleGroup.name.in_(digest_data[vb.SAMPLE_GROUP_NAME]))
+    if digest_data.get(vb.SAMPLE_NAME):
+        stmt = stmt.where(SampleGroup.samples.any(Sample.name.in_(digest_data[vb.SAMPLE_NAME])))
     groups = session.execute(stmt).scalars().all()
     return {"DB_ACTION_OUTPUT": [group_to_json(group) for group in groups]}
 

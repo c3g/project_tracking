@@ -649,7 +649,8 @@ group either. `digest_readset_file` is unchanged.
 ### Editing sample groups
 
 - `GET /project/<project>/sample_groups` (`pt-cli sample_group list`) lists the groups with their id,
-  specimen and sample names. Filter with `specimen_name` and `sample_group_name` lists.
+  specimen and sample names. Filter with `specimen_name`, `sample_group_name` and `sample_name` lists:
+  `sample_name` gives the groups holding any of these samples.
 - `POST /project/<project>/sample_group` (`pt-cli sample_group edit`) changes the samples of one group:
 
 ```json

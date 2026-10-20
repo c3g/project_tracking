@@ -62,6 +62,18 @@ def test_reingest_only_adds(client, run_processing_json):
     assert groups == {CM_GROUP: sorted([CM_TUMOUR, CM_NORMAL, CM_RNA]), "MoHQ-CM-1-3_G2": [CM_TUMOUR]}
 
 
+def test_sample_groups_of_a_sample(client, run_processing_json):
+    """sample_name gives every group holding the sample, each with all its samples."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    _ingest(client, run_processing_json)
+    _edit(client, project_name, sample_group_name="MoHQ-CM-1-3_G2", add=[CM_TUMOUR, CM_NORMAL])
+
+    groups = {g["name"]: g["sample_name"] for g in _groups(client, project_name, {"sample_name": [CM_TUMOUR]})}
+    assert groups == {CM_GROUP: sorted([CM_TUMOUR, CM_NORMAL, CM_RNA]), "MoHQ-CM-1-3_G2": sorted([CM_TUMOUR, CM_NORMAL])}
+    assert {g["name"] for g in _groups(client, project_name, {"sample_name": [CM_RNA, JG_TUMOUR]})} == {"MoHQ-JG-9-23_G1", CM_GROUP}
+    assert _groups(client, project_name, {"sample_name": ["NOT-A-SAMPLE"]}) == []
+
+
 def test_ingest_rejects_invalid_groups(client, run_processing_json):
     """Invalid names, non list values and groups across specimens reject the payload before anything is written."""
     project_name = run_processing_json[vb.PROJECT_NAME]

@@ -1180,10 +1180,10 @@ def digest_oncoanalyser_samplesheet(project_id: str, digest_data):
 
 @bp.route('/<string:project>/sample_groups', methods=['GET'])
 @convcheck_project
-@parse_json_get(expected_keys={"specimen_name", "sample_group_name"})
+@parse_json_get(expected_keys={"specimen_name", "sample_group_name", "sample_name"})
 def sample_groups(project_id: str, digest_data):
     """
-    GET: optional json holding specimen_name and/or sample_group_name lists to filter on
+    GET: optional json holding specimen_name, sample_group_name and/or sample_name lists to filter on
     return: the sample groups with their specimen and sample names
     """
     with session_scope() as session:
