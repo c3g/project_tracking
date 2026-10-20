@@ -855,7 +855,8 @@ class Operation(BaseTable):
         deleted=False
         ):
         """
-        get operation if it exist, set it if it does not exist
+        get operation if it exist, set it if it does not exist. The status isn't part of the lookup: an existing
+        operation takes the new status, e.g. a run ingested while RUNNING then once COMPLETED stays one operation
         """
         warning = None
         if not session:
@@ -867,13 +868,15 @@ class Operation(BaseTable):
             cls.platform == platform,
             cls.cmd_line == cmd_line,
             cls.name == name,
-            cls.status == status,
             cls.deprecated.is_(deprecated),
             cls.deleted.is_(deleted)
         ).first()
 
         if operation:
             warning = f"Operation with id {operation.id} and name {operation.name} already exists, informations will be attached to this one."
+            if status is not None and operation.status != status:
+                warning += f" Its status changes from {operation.status.value} to {status.value}."
+                operation.status = status
         else:
             # Create new operation
             operation = cls(

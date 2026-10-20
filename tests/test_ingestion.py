@@ -356,6 +356,52 @@ def test_genpipes_rejects_invalid_enum_values(not_app_db, run_processing_json, g
     assert not_app_db.execute(select(model.Job).where(model.Job.name == job[vb.JOB_NAME])).first() is None
 
 
+def test_analysis_operation_status(not_app_db, run_processing_json, genpipes_json):
+    """operation_status when given, otherwise COMPLETED only when every job is; re-ingesting updates the same operation."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+
+    def operation():
+        operations = not_app_db.execute(
+            select(model.Operation).where(model.Operation.name == genpipes_json[vb.OPERATION_NAME])
+        ).scalars().all()
+        assert len(operations) == 1
+        return operations[0]
+
+    data = copy.deepcopy(genpipes_json)
+    job = data[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0]
+    job[vb.JOB_STATUS] = "FAILED"
+    db_actions.ingest_analysis(project_id, data, not_app_db)
+    assert operation().status == model.StatusEnum.RUNNING
+
+    job[vb.JOB_STATUS] = None
+    db_actions.ingest_analysis(project_id, data, not_app_db)
+    assert operation().status == model.StatusEnum.RUNNING
+
+    out = db_actions.ingest_analysis(project_id, genpipes_json, not_app_db)
+    assert operation().status == model.StatusEnum.COMPLETED
+    assert any("Its status changes from RUNNING to COMPLETED." in w for w in out["DB_ACTION_WARNING"])
+
+    data[vb.OPERATION_STATUS] = "FAILED"
+    db_actions.ingest_analysis(project_id, data, not_app_db)
+    assert operation().status == model.StatusEnum.FAILED
+
+
+def test_analysis_rejects_invalid_operation_status(not_app_db, run_processing_json, genpipes_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+
+    data = copy.deepcopy(genpipes_json)
+    data[vb.OPERATION_STATUS] = "DONE"
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_analysis(project_id, data, not_app_db)
+    assert any("invalid 'operation_status' 'DONE'" in message for message in error.value.message)
+
+
 def test_edit_enum_column(client, run_processing_json):
     """edit takes an exact enum value or member name; anything else is a clear error and nothing changes."""
     project_name = run_processing_json[vb.PROJECT_NAME]

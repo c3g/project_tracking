@@ -145,11 +145,13 @@ def check_analysis_operation(invalid, ingest_data):
 def check_analysis_payload(ingest_data):
     """
     Check an analysis payload before anything is written: the operation name, pipeline and protocol against the
-    analysis operations vocabulary, and every enum field (job_status and metric_flag may be null or missing).
-    Raises RequestError listing all problems.
+    analysis operations vocabulary, and every enum field (operation_status, job_status and metric_flag may be null
+    or missing). Raises RequestError listing all problems.
     """
     invalid = []
     check_analysis_operation(invalid, ingest_data)
+    check_enum(invalid, StatusEnum, ingest_data.get(vb.OPERATION_STATUS), vb.OPERATION_STATUS, "Operation",
+               ingest_data.get(vb.OPERATION_NAME), optional=True)
     for sample_json in ingest_data[vb.SAMPLE]:
         for readset_json in sample_json[vb.READSET]:
             for job_json in readset_json[vb.JOB]:
@@ -159,6 +161,24 @@ def check_analysis_payload(ingest_data):
                     check_enum(invalid, FlagEnum, metric_json.get(vb.METRIC_FLAG), vb.METRIC_FLAG, "Metric", f"{metric_json[vb.METRIC_NAME]}' of 'Job' '{name}", optional=True)
     if invalid:
         raise RequestError(message=invalid)
+
+
+def analysis_operation_status(ingest_data):
+    """
+    Status of an analysis operation: operation_status when given, otherwise COMPLETED when every job of the payload
+    is COMPLETED and RUNNING when any job isn't (failed, pending or without status: the run isn't finished).
+    """
+    if ingest_data.get(vb.OPERATION_STATUS):
+        return StatusEnum(ingest_data[vb.OPERATION_STATUS])
+    statuses = [
+        job_json.get(vb.JOB_STATUS)
+        for sample_json in ingest_data[vb.SAMPLE]
+        for readset_json in sample_json[vb.READSET]
+        for job_json in readset_json[vb.JOB]
+    ]
+    if statuses and all(status == StatusEnum.COMPLETED.value for status in statuses):
+        return StatusEnum.COMPLETED
+    return StatusEnum.RUNNING
 
 
 def ingest_run_processing(project_id: str, ingest_data: dict, session):
@@ -576,7 +596,7 @@ def ingest_analysis(project_id: str, ingest_data, session):
         platform=ingest_data[vb.OPERATION_PLATFORM],
         name=ingest_data[vb.OPERATION_NAME],
         cmd_line=ingest_data[vb.OPERATION_CMD_LINE],
-        status=StatusEnum("COMPLETED"),
+        status=analysis_operation_status(ingest_data),
         project=project,
         operation_config=operation_config,
         session=session
@@ -710,11 +730,10 @@ def ingest_analysis(project_id: str, ingest_data, session):
                 # If job status is null then skip it as we don't want to ingest data not generated
                 else:
                     ret["DB_ACTION_WARNING"].append(f"'Readset' with 'name' '{readset.name}' has 'Job' with 'name' '{job_json[vb.JOB_NAME]}' with no status, skipping.")
-                try:
+                # job is None until a job with a status is met
+                if job is not None:
                     session.add(job)
                     session.flush()
-                except UnboundLocalError:
-                    pass
 
     # Get existing readset IDs from the relationship
     existing_readset_ids = {r.id for r in operation.readsets}

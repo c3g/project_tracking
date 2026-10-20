@@ -78,8 +78,8 @@ OPERATION_CMD_LINE = "operation_cmd_line"
 OPERATION_NAME = "operation_name"
 OPERATION_PIPELINE = "operation_pipeline"
 OPERATION_PROTOCOL = "operation_protocol"
-# Following is not coming from JSON
-# OPERATION_STATUS = "operation_status"
+# Optional for ingest_analysis, deduced from the job statuses otherwise
+OPERATION_STATUS = "operation_status"
 
 # operation_config table
 # Not sure if coming from JSON?

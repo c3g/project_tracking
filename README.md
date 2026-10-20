@@ -723,6 +723,7 @@ Enum fields only accept their exact values: no trimming, no case change, and a l
 | `run_processing` | `readset_state` | `VALID`, `ON_HOLD`, `INVALID`, `DELIVERED` | `VALID` |
 | `run_processing`, `analysis` | `metric_flag` | `PASS`, `WARNING`, `FAILED`, `MISSING`, `NOT_APPLICABLE` | no flag |
 | `analysis` | `job_status` | `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, `OUT_OF_MEMORY`, `CANCELLED` | job skipped |
+| `analysis` | `operation_status` | same as `job_status` | deduced from the jobs |
 
 - An ingest payload with invalid values is rejected before anything is written. The error lists every
   invalid value with its readset, job or metric and the valid values.
@@ -751,8 +752,12 @@ protocol:
   whole payload is rejected before anything is written, with the allowed values in the error.
   `run_processing`, `transfer` and `delivery` are reserved for the other ingest routes.
 - The stored operation has `analysis = true`. `digest_unanalyzed` uses this flag, not operation names.
-- Re-ingesting reuses the existing operation, matched as before on its name, command line, platform,
-  config, status and project. An empty pipeline or protocol is filled in. A **different** stored value
+- The operation status is `operation_status` when given. Otherwise it's `COMPLETED` when every job of
+  the payload is `COMPLETED`, and `RUNNING` when any job isn't (failed, pending or without status): the
+  run isn't finished.
+- Re-ingesting reuses the existing operation, matched on its name, command line, platform, config and
+  project, and updates its status with a warning. A run ingested while `RUNNING`, then once
+  `COMPLETED`, stays one operation. An empty pipeline or protocol is filled in. A **different** stored value
   is kept, with a warning: use `force` to replace it, or `pt-cli edit` on the `operation` columns.
 - Analyses ingested before this change are named `genpipes` with an empty pipeline and protocol: the
   migration sets their `analysis` flag. Re-ingesting one with a payload in the new format fills its
