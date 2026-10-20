@@ -625,12 +625,12 @@ The groups this sample belongs to, e.g. a tumour/normal duo, or a trio with the 
 runs per group. Give a name or a list of names:
 
 ```json
-{"sample_name": "MoHQ-CM-5-208-596350-1DT", "sample_tumour": true, "sample_group_name": "MoHQ-CM-5-208_G1", "readset": [...]}
-{"sample_name": "MoHQ-CM-5-208-596355-1DN", "sample_tumour": false, "sample_group_name": ["MoHQ-CM-5-208_G1", "MoHQ-CM-5-208_G2"], "readset": [...]}
+{"sample_name": "SAMPLE-1-1DT", "sample_tumour": true, "sample_group_name": "SPECIMEN-1_G1", "readset": [...]}
+{"sample_name": "SAMPLE-1-1DN", "sample_tumour": false, "sample_group_name": ["SPECIMEN-1_G1", "SPECIMEN-1_G2"], "readset": [...]}
 ```
 
 - The first sample naming a group creates it, for the sample's specimen. Later samples, in the same
-  payload or in a later run, join it: when the RNA arrives with `"sample_group_name": "MoHQ-CM-5-208_G1"`,
+  payload or in a later run, join it: when the RNA arrives with `"sample_group_name": "SPECIMEN-1_G1"`,
   the duo becomes a trio under the same name. Each group created is reported in `DB_ACTION_WARNING`, so a
   misspelled name doesn't go unnoticed.
 - A sample can be in several groups, e.g. a normal shared by two tumours.
@@ -653,7 +653,7 @@ group either. `digest_readset_file` is unchanged.
 - `POST /project/<project>/sample_group` (`pt-cli sample_group edit`) changes the samples of one group:
 
 ```json
-{"sample_group_name": "MoHQ-CM-5-208_G1", "add": ["MoHQ-CM-5-208-596349-1RT"], "remove": ["MoHQ-CM-5-208-596355-1DN"]}
+{"sample_group_name": "SPECIMEN-1_G1", "add": ["SAMPLE-1-1RT"], "remove": ["SAMPLE-1-1DN"]}
 ```
 
 - `add` on a group that doesn't exist creates it. The samples must exist in the project and belong to the
@@ -664,7 +664,7 @@ group either. `digest_readset_file` is unchanged.
   group's `specimen_id`:
 
 ```json
-{"modification": [{"table": "sample_group", "id": [1], "column": "name", "new": "MoHQ-CM-5-208_G3"}]}
+{"modification": [{"table": "sample_group", "id": [1], "column": "name", "new": "SPECIMEN-1_G3"}]}
 ```
 
 - A deprecated or deleted group can't be joined at ingestion, and is left out of the samplesheets.
@@ -684,7 +684,7 @@ The cancer type in words, e.g. `Lung_Adenocarcinoma`, alongside the OncoTree cod
 same pair in its cancer ini files (`oncotree_code`, `cancer_type`).
 
 ```json
-{"sample_name": "MoHQ-CM-201-70-M10-1DT", "sample_tumour": true,
+{"sample_name": "SAMPLE-2-1DT", "sample_tumour": true,
  "sample_oncotree_code": "LUAD", "sample_cancer_type": "Lung Adenocarcinoma", "readset": [...]}
 ```
 
@@ -802,12 +802,12 @@ the [nf-core/oncoanalyser samplesheet](https://nf-co.re/oncoanalyser/latest/docs
 it's missing. pt-cli writes one `<group>.samplesheet.csv` per group.
 
 ```bash
-pt-cli --project MOH-Q digest oncoanalyser_samplesheet --specimen_name MoHQ-CM-5-208 --endpoint abacus --output-dir samplesheets/
+pt-cli --project MY-PROJECT digest oncoanalyser_samplesheet --specimen_name SPECIMEN-1 --endpoint abacus --output-dir samplesheets/
 ```
 
 ```csv
 group_id,subject_id,sample_id,sample_type,sequence_type,filetype,info,filepath
-MoHQ-CM-5-208_G1,MoHQ-CM-5-208,MoHQ-CM-5-208-596350-1DT,tumor,dna,fastq,library_id:MoHQ-CM-5-208-596350-1DT.A01433_0157_1;lane:001;flowcell:HM3NHDSX2;cancer_type:Lung,/path/R1.fastq.gz;/path/R2.fastq.gz
+SPECIMEN-1_G1,SPECIMEN-1,SAMPLE-1-1DT,tumor,dna,fastq,library_id:SAMPLE-1-1DT.A00000_0001_1;lane:001;flowcell:H0000AAXX;cancer_type:Lung,/path/R1.fastq.gz;/path/R2.fastq.gz
 ```
 
 | Column | Value |
@@ -825,8 +825,8 @@ MoHQ-CM-5-208_G1,MoHQ-CM-5-208,MoHQ-CM-5-208-596350-1DT,tumor,dna,fastq,library_
 - Samples in no group, and specimens without groups, are left out with a warning.
 - The readset name is the library id, so every readset is its own read group. Lanes of one library are
   therefore deduplicated separately.
-- The flowcell comes from the run name, an Illumina run folder: `220420_A01433_0157_BHM3NHDSX2_…` gives
-  `HM3NHDSX2`, MiSeq `…_000000000-ABCDE` gives `000000000-ABCDE`. Another run name is used as is.
+- The flowcell comes from the run name, an Illumina run folder: `250101_A00000_0001_BH0000AAXX_…` gives
+  `H0000AAXX`, MiSeq `…_000000000-ABCDE` gives `000000000-ABCDE`. Another run name is used as is.
 - oncoanalyser passes `cancer_type` unquoted on command lines and splits `info` on `;` and `:`. Ingestion
   already turns spaces into underscores; a cancer type with `;`, `:` or `,` is left out with a warning.
 - Readsets without both fastq files at the endpoint (e.g. BAM-only readsets), `ON_HOLD` and `INVALID`
@@ -850,7 +850,7 @@ Pass one or more comma-separated values:
 
 Prefix any value with `r:` to treat it as a PostgreSQL POSIX regular expression (`~` operator):
 ```
-/project/<project>/files?json={"file_name": "r:^MoHQ.*\.tsv$"}
+/project/<project>/files?json={"file_name": "r:^SAMPLE.*\.tsv$"}
 ```
 
 Simple patterns made only of a literal (letters, digits, `-`, `_`, `/`, `:`…) with optional `^`, `$`
@@ -860,7 +860,7 @@ SQLite has no `~` operator and the request fails.
 
 Locations are filtered by URI with the same syntax, e.g. all BAM locations of a sample:
 ```
-/project/<project>/locations?json={"location_uri": "r:.*MoHQ-CM-1-3-15000863775-19933DT.*\.bam$"}
+/project/<project>/locations?json={"location_uri": "r:.*SAMPLE-1-1DT.*\.bam$"}
 ```
 
 #### Important regex caveats
