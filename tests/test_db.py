@@ -406,3 +406,45 @@ def test_db_revisions_reports_unreachable_database_without_credentials():
         assert result.exit_code == 1
         assert 'project_tracking_missing: UNREACHABLE' in result.output
         assert 's3cret' not in result.output
+
+
+def _project_names(db_uri):
+    with session_scope(no_app=True, db_uri=db_uri) as s:
+        return [p.name for p in s.query(model.Project).all()]
+
+
+def test_create_project_goes_to_its_mapped_database():
+    """create_project uses the database the /project/<name>/ routes use, so the project is found there."""
+    with _tmp_db() as default_uri, _tmp_db() as prja_uri:
+        app = _make_app(default_uri, {'PROJ-A': prja_uri})
+        with app.app_context():
+            init_db(default_uri)
+            init_db(prja_uri)
+        client = app.test_client()
+
+        response = client.post('/admin/create_project/PROJ-A')
+
+        assert response.get_json()['DB_ACTION_OUTPUT'][0]['name'] == 'PROJ-A'
+        assert 'DB_ACTION_WARNING' not in response.get_json()
+        assert _project_names(prja_uri) == ['PROJ-A']
+        assert _project_names(default_uri) == []
+        samples = client.get('/project/PROJ-A/samples').get_json()
+        assert 'DB_ACTION_ERROR' not in samples, samples
+        # The mapping ignores case, like the project routes: no second project
+        client.post('/admin/create_project/proj-a')
+        assert _project_names(prja_uri) == ['PROJ-A']
+
+
+def test_create_project_without_mapping_warns():
+    """With PROJECT_DATABASES set, a name without an entry goes to the default database, with a warning."""
+    with _tmp_db() as default_uri, _tmp_db() as prja_uri:
+        app = _make_app(default_uri, {'PROJ-A': prja_uri})
+        with app.app_context():
+            init_db(default_uri)
+            init_db(prja_uri)
+
+        response = app.test_client().post('/admin/create_project/PROJ-B')
+
+        assert _project_names(default_uri) == ['PROJ-B']
+        assert _project_names(prja_uri) == []
+        assert "'Project' 'PROJ-B' has no PROJECT_DATABASES entry" in response.get_json()['DB_ACTION_WARNING'][0]

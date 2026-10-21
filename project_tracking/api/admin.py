@@ -4,11 +4,11 @@ Admin API
 import logging
 from typing import Any, cast
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, request
 
 from .. import db_actions
 
-from ..database import _configured_db_uris, db_label, session_scope
+from ..database import _configured_db_uris, db_label, session_scope, set_project_db_from_name
 from ..schema import serialize
 from .decorators import TEXT_RESPONSE, openapi_doc, parse_json_input
 
@@ -147,6 +147,8 @@ def create_project(project_name: str, ingest_data=None):
     Notes:
         - project_name is stored exactly as provided in the route.
         - Optional metadata must be sent in the JSON body.
+        - The project is created in its PROJECT_DATABASES database, where the /project/<project_name>/ routes look
+          for it; a name without an entry goes to the default database, with a warning.
     """
     payload = ingest_data or {}
 
@@ -159,6 +161,11 @@ def create_project(project_name: str, ingest_data=None):
             ext_id = int(ext_id_raw)
         except (TypeError, ValueError):
             return jsonify({"DB_ACTION_ERROR": ["ext_id must be an integer when provided."]}), 400
+
+    # Same database as the /project/<project_name>/ routes (convcheck_project)
+    g.requested_project = project_name
+    set_project_db_from_name(project_name)
+    unmapped = current_app.config.get("PROJECT_DATABASES") and not g.get("project_db_uri")
 
     with session_scope() as session:
         result = db_actions.create_project(
@@ -179,4 +186,9 @@ def create_project(project_name: str, ingest_data=None):
         else:
             result["DB_ACTION_OUTPUT"] = []
 
+    if unmapped:
+        result.setdefault("DB_ACTION_WARNING", []).append(
+            f"'Project' '{project_name}' has no PROJECT_DATABASES entry: it is in the default database "
+            f"'{db_label(current_app.config['SQLALCHEMY_DATABASE_URI'])}'."
+        )
     return jsonify(result)

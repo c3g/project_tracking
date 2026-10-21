@@ -201,7 +201,7 @@ Optional metadata must be provided in the POST JSON body:
 Important behavior with multi-database routing:
 1. Project-to-database routing is exact-name only and case-insensitive.
 2. The API stores project names exactly as provided in the route argument.
-3. If a project name has no entry in `PROJECT_DATABASES`, the request falls through to `SQLALCHEMY_DATABASE_URI` as a catch-all. In a properly configured deployment, every project should be explicitly mapped — do not rely on this fallback.
+3. If a project name has no entry in `PROJECT_DATABASES`, the request falls through to `SQLALCHEMY_DATABASE_URI` as a catch-all. In a properly configured deployment, every project should be explicitly mapped — do not rely on this fallback. `create_project` returns a warning naming the default database when it creates a project there.
 
 Recommended workflow when adding a new project:
 1. Decide which DB should own that project.
