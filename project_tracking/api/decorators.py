@@ -71,6 +71,8 @@ def parse_json_input(func=None, *, expected_keys=None):
             kwargs["ingest_data"] = ingest_data
             return inner_func(*args, **kwargs)
 
+        # Read by the OpenAPI spec (project_tracking/openapi.py); functools.wraps carries it to outer decorators
+        wrapper.openapi_json = {"in": "body", "keys": expected_keys}
         return cast(F, wrapper)
 
     if func is not None and callable(func):
@@ -127,6 +129,23 @@ def parse_json_get(expected_keys=None):
             kwargs["digest_data"] = digest_data
             return func(*args, **kwargs)
 
+        # Read by the OpenAPI spec (project_tracking/openapi.py); functools.wraps carries it to outer decorators
+        wrapper.openapi_json = {"in": "query", "keys": expected_keys}
         return wrapper
+
+    return decorator
+
+
+TEXT_RESPONSE = {"200": {"description": "Plain text", "content": {"text/plain": {"schema": {"type": "string"}}}}}
+
+
+def openapi_doc(**operation):
+    """
+    Add OpenAPI operation fields (parameters, requestBody, responses...) to a route's generated documentation, for
+    what the parse_json_* decorators don't describe. Place it right under @bp.route.
+    """
+    def decorator(func):
+        func.openapi = {**getattr(func, "openapi", {}), **operation}
+        return func
 
     return decorator

@@ -17,3 +17,15 @@ utils/update_database_diagram.sh
 
 `tests/test_dbml.py` fails while `docs/database.dbml` doesn't match the models or a table is in no stage, and
 the Database Diagram workflow fails while either file is out of date.
+
+## API
+
+[openapi.json](./openapi.json) describes every route of the API in the [OpenAPI 3](https://spec.openapis.org/oas/v3.0.3)
+format. It's generated from the routes: open it in any OpenAPI viewer, e.g. paste it in
+[editor.swagger.io](https://editor.swagger.io), or browse `/docs` on a running API. After a route change, regenerate it:
+
+```bash
+flask --app project_tracking openapi -o docs/openapi.json
+```
+
+`tests/test_openapi.py` fails while it's out of date.

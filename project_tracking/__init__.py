@@ -12,6 +12,7 @@ from sqlalchemy.exc import OperationalError
 
 from . import db_actions
 from . import api
+from .api.decorators import TEXT_RESPONSE, openapi_doc
 from . import database
 from .analysis import DEFAULT_ANALYSIS_OPERATIONS, validate_analysis_operations
 
@@ -278,14 +279,25 @@ def create_app(test_config=None):
         }), status
 
     @app.route('/')
+    @openapi_doc(responses=TEXT_RESPONSE)
     def welcome():
+        """
+        Welcome message: the API is up
+        """
         return 'Welcome to the TechDev tracking API!\n'
 
     for bp in api.blueprints:
         app.register_blueprint(bp)
 
+    from .openapi import openapi_command
+    app.cli.add_command(openapi_command)
+
     @app.route('/help')
+    @openapi_doc(responses=TEXT_RESPONSE)
     def help():
+        """
+        Every route with its documentation, as plain text (used by 'pt-cli help')
+        """
         endpoint = defaultdict(lambda: defaultdict(list))
         links = []
         for rule in app.url_map.iter_rules():

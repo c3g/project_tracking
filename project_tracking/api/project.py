@@ -8,7 +8,23 @@ from flask import Blueprint, request, jsonify, g
 from .. import db_actions
 from ..database import session_scope, set_project_db_from_name
 from ..schema import serialize
-from .decorators import parse_json_input, parse_json_get
+from .decorators import openapi_doc, parse_json_input, parse_json_get
+
+# Sample groups as db_actions.sample_group.group_to_json returns them
+SAMPLE_GROUP_RESPONSE = {"200": {
+    "description": "The sample groups, each with its specimen and sample names",
+    "content": {"application/json": {"schema": {"type": "object", "properties": {
+        "DB_ACTION_OUTPUT": {"type": "array", "items": {"type": "object", "properties": {
+            "id": {"type": "integer"},
+            "name": {"type": "string", "example": "SPECIMEN-1_G1"},
+            "specimen_name": {"type": "string", "example": "SPECIMEN-1"},
+            "sample_name": {"type": "array", "items": {"type": "string"}, "example": ["SAMPLE-1-1DN", "SAMPLE-1-1DT"]},
+            "deprecated": {"type": "boolean"},
+            "deleted": {"type": "boolean"},
+        }}},
+        "DB_ACTION_WARNING": {"$ref": "#/components/schemas/Messages"},
+    }}}},
+}}
 
 logger = logging.getLogger(__name__)
 
@@ -1179,6 +1195,7 @@ def digest_oncoanalyser_samplesheet(project_id: str, digest_data):
 
 
 @bp.route('/<string:project>/sample_groups', methods=['GET'])
+@openapi_doc(responses=SAMPLE_GROUP_RESPONSE)
 @convcheck_project
 @parse_json_get(expected_keys={"specimen_name", "sample_group_name", "sample_name"})
 def sample_groups(project_id: str, digest_data):
@@ -1196,6 +1213,7 @@ def sample_groups(project_id: str, digest_data):
 
 
 @bp.route('/<string:project>/sample_group', methods=['POST'])
+@openapi_doc(responses=SAMPLE_GROUP_RESPONSE)
 @convcheck_project
 @parse_json_input
 def sample_group(project_id: str, ingest_data):

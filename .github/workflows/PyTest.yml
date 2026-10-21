@@ -24,7 +24,7 @@ jobs:
     - name: Install dependencies
       run: |
         pdm install -d -G testing
-        pdm add pytest flake8
+        pdm add pytest flake8 openapi-spec-validator
 
     - name: Run Tests
       run: |

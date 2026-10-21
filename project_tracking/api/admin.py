@@ -10,7 +10,7 @@ from .. import db_actions
 
 from ..database import _configured_db_uris, db_label, session_scope
 from ..schema import serialize
-from .decorators import parse_json_input
+from .decorators import TEXT_RESPONSE, openapi_doc, parse_json_input
 
 log = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ def _resolve_db_uri_from_selector(selector: str) -> tuple[str | None, str | None
 
 
 @bp.route('/')
+@openapi_doc(responses=TEXT_RESPONSE)
 def admin_root():
     """
     Admin api root
@@ -79,6 +80,10 @@ def list_projects_across_databases():
 
 
 @bp.route('/projects/by-id/<int:project_id>', methods=['GET'])
+@openapi_doc(parameters=[{
+    "name": "database", "in": "query", "required": True, "schema": {"type": "string"},
+    "description": "Database to look in: its label or full configured URI",
+}])
 def project_by_id(project_id: int):
     """Admin-only explicit project lookup by numeric ID within a selected database.
 

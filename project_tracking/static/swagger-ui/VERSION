@@ -1,0 +1,9 @@
+swagger-ui-dist 5.34.0, from npm (https://www.npmjs.com/package/swagger-ui-dist), Apache License 2.0 (LICENSE, NOTICE).
+Vendored so /docs runs no third party script. Only the files /docs needs are kept.
+
+sha256:
+3f6abf70480db7e07914df4c98a77385f22ea585eaf457a3e6415ba0eae2d167  swagger-ui-bundle.js
+c3cfe8248c4b0b89673600fb829924eafbac6de4bc4b2b06f5f5243483074d0a  swagger-ui.css
+
+To update: npm pack swagger-ui-dist@<version>, copy swagger-ui-bundle.js, swagger-ui-bundle.js.LICENSE.txt,
+swagger-ui.css, favicon-32x32.png, LICENSE and NOTICE here, update this file, then check /docs still renders.

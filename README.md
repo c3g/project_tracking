@@ -841,6 +841,27 @@ SPECIMEN-1_G1,SPECIMEN-1,SAMPLE-1-1DT,tumor,dna,fastq,library_id:SAMPLE-1-1DT.A0
   DNA tumours is rejected with the group and sample names: remove the extra sample from the group, or set
   its readsets to `ON_HOLD`.
 
+## API documentation (OpenAPI)
+
+The API describes itself in the [OpenAPI 3](https://spec.openapis.org/oas/v3.0.3) format:
+
+- `GET /openapi.json`: the specification. A copy is committed in [docs/openapi.json](docs/openapi.json).
+- `GET /docs`: [Swagger UI](https://swagger.io/tools/swagger-ui/), to browse the routes and send requests
+  with "Try it out". The requests run with your login session, so they read and change real data.
+
+Both are behind the same login as the rest of the API. Swagger UI is vendored in
+`project_tracking/static/swagger-ui` (version and checksums in its `VERSION` file): `/docs` loads no third
+party script, and its `Content-Security-Policy` header only allows these files.
+
+The specification is generated from the code, in `project_tracking/openapi.py`:
+
+- Paths and methods come from the routes. The summary and description come from the view's docstring:
+  a GET is summarized by its `return:` line, a POST by its first line.
+- The `json` query keys of a GET and the body keys of a POST come from `parse_json_get` and
+  `parse_json_input`.
+- The entities returned come from the marshmallow schemas in `project_tracking/schema.py`.
+- Anything else goes in `@openapi_doc(...)` under the route, e.g. the payload of the modification routes.
+
 ## Query filtering syntax
 
 Most GET routes accept a `json=` query parameter to filter results by name (or URI for locations).
@@ -921,3 +942,14 @@ utils/update_database_diagram.sh
 ```
 
 `tests/test_dbml.py` and the Database Diagram workflow fail while the diagram is out of date.
+
+### Route changes
+
+After adding or changing a route, regenerate the committed specification:
+
+```bash
+flask --app project_tracking openapi -o docs/openapi.json
+```
+
+`tests/test_openapi.py` fails while it's out of date, when a route has no docstring, or when a POST
+doesn't describe its payload (with `parse_json_input` or `@openapi_doc(requestBody=...)`).

@@ -36,7 +36,8 @@ dependencies = [
     "alembic-postgresql-enum",
     "gunicorn>=20.1.0",
     "marshmallow",
-    "marshmallow-sqlalchemy"
+    "marshmallow-sqlalchemy",
+    "apispec>=6.10"
 ]
 
 [project.urls]
@@ -47,6 +48,7 @@ dependencies = [
 tests = [
   "pytest",
   "coverage",
+  "openapi-spec-validator",
 ]
 postgres = [
   "psycopg2-binary",

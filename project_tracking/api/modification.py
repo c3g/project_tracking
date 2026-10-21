@@ -7,10 +7,44 @@ from werkzeug.exceptions import BadRequest
 
 from ..database import session_scope
 from .. import db_actions
+from .decorators import openapi_doc
 
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('modification', __name__, url_prefix='/modification')
+
+
+def modification_body(edit=False):
+    """
+    OpenAPI request body of the modification routes; edit also takes the column and its new value.
+    """
+    item = {
+        "type": "object",
+        "required": ["table", "id"],
+        "properties": {
+            "table": {"type": "string", "description": "Table or class name, e.g. 'sample' or 'Sample'"},
+            "id": {"type": "array", "items": {"type": "integer"}, "description": "Ids of the rows"},
+        },
+    }
+    if edit:
+        item["required"] += ["column", "new"]
+        item["properties"]["column"] = {"type": "string", "description": "Column to change"}
+        item["properties"]["new"] = {"description": "New value: an enum takes its exact value or member name"}
+    body = {
+        "type": "object",
+        "required": ["modification"],
+        "properties": {
+            "modification": {"type": "array", "items": item},
+            "dry_run": {"type": "boolean", "default": False, "description": "Report the changes without saving"},
+        },
+    }
+    example = {"modification": [{"table": "sample", "id": [1]}]}
+    if edit:
+        example = {"modification": [{"table": "sample_group", "id": [1], "column": "name", "new": "SPECIMEN-1_G2"}]}
+    else:
+        for mode in ("cascade", "cascade_up", "cascade_down"):
+            body["properties"][mode] = {"type": "boolean", "default": False, "description": "Only one cascade mode at a time"}
+    return {"required": True, "content": {"application/json": {"schema": body, "example": example}}}
 
 def get_json_data():
     """
@@ -60,49 +94,61 @@ def handle_request(action_func):
         )
 
 @bp.route('/edit', methods=['POST'])
+@openapi_doc(requestBody=modification_body(edit=True))
 def edit():
     """
-    POST: JSON describing the edit to be made.
+    POST: Change one column of the given rows.
+    JSON describing the edit to be made.
     Returns: Result of the edit operation.
     """
     return handle_request(db_actions.edit)
 
 @bp.route('/delete', methods=['POST'])
+@openapi_doc(requestBody=modification_body())
 def delete():
     """
-    POST: JSON describing the delete to be made.
+    POST: Mark the given rows as deleted (soft delete, undone by undelete).
+    JSON describing the delete to be made.
     Returns: Result of the delete operation.
     """
     return handle_request(db_actions.delete)
 
 @bp.route('/undelete', methods=['POST'])
+@openapi_doc(requestBody=modification_body())
 def undelete():
     """
-    POST: JSON describing the undelete to be made.
+    POST: Undo a delete of the given rows.
+    JSON describing the undelete to be made.
     Returns: Result of the undelete operation.
     """
     return handle_request(db_actions.undelete)
 
 @bp.route('/deprecate', methods=['POST'])
+@openapi_doc(requestBody=modification_body())
 def deprecate():
     """
-    POST: JSON describing the deprecate to be made.
+    POST: Mark the given rows as deprecated (undone by undeprecate).
+    JSON describing the deprecate to be made.
     Returns: Result of the deprecate operation.
     """
     return handle_request(db_actions.deprecate)
 
 @bp.route('/undeprecate', methods=['POST'])
+@openapi_doc(requestBody=modification_body())
 def undeprecate():
     """
-    POST: JSON describing the undeprecate to be made.
+    POST: Undo a deprecate of the given rows.
+    JSON describing the undeprecate to be made.
     Returns: Result of the undeprecate operation.
     """
     return handle_request(db_actions.undeprecate)
 
 @bp.route('/curate', methods=['POST'])
+@openapi_doc(requestBody=modification_body())
 def curate():
     """
-    POST: JSON describing the curate to be made.
+    POST: Remove the given rows from the database for good (hard delete).
+    JSON describing the curate to be made.
     Optional: "dry_run": true to simulate the operation.
     Returns: Result of the curate operation.
     """
