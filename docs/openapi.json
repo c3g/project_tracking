@@ -2353,13 +2353,73 @@
         "requestBody": {
           "content": {
             "application/json": {
+              "example": {
+                "operation_cmd_line": "genpipes dnaseq -t somatic_ensemble -r readset.txt -p pair.txt -c dnaseq.base.ini > dnaseq_run.sh",
+                "operation_config_data": "[DEFAULT]\nscientific_name = Homo_sapiens\nassembly = GRCh38\n",
+                "operation_config_md5sum": "00000000000000000000000000000010",
+                "operation_config_name": "genpipes_ini",
+                "operation_config_version": "6.0.0",
+                "operation_name": "genpipes",
+                "operation_pipeline": "DnaSeq",
+                "operation_platform": "hpc",
+                "operation_protocol": "somatic_ensemble",
+                "sample": [
+                  {
+                    "readset": [
+                      {
+                        "job": [
+                          {
+                            "file": [
+                              {
+                                "file_deliverable": true,
+                                "file_md5sum": "00000000000000000000000000000011",
+                                "file_name": "SAMPLE-1-1DT.sorted.bam",
+                                "location_uri": "hpc:///projects/MY-PROJECT/alignment/SAMPLE-1-1DT/SAMPLE-1-1DT.sorted.bam"
+                              }
+                            ],
+                            "job_name": "bwa_mem2_samtools_sort.SAMPLE-1-1DT",
+                            "job_start": "2025-01-03 08:00:00",
+                            "job_status": "COMPLETED",
+                            "job_stop": "2025-01-03 14:00:00",
+                            "metric": [
+                              {
+                                "metric_deliverable": true,
+                                "metric_flag": "PASS",
+                                "metric_name": "median_coverage",
+                                "metric_value": "80"
+                              }
+                            ]
+                          }
+                        ],
+                        "readset_name": "SAMPLE-1-1DT.A00000_0001_1"
+                      }
+                    ],
+                    "sample_name": "SAMPLE-1-1DT"
+                  }
+                ]
+              },
               "schema": {
-                "description": "JSON payload",
+                "description": "An analysis operation, e.g. a GenPipes run: its config, and per sample and readset the jobs with their files and metrics. Names come from GET /vocabulary; see the README (Analysis ingestion).",
+                "properties": {
+                  "_source_file": {
+                    "description": "Name of the file the payload comes from, for the logs (set by pt-cli)",
+                    "type": "string"
+                  },
+                  "force": {
+                    "default": false,
+                    "description": "Replace stored values that differ instead of warning",
+                    "type": "boolean"
+                  },
+                  "operation_status": {
+                    "description": "Operation status, deduced from the job statuses when missing",
+                    "type": "string"
+                  }
+                },
                 "type": "object"
               }
             }
           },
-          "required": false
+          "required": true
         },
         "responses": {
           "200": {
@@ -2419,13 +2479,39 @@
         "requestBody": {
           "content": {
             "application/json": {
+              "example": {
+                "operation_cmd_line": "deliver.py -i delivery_SPECIMEN-1.json",
+                "operation_platform": "hpc",
+                "readset": [
+                  {
+                    "file": [
+                      {
+                        "dest_location_uri": "delivery:///MY-PROJECT/SPECIMEN-1/SAMPLE-1-1DT.sorted.bam",
+                        "src_location_uri": "hpc:///projects/MY-PROJECT/alignment/SAMPLE-1-1DT/SAMPLE-1-1DT.sorted.bam"
+                      }
+                    ],
+                    "readset_name": "SAMPLE-1-1DT.A00000_0001_1"
+                  }
+                ]
+              },
               "schema": {
-                "description": "JSON payload",
+                "description": "Files of readsets delivered: each file is marked DELIVERED and gets its destination location.",
+                "properties": {
+                  "_source_file": {
+                    "description": "Name of the file the payload comes from, for the logs (set by pt-cli)",
+                    "type": "string"
+                  },
+                  "delete": {
+                    "default": true,
+                    "description": "Mark the source locations deleted",
+                    "type": "boolean"
+                  }
+                },
                 "type": "object"
               }
             }
           },
-          "required": false
+          "required": true
         },
         "responses": {
           "200": {
@@ -2485,13 +2571,148 @@
         "requestBody": {
           "content": {
             "application/json": {
+              "example": {
+                "operation_platform": "sequencer",
+                "project_ext_id": null,
+                "project_ext_src": null,
+                "project_name": "MY-PROJECT",
+                "run_date": "2025-01-01 00:00:00",
+                "run_ext_id": null,
+                "run_ext_src": null,
+                "run_instrument": "novaseq",
+                "run_name": "250101_A00000_0001_BH0000AAXX",
+                "specimen": [
+                  {
+                    "sample": [
+                      {
+                        "readset": [
+                          {
+                            "experiment_kit_expiration_date": null,
+                            "experiment_library_kit": null,
+                            "experiment_nucleic_acid_type": "DNA",
+                            "experiment_sequencing_technology": null,
+                            "experiment_type": "PCR-free",
+                            "file": [
+                              {
+                                "file_deliverable": true,
+                                "file_extra_metadata": {
+                                  "read_type": "R1"
+                                },
+                                "file_md5sum": "00000000000000000000000000000001",
+                                "file_name": "SAMPLE-1-1DN_R1.fastq.gz",
+                                "location_uri": "sequencer:///runs/250101_A00000_0001_BH0000AAXX/SAMPLE-1-1DN/SAMPLE-1-1DN_R1.fastq.gz"
+                              },
+                              {
+                                "file_deliverable": true,
+                                "file_extra_metadata": {
+                                  "read_type": "R2"
+                                },
+                                "file_md5sum": "00000000000000000000000000000002",
+                                "file_name": "SAMPLE-1-1DN_R2.fastq.gz",
+                                "location_uri": "sequencer:///runs/250101_A00000_0001_BH0000AAXX/SAMPLE-1-1DN/SAMPLE-1-1DN_R2.fastq.gz"
+                              }
+                            ],
+                            "metric": [
+                              {
+                                "metric_deliverable": true,
+                                "metric_flag": "PASS",
+                                "metric_name": "raw_reads_count",
+                                "metric_value": "800000000"
+                              }
+                            ],
+                            "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
+                            "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
+                            "readset_lane": "1",
+                            "readset_name": "SAMPLE-1-1DN.A00000_0001_1",
+                            "readset_quality_offset": "33",
+                            "readset_sequencing_type": "PAIRED_END"
+                          }
+                        ],
+                        "sample_ext_id": null,
+                        "sample_ext_src": null,
+                        "sample_group_name": "SPECIMEN-1_G1",
+                        "sample_name": "SAMPLE-1-1DN",
+                        "sample_tumour": false
+                      },
+                      {
+                        "readset": [
+                          {
+                            "experiment_kit_expiration_date": null,
+                            "experiment_library_kit": null,
+                            "experiment_nucleic_acid_type": "DNA",
+                            "experiment_sequencing_technology": null,
+                            "experiment_type": "PCR-free",
+                            "file": [
+                              {
+                                "file_deliverable": true,
+                                "file_extra_metadata": {
+                                  "read_type": "R1"
+                                },
+                                "file_md5sum": "00000000000000000000000000000003",
+                                "file_name": "SAMPLE-1-1DT_R1.fastq.gz",
+                                "location_uri": "sequencer:///runs/250101_A00000_0001_BH0000AAXX/SAMPLE-1-1DT/SAMPLE-1-1DT_R1.fastq.gz"
+                              },
+                              {
+                                "file_deliverable": true,
+                                "file_extra_metadata": {
+                                  "read_type": "R2"
+                                },
+                                "file_md5sum": "00000000000000000000000000000004",
+                                "file_name": "SAMPLE-1-1DT_R2.fastq.gz",
+                                "location_uri": "sequencer:///runs/250101_A00000_0001_BH0000AAXX/SAMPLE-1-1DT/SAMPLE-1-1DT_R2.fastq.gz"
+                              }
+                            ],
+                            "metric": [
+                              {
+                                "metric_deliverable": true,
+                                "metric_flag": "PASS",
+                                "metric_name": "raw_reads_count",
+                                "metric_value": "1600000000"
+                              }
+                            ],
+                            "readset_adapter1": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
+                            "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
+                            "readset_lane": "1",
+                            "readset_name": "SAMPLE-1-1DT.A00000_0001_1",
+                            "readset_quality_offset": "33",
+                            "readset_sequencing_type": "PAIRED_END"
+                          }
+                        ],
+                        "sample_cancer_type": "Lung Adenocarcinoma",
+                        "sample_ext_id": null,
+                        "sample_ext_src": null,
+                        "sample_group_name": "SPECIMEN-1_G1",
+                        "sample_name": "SAMPLE-1-1DT",
+                        "sample_oncotree_code": "LUAD",
+                        "sample_tumour": true
+                      }
+                    ],
+                    "specimen_cohort": "COHORT-1",
+                    "specimen_ext_id": null,
+                    "specimen_ext_src": null,
+                    "specimen_institution": "INSTITUTION-1",
+                    "specimen_name": "SPECIMEN-1"
+                  }
+                ]
+              },
               "schema": {
-                "description": "JSON payload",
+                "description": "A sequencing run: its specimens, samples and readsets, with their files and metrics. Sample keys are described in the README (Sample metadata at ingestion).",
+                "properties": {
+                  "_source_file": {
+                    "description": "Name of the file the payload comes from, for the logs (set by pt-cli)",
+                    "type": "string"
+                  },
+                  "force": {
+                    "default": false,
+                    "description": "Replace stored values that differ instead of warning",
+                    "type": "boolean"
+                  }
+                },
                 "type": "object"
               }
             }
           },
-          "required": false
+          "required": true
         },
         "responses": {
           "200": {
@@ -2551,13 +2772,53 @@
         "requestBody": {
           "content": {
             "application/json": {
+              "example": {
+                "job_start": "2025-01-02 09:00:00",
+                "job_stop": "2025-01-02 10:00:00",
+                "operation_cmd_line": "globus transfer --batch transfer_list.txt SOURCE_ENDPOINT DESTINATION_ENDPOINT",
+                "operation_platform": "hpc",
+                "readset": [
+                  {
+                    "file": [
+                      {
+                        "dest_location_uri": "hpc:///projects/MY-PROJECT/raw_reads/SAMPLE-1-1DN/SAMPLE-1-1DN_R1.fastq.gz",
+                        "src_location_uri": "sequencer:///runs/250101_A00000_0001_BH0000AAXX/SAMPLE-1-1DN/SAMPLE-1-1DN_R1.fastq.gz"
+                      },
+                      {
+                        "dest_location_uri": "hpc:///projects/MY-PROJECT/raw_reads/SAMPLE-1-1DN/SAMPLE-1-1DN_R2.fastq.gz",
+                        "src_location_uri": "sequencer:///runs/250101_A00000_0001_BH0000AAXX/SAMPLE-1-1DN/SAMPLE-1-1DN_R2.fastq.gz"
+                      }
+                    ],
+                    "readset_name": "SAMPLE-1-1DN.A00000_0001_1"
+                  },
+                  {
+                    "file": [
+                      {
+                        "dest_location_uri": "hpc:///projects/MY-PROJECT/raw_reads/SAMPLE-1-1DT/SAMPLE-1-1DT_R1.fastq.gz",
+                        "src_location_uri": "sequencer:///runs/250101_A00000_0001_BH0000AAXX/SAMPLE-1-1DT/SAMPLE-1-1DT_R1.fastq.gz"
+                      },
+                      {
+                        "dest_location_uri": "hpc:///projects/MY-PROJECT/raw_reads/SAMPLE-1-1DT/SAMPLE-1-1DT_R2.fastq.gz",
+                        "src_location_uri": "sequencer:///runs/250101_A00000_0001_BH0000AAXX/SAMPLE-1-1DT/SAMPLE-1-1DT_R2.fastq.gz"
+                      }
+                    ],
+                    "readset_name": "SAMPLE-1-1DT.A00000_0001_1"
+                  }
+                ]
+              },
               "schema": {
-                "description": "JSON payload",
+                "description": "Files of readsets copied to a new location: each file gets its destination location.",
+                "properties": {
+                  "_source_file": {
+                    "description": "Name of the file the payload comes from, for the logs (set by pt-cli)",
+                    "type": "string"
+                  }
+                },
                 "type": "object"
               }
             }
           },
-          "required": false
+          "required": true
         },
         "responses": {
           "200": {

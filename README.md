@@ -861,6 +861,10 @@ The specification is generated from the code, in `project_tracking/openapi.py`:
   `parse_json_input`.
 - The entities returned come from the marshmallow schemas in `project_tracking/schema.py`.
 - Anything else goes in `@openapi_doc(...)` under the route, e.g. the payload of the modification routes.
+- The ingest routes show an example payload from `project_tracking/ingest_examples.json`, with generic
+  names (`MY-PROJECT`, `SPECIMEN-1`, `SAMPLE-1-1DT`, ...). `tests/test_openapi.py` ingests the four in
+  order, so an example that stops being a valid payload fails the tests. Don't send them with "Try it
+  out" on a real project: they would be ingested.
 
 ## Query filtering syntax
 

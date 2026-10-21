@@ -1,7 +1,9 @@
 """Project API"""
 import time
 import functools
+import json
 import logging
+from importlib import resources
 
 from flask import Blueprint, request, jsonify, g
 
@@ -25,6 +27,26 @@ SAMPLE_GROUP_RESPONSE = {"200": {
         "DB_ACTION_WARNING": {"$ref": "#/components/schemas/Messages"},
     }}}},
 }}
+
+# One payload per ingest route, with generic names; tests/test_openapi.py ingests them in this order
+INGEST_EXAMPLES = json.loads(
+    resources.files("project_tracking").joinpath("ingest_examples.json").read_text(encoding="utf-8")
+)
+SOURCE_FILE = {"type": "string", "description": "Name of the file the payload comes from, for the logs (set by pt-cli)"}
+FORCE = {"type": "boolean", "default": False, "description": "Replace stored values that differ instead of warning"}
+
+
+def ingest_body(kind, description, **flags):
+    """
+    OpenAPI request body of an ingest route: its example payload and the optional flags it reads.
+    """
+    schema = {
+        "type": "object",
+        "description": description,
+        "properties": {"_source_file": SOURCE_FILE, **flags},
+    }
+    return {"required": True, "content": {"application/json": {"schema": schema, "example": INGEST_EXAMPLES[kind]}}}
+
 
 logger = logging.getLogger(__name__)
 
@@ -1069,6 +1091,12 @@ def metrics(project_id, specimen_id=None, sample_id=None, readset_id=None, metri
 
 # Ingest routes
 @bp.route('/<string:project>/ingest_run_processing', methods=['POST'])
+@openapi_doc(requestBody=ingest_body(
+    "run_processing",
+    "A sequencing run: its specimens, samples and readsets, with their files and metrics. "
+    "Sample keys are described in the README (Sample metadata at ingestion).",
+    force=FORCE,
+))
 @convcheck_project
 @parse_json_input
 def ingest_run_processing(project_id: str, ingest_data):
@@ -1087,6 +1115,10 @@ def ingest_run_processing(project_id: str, ingest_data):
 
 
 @bp.route('/<string:project>/ingest_transfer', methods=['POST'])
+@openapi_doc(requestBody=ingest_body(
+    "transfer",
+    "Files of readsets copied to a new location: each file gets its destination location.",
+))
 @convcheck_project
 @parse_json_input
 def ingest_transfer(project_id: str, ingest_data):
@@ -1105,6 +1137,13 @@ def ingest_transfer(project_id: str, ingest_data):
 
 
 @bp.route('/<string:project>/ingest_analysis', methods=['POST'])
+@openapi_doc(requestBody=ingest_body(
+    "analysis",
+    "An analysis operation, e.g. a GenPipes run: its config, and per sample and readset the jobs with their "
+    "files and metrics. Names come from GET /vocabulary; see the README (Analysis ingestion).",
+    force=FORCE,
+    operation_status={"type": "string", "description": "Operation status, deduced from the job statuses when missing"},
+))
 @convcheck_project
 @parse_json_input
 def ingest_analysis(project_id: str, ingest_data):
@@ -1122,6 +1161,11 @@ def ingest_analysis(project_id: str, ingest_data):
 
 
 @bp.route('/<string:project>/ingest_delivery', methods=['POST'])
+@openapi_doc(requestBody=ingest_body(
+    "delivery",
+    "Files of readsets delivered: each file is marked DELIVERED and gets its destination location.",
+    delete={"type": "boolean", "default": True, "description": "Mark the source locations deleted"},
+))
 @convcheck_project
 @parse_json_input
 def ingest_delivery(project_id: str, ingest_data):

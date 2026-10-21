@@ -6,6 +6,7 @@ from pathlib import Path
 
 from openapi_spec_validator import validate
 
+from project_tracking.api.project import INGEST_EXAMPLES
 from project_tracking.openapi import build_spec, spec_json
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -66,6 +67,25 @@ def test_spec_content(app):
     assert edit["properties"]["modification"]["items"]["required"] == ["table", "id", "column", "new"]
     project = next(p for p in samples["parameters"] if p["name"] == "project")
     assert "ignoring case" in project["description"]
+
+
+def test_ingest_examples_ingest(client):
+    """The /docs examples of the ingest routes are valid payloads, ingested in order without error or skipped file."""
+    assert client.post("admin/create_project/MY-PROJECT").status_code == 200
+    for kind in ("run_processing", "transfer", "analysis", "delivery"):
+        response = client.post(f"project/MY-PROJECT/ingest_{kind}", data=json.dumps(INGEST_EXAMPLES[kind]))
+        result = response.get_json()
+        assert response.status_code == 200 and not result.get("DB_ACTION_ERROR"), (kind, result)
+        assert "skipping" not in json.dumps(result.get("DB_ACTION_WARNING")), (kind, result)
+    groups = client.get("project/MY-PROJECT/sample_groups").get_json()["DB_ACTION_OUTPUT"]
+    assert groups[0]["sample_name"] == ["SAMPLE-1-1DN", "SAMPLE-1-1DT"]
+
+
+def test_ingest_routes_show_their_example(app):
+    spec = build_spec(app)
+    for kind in INGEST_EXAMPLES:
+        body = spec["paths"][f"/project/{{project}}/ingest_{kind}"]["post"]["requestBody"]
+        assert body["content"]["application/json"]["example"] == INGEST_EXAMPLES[kind]
 
 
 def test_openapi_json_route(client):
