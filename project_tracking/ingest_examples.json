@@ -136,6 +136,7 @@
             },
             {
                 "readset_name": "SAMPLE-1-1DT.A00000_0001_1",
+                "readset_state": "VALID",
                 "file": [
                     {
                         "src_location_uri": "sequencer:///runs/250101_A00000_0001_BH0000AAXX/SAMPLE-1-1DT/SAMPLE-1-1DT_R1.fastq.gz",

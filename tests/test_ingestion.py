@@ -582,3 +582,63 @@ def test_analysis_dragen_somatic_needs_protocol(not_app_db, run_processing_json,
     db_actions.ingest_analysis(project_id, data, not_app_db)
     [operation] = _analyses(not_app_db)
     assert (operation.name, operation.pipeline, operation.protocol) == ("dragen", "somatic", "tumor_normal")
+
+
+def _ingest_run(not_app_db, run_processing_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+    return project_id
+
+
+def test_transfer_readset_state(not_app_db, run_processing_json, transfer_json):
+    """An optional readset_state changes the readset's state, with a warning; readsets without it keep theirs."""
+    project_id = _ingest_run(not_app_db, run_processing_json)
+    data = copy.deepcopy(transfer_json)
+    changed, kept = data[vb.READSET][0], data[vb.READSET][1]
+    changed[vb.READSET_STATE] = "ON_HOLD"
+    kept.pop(vb.READSET_STATE, None)
+
+    result = db_actions.ingest_transfer(project_id, data, not_app_db)
+
+    assert _readset_state(not_app_db, changed[vb.READSET_NAME]) == model.StateEnum.ON_HOLD
+    assert _readset_state(not_app_db, kept[vb.READSET_NAME]) == model.StateEnum.VALID
+    assert result["DB_ACTION_WARNING"] == [
+        f"'Readset' '{changed[vb.READSET_NAME]}' state changed from 'VALID' to 'ON_HOLD'."
+    ]
+    # Sending the transfer again works: the same state changes nothing, another one changes it again
+    again = db_actions.ingest_transfer(project_id, data, not_app_db)
+    assert not [warning for warning in again["DB_ACTION_WARNING"] if "state changed" in warning]
+    changed[vb.READSET_STATE] = "VALID"
+    db_actions.ingest_transfer(project_id, data, not_app_db)
+    assert _readset_state(not_app_db, changed[vb.READSET_NAME]) == model.StateEnum.VALID
+
+
+def test_transfer_rejects_invalid_readset_state(not_app_db, run_processing_json, transfer_json):
+    """Invalid states are all listed, and nothing is written."""
+    project_id = _ingest_run(not_app_db, run_processing_json)
+    data = copy.deepcopy(transfer_json)
+    data[vb.READSET][0][vb.READSET_STATE] = "on_hold"
+    data[vb.READSET][1][vb.READSET_STATE] = "DONE"
+
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_transfer(project_id, data, not_app_db)
+
+    assert len(error.value.message) == 2
+    assert f"'{data[vb.READSET][0][vb.READSET_NAME]}' has an invalid 'readset_state' 'on_hold'" in error.value.message[0]
+    assert "invalid 'readset_state' 'DONE'" in error.value.message[1]
+    assert not not_app_db.execute(select(model.Operation).where(model.Operation.name == "transfer")).first()
+    assert _readset_state(not_app_db, data[vb.READSET][0][vb.READSET_NAME]) == model.StateEnum.VALID
+
+
+def test_transfer_unknown_readset(client, run_processing_json, transfer_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
+    data = copy.deepcopy(transfer_json)
+    data[vb.READSET][0][vb.READSET_NAME] = "UNKNOWN-READSET"
+
+    response = client.post(f'project/{project_name}/ingest_transfer', data=json.dumps(data))
+
+    assert response.get_json()["DB_ACTION_ERROR"] == "No 'Readset' with 'name' 'UNKNOWN-READSET'"

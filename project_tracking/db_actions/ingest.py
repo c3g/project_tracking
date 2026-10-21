@@ -163,6 +163,19 @@ def check_analysis_payload(ingest_data):
         raise RequestError(message=invalid)
 
 
+def check_transfer_payload(ingest_data):
+    """
+    Check the optional readset_state of each readset of a transfer payload before anything is written; raises
+    RequestError listing all invalid values.
+    """
+    invalid = []
+    for readset_json in ingest_data[vb.READSET]:
+        check_enum(invalid, StateEnum, readset_json.get(vb.READSET_STATE), vb.READSET_STATE, "Readset",
+                   readset_json[vb.READSET_NAME], optional=True)
+    if invalid:
+        raise RequestError(message=invalid)
+
+
 def analysis_operation_status(ingest_data):
     """
     Status of an analysis operation: operation_status when given, otherwise COMPLETED when every job of the payload
@@ -434,6 +447,8 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
+    check_transfer_payload(ingest_data)
+
     operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
         name="transfer",
@@ -481,7 +496,17 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
             Readset.deleted.is_(False)
         )
         readset = session.execute(stmt).scalar_one_or_none()
+        if not readset:
+            raise DidNotFindError(f"No 'Readset' with 'name' '{readset_name}'")
         readset_list.append(readset)
+        # Optional new state of the readset, checked by check_transfer_payload
+        state = readset_json.get(vb.READSET_STATE)
+        if state and readset.state != StateEnum(state):
+            previous = readset.state.value if readset.state else None
+            ret["DB_ACTION_WARNING"].append(
+                f"'Readset' '{readset_name}' state changed from '{previous}' to '{state}'."
+            )
+            readset.state = StateEnum(state)
         for file_json in readset_json[vb.FILE]:
             src_uri = file_json[vb.SRC_LOCATION_URI]
             dest_uri = file_json[vb.DEST_LOCATION_URI]
@@ -517,7 +542,8 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
             if new_location.deprecated:
                 ret["DB_ACTION_WARNING"].append(f"Existing deprecated location found for uri '{new_location.uri}', undeprecating it.")
                 new_location.deprecated = False
-            file.jobs.append(job)
+            if job not in file.jobs:
+                file.jobs.append(job)
             session.add(new_location)
     # Get existing readset IDs from the relationship
     existing_operation_readset_ids = {r.id for r in operation.readsets}

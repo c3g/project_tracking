@@ -1117,7 +1117,8 @@ def ingest_run_processing(project_id: str, ingest_data):
 @bp.route('/<string:project>/ingest_transfer', methods=['POST'])
 @openapi_doc(requestBody=ingest_body(
     "transfer",
-    "Files of readsets copied to a new location: each file gets its destination location.",
+    "Files of readsets copied to a new location: each file gets its destination location. An optional "
+    "readset_state on a readset changes its state (VALID, ON_HOLD, INVALID or DELIVERED).",
 ))
 @convcheck_project
 @parse_json_input

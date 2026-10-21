@@ -2802,12 +2802,13 @@
                         "src_location_uri": "sequencer:///runs/250101_A00000_0001_BH0000AAXX/SAMPLE-1-1DT/SAMPLE-1-1DT_R2.fastq.gz"
                       }
                     ],
-                    "readset_name": "SAMPLE-1-1DT.A00000_0001_1"
+                    "readset_name": "SAMPLE-1-1DT.A00000_0001_1",
+                    "readset_state": "VALID"
                   }
                 ]
               },
               "schema": {
-                "description": "Files of readsets copied to a new location: each file gets its destination location.",
+                "description": "Files of readsets copied to a new location: each file gets its destination location. An optional readset_state on a readset changes its state (VALID, ON_HOLD, INVALID or DELIVERED).",
                 "properties": {
                   "_source_file": {
                     "description": "Name of the file the payload comes from, for the logs (set by pt-cli)",

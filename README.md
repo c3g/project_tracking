@@ -721,6 +721,7 @@ Enum fields only accept their exact values: no trimming, no case change, and a l
 | `run_processing` | `readset_lane` | `"1"` to `"8"` | error |
 | `run_processing` | `readset_sequencing_type` | `SINGLE_END`, `PAIRED_END` | error |
 | `run_processing` | `readset_state` | `VALID`, `ON_HOLD`, `INVALID`, `DELIVERED` | `VALID` |
+| `transfer` | `readset_state` | same as `run_processing` | state unchanged |
 | `run_processing`, `analysis` | `metric_flag` | `PASS`, `WARNING`, `FAILED`, `MISSING`, `NOT_APPLICABLE` | no flag |
 | `analysis` | `job_status` | `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, `OUT_OF_MEMORY`, `CANCELLED` | job skipped |
 | `analysis` | `operation_status` | same as `job_status` | deduced from the jobs |
@@ -735,6 +736,17 @@ Enum fields only accept their exact values: no trimming, no case change, and a l
 `digest_readset_file` and `digest_oncoanalyser_samplesheet` leave out `ON_HOLD` and `INVALID` readsets,
 with a warning for each one. To
 include a readset again, change its state with `pt-cli edit` on the `readset.state` column.
+
+A transfer can also change the state of its readsets: give `readset_state` on a readset of the
+`transfer` JSON.
+
+```json
+{"readset": [{"readset_name": "SAMPLE-1-1DT.A00000_0001_1", "readset_state": "ON_HOLD", "file": [...]}]}
+```
+
+- Each change is reported in `DB_ACTION_WARNING`. Readsets without the key keep their state.
+- An invalid value rejects the whole payload before anything is written.
+- Sending the same transfer again with another state changes it again.
 
 ## Analysis ingestion
 
