@@ -8,7 +8,7 @@ import sqlalchemy
 from sqlalchemy.exc import OperationalError
 
 from project_tracking import model
-from project_tracking.database import get_session, init_db, session_scope, set_project_db_from_name
+from project_tracking.database import db_label, get_session, init_db, session_scope, set_project_db_from_name
 
 
 def test_get_session(app):
@@ -502,3 +502,25 @@ def test_modification_reaches_every_project_of_its_database():
 
         assert 'DB_ACTION_ERROR' not in _rename_specimen(app.test_client(), 'PROJ-A', 2, 'SPECIMEN-P2-RENAMED')
         assert _specimen_names(shared_uri) == ['SPECIMEN-A', 'SPECIMEN-P2-RENAMED']
+
+
+def test_db_revisions_reports_projects_outside_their_database():
+    """A project row in another database than the one its name routes to is reported, and fails the command."""
+    with _tmp_db() as default_uri, _tmp_db() as prja_uri:
+        app = _make_app(default_uri, {'PROJ-A': prja_uri})
+        runner = app.test_cli_runner()
+        runner.invoke(args=['init-all-dbs'])
+        result = runner.invoke(args=['db-revisions'])
+        assert result.exit_code == 0, result.output
+
+        _add_specimen(prja_uri, 'PROJ-A', 'SPECIMEN-A')
+        _add_specimen(default_uri, 'proj-a', 'SPECIMEN-STRAY')
+        _add_specimen(prja_uri, 'PROJ-B', 'SPECIMEN-B')
+        result = runner.invoke(args=['db-revisions'])
+
+        assert result.exit_code == 1
+        default_label, prja_label = db_label(default_uri), db_label(prja_uri)
+        assert f"'Project' 'proj-a' is in '{default_label}' but its name routes to '{prja_label}'." in result.output
+        assert f"'Project' 'PROJ-B' is in '{prja_label}' but its name routes to '{default_label}'." in result.output
+        assert "'PROJ-A' is in" not in result.output
+        assert "2 misplaced project(s)" in result.output

@@ -318,6 +318,28 @@ def upgrade_all_dbs_command(revision):
     click.echo(f'All {len(uris)} database(s) upgraded to {revision!r}.')
 
 
+def project_db_uri(config, project_name):
+    """The database URI the routes use for project_name: its PROJECT_DATABASES entry (any case), else the default."""
+    mapping = {str(name).upper(): uri for name, uri in config.get('PROJECT_DATABASES', {}).items()}
+    return mapping.get(str(project_name).upper(), config['SQLALCHEMY_DATABASE_URI'])
+
+
+def misplaced_projects(config, project_names_by_uri):
+    """
+    Projects stored in a database other than the one their name routes to, e.g. left in the default database after
+    being given a PROJECT_DATABASES entry: the routes never reach them, and a same-named project in the routed database
+    would take their requests. project_names_by_uri maps each reachable database URI to its project names.
+    Returns one message per misplaced project.
+    """
+    problems = []
+    for uri, names in project_names_by_uri.items():
+        for name in sorted(names):
+            routed = project_db_uri(config, name)
+            if routed != uri:
+                problems.append(f"'Project' '{name}' is in '{db_label(uri)}' but its name routes to '{db_label(routed)}'.")
+    return problems
+
+
 @click.command('db-revisions')
 @flask.cli.with_appcontext
 def db_revisions_command():
@@ -329,15 +351,20 @@ def db_revisions_command():
     from alembic.config import Config as AlembicConfig
     from alembic.runtime.migration import MigrationContext
     from alembic.script import ScriptDirectory
+    from sqlalchemy import select
+    from .model import Project
 
     head =ScriptDirectory.from_config(AlembicConfig('alembic.ini')).get_current_head()
     click.echo(f'Latest revision (head): {head}')
 
     problems = 0
+    project_names = {}
     for uri in sorted(_configured_db_uris(flask.current_app.config), key=db_label):
         try:
             with get_engine(uri).connect() as connection:
                 revision = MigrationContext.configure(connection).get_current_revision()
+                if revision is not None:
+                    project_names[uri] = connection.execute(select(Project.name)).scalars().all()
         except Exception as exc:  # noqa: BLE001
             first_line = str(getattr(exc, 'orig', exc)).strip().splitlines()[0]
             click.echo(f'  {db_label(uri)}: UNREACHABLE ({first_line})')
@@ -353,8 +380,16 @@ def db_revisions_command():
             problems += 1
         click.echo(f'  {db_label(uri)}: {revision or "-"} ({state})')
 
-    if problems:
-        raise click.ClickException(f'{problems} database(s) not at the latest revision.')
+    misplaced = misplaced_projects(flask.current_app.config, project_names)
+    if misplaced:
+        click.echo('Projects outside the database their name routes to:')
+        for message in misplaced:
+            click.echo(f'  {message}')
+
+    if problems or misplaced:
+        raise click.ClickException(
+            f'{problems} database(s) not at the latest revision, {len(misplaced)} misplaced project(s).'
+        )
 
 
 def init_app(app):

@@ -539,7 +539,11 @@ Use the same image tag as the running service, so the migrations match the deplo
 
 `flask db-revisions` lists every configured database with its Alembic revision and state
 (`up to date`, `BEHIND`, `NOT STAMPED` or `UNREACHABLE`), and exits with an error if any database is not
-at the latest revision.
+at the latest revision. It also lists the projects stored in another database than the one their name routes
+to (its `PROJECT_DATABASES` entry, any case, else the default database), and exits with an error then too. The
+routes never reach such a project, and a project of the same name in the routed database gets its requests:
+move its rows, or fix the entry. The container runs `db-revisions` at every start, after the migrations, and
+only logs a warning when it finds problems.
 
 #### Use case A — Regular restart/deploy
 

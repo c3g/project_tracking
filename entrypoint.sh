@@ -34,5 +34,9 @@ if [[ -v C3G_ALEMBIC_UPGRADE ]]; then
   flask --app "$APP" upgrade-all-dbs
 fi
 
+# Report each database's revision and any project stored outside the database its name routes to. Not fatal: the API
+# still serves the other projects, and the log says what to fix.
+flask --app "$APP" db-revisions || echo "WARNING: db-revisions found problems, see above"
+
 # exec: gunicorn replaces this shell, so it receives podman's stop signal and shuts down cleanly
 exec gunicorn "project_tracking:create_app()"  "${@}"
