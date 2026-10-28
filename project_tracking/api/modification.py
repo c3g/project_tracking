@@ -77,14 +77,14 @@ def handle_request(action_func):
     """
     ingest_data = get_json_data()
     if ingest_data is None:
-        return jsonify({"error": "Invalid JSON data"}), 400
+        return jsonify({"DB_ACTION_ERROR": ["Invalid JSON data"]}), 400
 
     dry_run = ingest_data.get("dry_run", False)
     cascade_mode = None
     for mode in ["cascade", "cascade_up", "cascade_down"]:
         if ingest_data.get(mode, False):
             if cascade_mode:
-                return jsonify({"error": "Only one of 'cascade', 'cascade_up', or 'cascade_down' can be true."}), 400
+                return jsonify({"DB_ACTION_ERROR": ["Only one of 'cascade', 'cascade_up', or 'cascade_down' can be true."]}), 400
             cascade_mode = mode
 
     with session_scope(dry_run=dry_run) as session:

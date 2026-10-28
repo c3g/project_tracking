@@ -216,7 +216,9 @@ def create_app(test_config=None):
 
     @app.errorhandler(db_actions.Error)
     def handle_exception(e):
-        return jsonify(e.to_dict())
+        # Refused requests get a real status (400, or 409 for a duplicate): nothing was saved, as every action
+        # commits once, at its end
+        return jsonify(e.to_dict()), e.status_code
 
     @app.errorhandler(OperationalError)
     def handle_operational_error(e):

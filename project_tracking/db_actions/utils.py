@@ -176,7 +176,7 @@ def project_name_to_id(name, session=None):
     if exact:
         return exact
     if not projects:
-        raise DidNotFindError(table="Project", attribute="name", query=name)
+        raise DidNotFindError(table="Project", attribute="name", query=name, status_code=404)
     if len(projects) > 1:
         names = ", ".join(repr(project.name) for project in projects)
         raise RequestError(message=f"'Project' '{name}' is ambiguous: it matches {names}. Use the exact name.")

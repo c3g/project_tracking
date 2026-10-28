@@ -161,6 +161,11 @@ def operation_for(rule, method, view, entity_ref):
             },
         },
     }
+    error = {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+    if "project" in rule.arguments:
+        operation["responses"]["404"] = {"description": "The project in the URL doesn't exist", "content": error}
+    if rule.endpoint.split(".")[-1].startswith("ingest_"):
+        operation["responses"]["409"] = {"description": "Duplicate, e.g. readsets already ingested", "content": error}
     if description:
         operation["description"] = description
     for argument in sorted(rule.arguments):

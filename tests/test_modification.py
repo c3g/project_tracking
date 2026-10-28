@@ -179,3 +179,24 @@ def test_failed_save_is_an_error(client, app, run_processing_json):
     assert "DB_ACTION_OUTPUT" not in result
     with app.app_context():
         assert database.get_session().query(Specimen).filter_by(id=second_id).one().name != first_name
+
+
+def test_refused_requests_get_a_real_status(client, run_processing_json):
+    """The envelope says why, the status says the request was refused: 400 bad data, 404 unknown project in the URL,
+    409 duplicate. Nothing is saved then."""
+    project_name = run_processing_json["project_name"]
+    client.post(f'admin/create_project/{project_name}')
+    assert client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json)).status_code == 200
+
+    def edit(row_id, column, new, project=project_name):
+        payload = {"modification": [{"table": "readset", "id": [row_id], "column": column, "new": new}]}
+        return client.post(f'/project/{project}/modification/edit', json=payload)
+
+    for response in (edit(1, "nickname", "x"), edit(999, "name", "x"), edit(1, "state", "NOT_A_STATE")):
+        assert response.status_code == 400 and response.get_json()["DB_ACTION_ERROR"]
+    assert edit(1, "name", "x", project="NO-SUCH-PROJECT").status_code == 404
+    both = client.post(f'/project/{project_name}/modification/delete',
+                       json={"modification": [{"table": "readset", "id": [1]}], "cascade": True, "cascade_up": True})
+    assert both.status_code == 400 and "Only one of" in both.get_json()["DB_ACTION_ERROR"][0]
+    duplicate = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
+    assert duplicate.status_code == 409 and duplicate.get_json()["DB_ACTION_ERROR"]

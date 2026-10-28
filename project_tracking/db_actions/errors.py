@@ -20,9 +20,9 @@ class Error(Exception):
         return rv
 
 class DidNotFindError(Error):
-    """DidNotFindError"""
-    def __init__(self, message=None, table=None, attribute=None, query=None):
-        super().__init__(message)
+    """DidNotFindError: HTTP 400 for a row the payload refers to, 404 (status_code) for what the URL names"""
+    def __init__(self, message=None, table=None, attribute=None, query=None, status_code=None):
+        super().__init__(message, status_code=status_code)
         if message:
             self.message = message
         else:
@@ -38,7 +38,9 @@ class RequestError(Error):
             self.message = f"For current request, '{argument}' is required"
 
 class UniqueConstraintError(Error):
-    """UniqueConstraintError"""
+    """UniqueConstraintError: the request conflicts with an existing row (HTTP 409)"""
+    status_code = 409
+
     def __init__(self, message=None, entity=None, attribute=None, value=None):
         super().__init__(message)
         if message:

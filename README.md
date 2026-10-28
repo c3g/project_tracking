@@ -300,10 +300,19 @@ to reach more rows than the ones named. Each reached row is reported with the ro
   also restores rows that were deleted on their own earlier.
 - With `"dry_run": true`, the report is the same and nothing is saved.
 
-Database errors come back in the usual envelope:
-- **503** when the database cannot be reached (connection refused, authentication failure, missing
-  database or role), with a hint on which database the project resolved to.
-- **500** for other database errors (e.g. a lock or statement timeout), with the database message.
+Errors come back in the usual envelope, `DB_ACTION_ERROR` saying why, with an HTTP status telling the
+request was refused. Nothing is saved then: each request commits once, at its end.
+
+| Status | When |
+|---|---|
+| 200 | Done, possibly with `DB_ACTION_WARNING` (e.g. skipped readsets) |
+| 400 | Invalid request or data: invalid JSON or keys, invalid enum value, a row the payload refers to doesn't exist, a modification or curate refused |
+| 404 | The project in the URL doesn't exist (the payload's rows give 400) |
+| 409 | Duplicate, e.g. readsets already ingested |
+| 503 | The database can't be reached (connection refused, authentication failure, missing database or role), with a hint on which database the project resolved to |
+| 500 | Other database errors (e.g. a lock or statement timeout), with the database message |
+
+pt-cli reads the envelope, and exits with an error when `DB_ACTION_ERROR` is set.
 
 ## Production deployment with Podman secrets
 
