@@ -410,7 +410,7 @@ def test_edit_enum_column(client, run_processing_json):
 
     def edit(column, new):
         payload = {"modification": [{"table": "readset", "column": column, "id": [1], "new": new}]}
-        return json.loads(client.post('modification/edit', data=json.dumps(payload)).data)
+        return json.loads(client.post(f'project/{project_name}/modification/edit', data=json.dumps(payload)).data)
 
     def readset():
         return json.loads(client.get(f'project/{project_name}/readsets/1').data)["DB_ACTION_OUTPUT"][0]

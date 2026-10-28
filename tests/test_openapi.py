@@ -63,7 +63,7 @@ def test_spec_content(app):
     assert samples["responses"]["200"]["content"]["application/json"]["schema"]["properties"]["DB_ACTION_OUTPUT"] == {
         "type": "array", "items": {"$ref": "#/components/schemas/Sample"}
     }
-    edit = spec["paths"]["/modification/edit"]["post"]["requestBody"]["content"]["application/json"]["schema"]
+    edit = spec["paths"]["/project/{project}/modification/edit"]["post"]["requestBody"]["content"]["application/json"]["schema"]
     assert edit["properties"]["modification"]["items"]["required"] == ["table", "id", "column", "new"]
     project = next(p for p in samples["parameters"] if p["name"] == "project")
     assert "ignoring case" in project["description"]

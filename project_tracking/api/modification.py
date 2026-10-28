@@ -8,10 +8,12 @@ from werkzeug.exceptions import BadRequest
 from ..database import session_scope
 from .. import db_actions
 from .decorators import openapi_doc
+from .project import convcheck_project
 
 logger = logging.getLogger(__name__)
 
-bp = Blueprint('modification', __name__, url_prefix='/modification')
+# Under the project, which selects its database: row ids only mean something within one database
+bp = Blueprint('modification', __name__, url_prefix='/project/<string:project>/modification')
 
 
 def modification_body(edit=False):
@@ -95,7 +97,8 @@ def handle_request(action_func):
 
 @bp.route('/edit', methods=['POST'])
 @openapi_doc(requestBody=modification_body(edit=True))
-def edit():
+@convcheck_project
+def edit(project_id):
     """
     POST: Change one column of the given rows.
     JSON describing the edit to be made.
@@ -105,7 +108,8 @@ def edit():
 
 @bp.route('/delete', methods=['POST'])
 @openapi_doc(requestBody=modification_body())
-def delete():
+@convcheck_project
+def delete(project_id):
     """
     POST: Mark the given rows as deleted (soft delete, undone by undelete).
     JSON describing the delete to be made.
@@ -115,7 +119,8 @@ def delete():
 
 @bp.route('/undelete', methods=['POST'])
 @openapi_doc(requestBody=modification_body())
-def undelete():
+@convcheck_project
+def undelete(project_id):
     """
     POST: Undo a delete of the given rows.
     JSON describing the undelete to be made.
@@ -125,7 +130,8 @@ def undelete():
 
 @bp.route('/deprecate', methods=['POST'])
 @openapi_doc(requestBody=modification_body())
-def deprecate():
+@convcheck_project
+def deprecate(project_id):
     """
     POST: Mark the given rows as deprecated (undone by undeprecate).
     JSON describing the deprecate to be made.
@@ -135,7 +141,8 @@ def deprecate():
 
 @bp.route('/undeprecate', methods=['POST'])
 @openapi_doc(requestBody=modification_body())
-def undeprecate():
+@convcheck_project
+def undeprecate(project_id):
     """
     POST: Undo a deprecate of the given rows.
     JSON describing the undeprecate to be made.
@@ -145,7 +152,8 @@ def undeprecate():
 
 @bp.route('/curate', methods=['POST'])
 @openapi_doc(requestBody=modification_body())
-def curate():
+@convcheck_project
+def curate(project_id):
     """
     POST: Remove the given rows from the database for good (hard delete).
     JSON describing the curate to be made.

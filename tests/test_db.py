@@ -448,3 +448,57 @@ def test_create_project_without_mapping_warns():
         assert _project_names(default_uri) == ['PROJ-B']
         assert _project_names(prja_uri) == []
         assert "'Project' 'PROJ-B' has no PROJECT_DATABASES entry" in response.get_json()['DB_ACTION_WARNING'][0]
+
+
+def _add_specimen(db_uri, project_name, specimen_name):
+    """Adds a specimen to the project of that name in db_uri, creating the project row if needed."""
+    with session_scope(no_app=True, db_uri=db_uri) as s:
+        project = s.query(model.Project).filter_by(name=project_name).one_or_none() or model.Project(name=project_name)
+        s.add(model.Specimen(name=specimen_name, project=project))
+
+
+def _specimen_names(db_uri):
+    with session_scope(no_app=True, db_uri=db_uri) as s:
+        return sorted(specimen.name for specimen in s.query(model.Specimen).all())
+
+
+def _rename_specimen(client, project_name, specimen_id, new):
+    payload = {"modification": [{"table": "specimen", "id": [specimen_id], "column": "name", "new": new}]}
+    return client.post(f'/project/{project_name}/modification/edit', json=payload).get_json()
+
+
+def test_modification_routes_use_the_project_database():
+    """Row ids are per database: the project in the URL selects the database the rows are changed in."""
+    with _tmp_db() as default_uri, _tmp_db() as prja_uri:
+        app = _make_app(default_uri, {'PROJ-A': prja_uri})
+        with app.app_context():
+            init_db(default_uri)
+            init_db(prja_uri)
+        _add_specimen(prja_uri, 'PROJ-A', 'SPECIMEN-A')
+        _add_specimen(default_uri, 'PROJ-B', 'SPECIMEN-B')
+        client = app.test_client()
+
+        assert 'DB_ACTION_ERROR' not in _rename_specimen(client, 'proj-a', 1, 'SPECIMEN-A2')
+        assert _specimen_names(prja_uri) == ['SPECIMEN-A2']
+        assert _specimen_names(default_uri) == ['SPECIMEN-B']
+
+        assert 'DB_ACTION_ERROR' not in _rename_specimen(client, 'PROJ-B', 1, 'SPECIMEN-B2')
+        assert _specimen_names(default_uri) == ['SPECIMEN-B2']
+        assert _specimen_names(prja_uri) == ['SPECIMEN-A2']
+
+        assert 'DB_ACTION_ERROR' in _rename_specimen(client, 'PROJ-UNKNOWN', 1, 'SPECIMEN-X')
+        assert client.post('/modification/edit', json={"modification": []}).status_code == 404
+
+
+def test_modification_reaches_every_project_of_its_database():
+    """Rights are per database: through any project of a database, rows of its other projects can be changed."""
+    with _tmp_db() as default_uri, _tmp_db() as shared_uri:
+        app = _make_app(default_uri, {'PROJ-A': shared_uri, 'PROJ-A-PHASE2': shared_uri})
+        with app.app_context():
+            init_db(default_uri)
+            init_db(shared_uri)
+        _add_specimen(shared_uri, 'PROJ-A', 'SPECIMEN-A')
+        _add_specimen(shared_uri, 'PROJ-A-PHASE2', 'SPECIMEN-P2')
+
+        assert 'DB_ACTION_ERROR' not in _rename_specimen(app.test_client(), 'PROJ-A', 2, 'SPECIMEN-P2-RENAMED')
+        assert _specimen_names(shared_uri) == ['SPECIMEN-A', 'SPECIMEN-P2-RENAMED']

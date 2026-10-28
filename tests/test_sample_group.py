@@ -139,9 +139,9 @@ def _group_id(client, project_name, name):
     return _groups(client, project_name, {"sample_group_name": [name]})[0]["id"]
 
 
-def _modify(client, action, table, ids, **edit):
+def _modify(client, project_name, action, table, ids, **edit):
     payload = {"modification": [dict({"table": table, "id": ids}, **edit)]}
-    return json.loads(client.post(f'modification/{action}', data=json.dumps(payload)).text)
+    return json.loads(client.post(f'project/{project_name}/modification/{action}', data=json.dumps(payload)).text)
 
 
 def test_rename_sample_group_with_edit(client, run_processing_json):
@@ -150,14 +150,14 @@ def test_rename_sample_group_with_edit(client, run_processing_json):
     _ingest(client, run_processing_json)
     group_id = _group_id(client, project_name, CM_GROUP)
 
-    body = _modify(client, "edit", "sample_group", [group_id], column="name", new="MoHQ-CM-1-3_G2")
+    body = _modify(client, project_name, "edit", "sample_group", [group_id], column="name", new="MoHQ-CM-1-3_G2")
     assert "DB_ACTION_ERROR" not in body
     assert {g["name"] for g in _groups(client, project_name)} == {"MoHQ-CM-1-3_G2", "MoHQ-JG-9-23_G1"}
 
-    assert "is invalid" in _modify(client, "edit", "sample_group", [group_id], column="name", new="bad name")["DB_ACTION_ERROR"]
-    assert _modify(client, "edit", "SampleGroup", [group_id], column="name", new="MoHQ-JG-9-23_G1")["DB_ACTION_ERROR"] == \
+    assert "is invalid" in _modify(client, project_name, "edit", "sample_group", [group_id], column="name", new="bad name")["DB_ACTION_ERROR"]
+    assert _modify(client, project_name, "edit", "SampleGroup", [group_id], column="name", new="MoHQ-JG-9-23_G1")["DB_ACTION_ERROR"] == \
         "'SampleGroup' 'MoHQ-JG-9-23_G1' already exists."
-    assert "can't be edited" in _modify(client, "edit", "sample_group", [group_id], column="specimen_id", new=1)["DB_ACTION_ERROR"]
+    assert "can't be edited" in _modify(client, project_name, "edit", "sample_group", [group_id], column="specimen_id", new=1)["DB_ACTION_ERROR"]
     assert {g["name"] for g in _groups(client, project_name)} == {"MoHQ-CM-1-3_G2", "MoHQ-JG-9-23_G1"}
 
 
@@ -167,12 +167,12 @@ def test_deprecate_and_curate_sample_group(client, run_processing_json):
     _ingest(client, run_processing_json)
     group_id = _group_id(client, project_name, CM_GROUP)
 
-    assert "DB_ACTION_ERROR" not in _modify(client, "deprecate", "sample_group", [group_id])
+    assert "DB_ACTION_ERROR" not in _modify(client, project_name, "deprecate", "sample_group", [group_id])
     assert _groups(client, project_name, {"sample_group_name": [CM_GROUP]})[0]["deprecated"] is True
     second_run = json.loads(json.dumps(run_processing_json).replace("A01433_0157", "A01433_0999"))
     assert f"'SampleGroup' '{CM_GROUP}' is deprecated: undo it or use another name." in _ingest(client, second_run)["DB_ACTION_ERROR"]
 
-    assert "DB_ACTION_ERROR" not in _modify(client, "curate", "sample_group", [group_id])
+    assert "DB_ACTION_ERROR" not in _modify(client, project_name, "curate", "sample_group", [group_id])
     assert {g["name"] for g in _groups(client, project_name)} == {"MoHQ-JG-9-23_G1"}
     samples = json.loads(client.get(f'project/{project_name}/samples?json={json.dumps({"sample_name": CM_TUMOUR})}').text)
     assert samples["DB_ACTION_OUTPUT"][0]["sample_group_ids"] == []
@@ -182,6 +182,6 @@ def test_curate_sample_drops_its_memberships(client, run_processing_json):
     project_name = run_processing_json[vb.PROJECT_NAME]
     _ingest(client, run_processing_json)
     samples = json.loads(client.get(f'project/{project_name}/samples?json={json.dumps({"sample_name": CM_RNA})}').text)["DB_ACTION_OUTPUT"]
-    response = client.post('/modification/curate', json={"modification": [{"table": "Sample", "id": [samples[0]["id"]]}]})
+    response = client.post(f'/project/{project_name}/modification/curate', json={"modification": [{"table": "Sample", "id": [samples[0]["id"]]}]})
     assert response.status_code == 200
     assert _groups(client, project_name, {"sample_group_name": [CM_GROUP]})[0]["sample_name"] == sorted([CM_TUMOUR, CM_NORMAL])

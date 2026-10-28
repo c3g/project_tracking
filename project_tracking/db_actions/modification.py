@@ -508,15 +508,46 @@ def model_table(name):
     raise RequestError(f"'table' '{name}' doesn't exist: expected one of {', '.join(repr(t) for t in sorted(tables))}.")
 
 
+def modifiable_table(name):
+    """
+    Model class of a table the modification routes may change: any table but 'project', whose rows are the projects
+    the routes are under (create them with the admin routes).
+    """
+    the_table = model_table(name)
+    if the_table is model.Project:
+        raise RequestError("'project' rows can't be changed by the modification routes.")
+    return the_table
+
+
+def commit(session):
+    """
+    Save the changes, or raise RequestError: a failed save is reported as an error, never as done.
+    """
+    try:
+        session.commit()
+    except SQLAlchemyError as error:
+        session.rollback()
+        logger.error("Error: %s", error)
+        raise RequestError(f"Nothing was changed, the database refused the changes: {getattr(error, 'orig', error)}") from error
+
+
 def check_edit(the_table, column, new_value, ids, session):
     """
-    Refuse edits breaking a rule the generic edit can't see: sample group names are oncoanalyser group ids, unique,
-    and a group holds samples of its specimen only.
+    Refuse edits breaking a rule the generic edit can't see: ids and links between rows (primary and foreign keys)
+    don't change, sample group names are oncoanalyser group ids, unique, and a group holds samples of its specimen
+    only.
     """
     if the_table is model.SampleGroup and column == "specimen_id":
         raise RequestError(
             "'sample_group' 'specimen_id' can't be edited: a group holds samples of its specimen only. "
             "Create a group for the other specimen instead."
+        )
+    table_column = the_table.__table__.columns.get(column)
+    if table_column is None:
+        raise RequestError(f"'{the_table.__tablename__}' has no column '{column}'.")
+    if table_column.primary_key or table_column.foreign_keys:
+        raise RequestError(
+            f"'{the_table.__tablename__}' '{column}' can't be edited: it is an id or a link to another row."
         )
     if the_table is model.SampleGroup and column == "name":
         problem = group_name_problem(new_value)
@@ -562,7 +593,7 @@ def edit(ingest_data, session, cascade_mode=None, dry_run=False):
         raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
 
     for table in ingest_data[vb.MODIFICATION]:
-        the_table = model_table(table[vb.TABLE])
+        the_table = modifiable_table(table[vb.TABLE])
         new_value = edit_value(the_table, table[vb.COLUMN], table[vb.NEW])
         if table[vb.ID]:
             check_edit(the_table, table[vb.COLUMN], new_value, table[vb.ID], session)
@@ -583,11 +614,7 @@ def edit(ingest_data, session, cascade_mode=None, dry_run=False):
             ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table[vb.TABLE]}'. Skipping...")
 
     if not dry_run:
-        try:
-            session.commit()
-        except SQLAlchemyError as error:
-            logger.error("Error: %s", error)
-            session.rollback()
+        commit(session)
 
     # If no warning
     if not ret["DB_ACTION_WARNING"]:
@@ -609,7 +636,7 @@ def delete(ingest_data, session, cascade_mode=None, dry_run=False):
         raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
 
     for table in ingest_data[vb.MODIFICATION]:
-        the_table = model_table(table[vb.TABLE])
+        the_table = modifiable_table(table[vb.TABLE])
         table_name = the_table.__name__
         if table[vb.ID]:
             for current_id in set(table[vb.ID]):
@@ -632,11 +659,7 @@ def delete(ingest_data, session, cascade_mode=None, dry_run=False):
             ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table[vb.TABLE]}'. Skipping...")
 
     if not dry_run:
-        try:
-            session.commit()
-        except SQLAlchemyError as error:
-            session.rollback()
-            raise RuntimeError(f"Database error during deletion: {error}") from error
+        commit(session)
 
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
@@ -658,7 +681,7 @@ def undelete(ingest_data, session, cascade_mode=None, dry_run=False):
         raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
 
     for table in ingest_data[vb.MODIFICATION]:
-        the_table = model_table(table[vb.TABLE])
+        the_table = modifiable_table(table[vb.TABLE])
         table_name = the_table.__name__
         if table[vb.ID]:
             for current_id in set(table[vb.ID]):
@@ -681,11 +704,7 @@ def undelete(ingest_data, session, cascade_mode=None, dry_run=False):
             ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table[vb.TABLE]}'. Skipping...")
 
     if not dry_run:
-        try:
-            session.commit()
-        except SQLAlchemyError as error:
-            session.rollback()
-            raise RuntimeError(f"Database error during undelete: {error}") from error
+        commit(session)
 
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")
@@ -749,7 +768,7 @@ def deprecate(ingest_data, session, cascade_mode=None, dry_run=False):
         raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
 
     for table in ingest_data[vb.MODIFICATION]:
-        the_table = model_table(table[vb.TABLE])
+        the_table = modifiable_table(table[vb.TABLE])
         table_name = the_table.__name__
         if table[vb.ID]:
             for current_id in set(table[vb.ID]):
@@ -772,11 +791,7 @@ def deprecate(ingest_data, session, cascade_mode=None, dry_run=False):
             ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table[vb.TABLE]}'. Skipping...")
 
     if not dry_run:
-        try:
-            session.commit()
-        except SQLAlchemyError as error:
-            logger.error("Error: %s", error)
-            session.rollback()
+        commit(session)
 
     # If no warning
     if not ret["DB_ACTION_WARNING"]:
@@ -799,7 +814,7 @@ def undeprecate(ingest_data, session, cascade_mode=None, dry_run=False):
         raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
 
     for table in ingest_data[vb.MODIFICATION]:
-        the_table = model_table(table[vb.TABLE])
+        the_table = modifiable_table(table[vb.TABLE])
         table_name = the_table.__name__
         if table[vb.ID]:
             for current_id in set(table[vb.ID]):
@@ -822,11 +837,7 @@ def undeprecate(ingest_data, session, cascade_mode=None, dry_run=False):
             ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table[vb.TABLE]}'. Skipping...")
 
     if not dry_run:
-        try:
-            session.commit()
-        except SQLAlchemyError as error:
-            logger.error("Error: %s", error)
-            session.rollback()
+        commit(session)
 
     # If no warning
     if not ret["DB_ACTION_WARNING"]:
@@ -891,7 +902,7 @@ def curate(ingest_data, session, cascade_mode=None, dry_run=False):
         raise RequestError("No 'table' provided under 'modification' list, this JSON is malformed.")
 
     for table in ingest_data[vb.MODIFICATION]:
-        the_table = model_table(table[vb.TABLE])
+        the_table = modifiable_table(table[vb.TABLE])
         table_name = the_table.__name__
         if table[vb.ID]:
             for current_id in set(table[vb.ID]):
@@ -912,11 +923,7 @@ def curate(ingest_data, session, cascade_mode=None, dry_run=False):
             ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table_name}'. Skipping...")
 
     if not dry_run:
-        try:
-            session.commit()
-        except SQLAlchemyError as error:
-            logger.error("Error: %s", error)
-            session.rollback()
+        commit(session)
 
     if not ret["DB_ACTION_WARNING"]:
         ret.pop("DB_ACTION_WARNING")

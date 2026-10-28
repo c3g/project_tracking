@@ -269,6 +269,20 @@ to query several projects **stored in that same database** at once:
 GET /project/PROJ-B/samples?json={"project_name": "PROJ-B,PROJ-C"}
 ```
 
+The modification routes (`edit`, `delete`, `undelete`, `deprecate`, `undeprecate`, `curate`) are under the
+project too, because row ids only mean something within one database. Their rows can belong to any project
+of that database:
+
+```http
+POST /project/PROJ-B/modification/edit
+{"modification": [{"table": "specimen", "id": [1], "column": "name", "new": "SPECIMEN-1B"}]}
+```
+
+- `edit` doesn't change ids or links between rows (primary and foreign keys), and no route changes the
+  `project` rows themselves: create projects with the admin routes.
+- A change the database refuses (e.g. a duplicate name) is reported in `DB_ACTION_ERROR`, and nothing is
+  changed.
+
 Database errors come back in the usual envelope:
 - **503** when the database cannot be reached (connection refused, authentication failure, missing
   database or role), with a hint on which database the project resolved to.

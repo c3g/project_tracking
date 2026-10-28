@@ -1009,674 +1009,6 @@
         ]
       }
     },
-    "/modification/curate": {
-      "post": {
-        "description": "```text\nPOST: Remove the given rows from the database for good (hard delete).\nJSON describing the curate to be made.\nOptional: \"dry_run\": true to simulate the operation.\nReturns: Result of the curate operation.\n```",
-        "operationId": "post_modification_curate",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "modification": [
-                  {
-                    "id": [
-                      1
-                    ],
-                    "table": "sample"
-                  }
-                ]
-              },
-              "schema": {
-                "properties": {
-                  "cascade": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "cascade_down": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "cascade_up": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "dry_run": {
-                    "default": false,
-                    "description": "Report the changes without saving",
-                    "type": "boolean"
-                  },
-                  "modification": {
-                    "items": {
-                      "properties": {
-                        "id": {
-                          "description": "Ids of the rows",
-                          "items": {
-                            "type": "integer"
-                          },
-                          "type": "array"
-                        },
-                        "table": {
-                          "description": "Table or class name, e.g. 'sample' or 'Sample'",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "table",
-                        "id"
-                      ],
-                      "type": "object"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "modification"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "DB_ACTION_ERROR": {
-                      "$ref": "#/components/schemas/Messages"
-                    },
-                    "DB_ACTION_OUTPUT": {
-                      "items": {},
-                      "type": "array"
-                    },
-                    "DB_ACTION_WARNING": {
-                      "$ref": "#/components/schemas/Messages"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success: the result in DB_ACTION_OUTPUT, with any warnings"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Invalid request: DB_ACTION_ERROR says why"
-          }
-        },
-        "summary": "Remove the given rows from the database for good (hard delete).",
-        "tags": [
-          "modification"
-        ]
-      }
-    },
-    "/modification/delete": {
-      "post": {
-        "description": "```text\nPOST: Mark the given rows as deleted (soft delete, undone by undelete).\nJSON describing the delete to be made.\nReturns: Result of the delete operation.\n```",
-        "operationId": "post_modification_delete",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "modification": [
-                  {
-                    "id": [
-                      1
-                    ],
-                    "table": "sample"
-                  }
-                ]
-              },
-              "schema": {
-                "properties": {
-                  "cascade": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "cascade_down": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "cascade_up": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "dry_run": {
-                    "default": false,
-                    "description": "Report the changes without saving",
-                    "type": "boolean"
-                  },
-                  "modification": {
-                    "items": {
-                      "properties": {
-                        "id": {
-                          "description": "Ids of the rows",
-                          "items": {
-                            "type": "integer"
-                          },
-                          "type": "array"
-                        },
-                        "table": {
-                          "description": "Table or class name, e.g. 'sample' or 'Sample'",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "table",
-                        "id"
-                      ],
-                      "type": "object"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "modification"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "DB_ACTION_ERROR": {
-                      "$ref": "#/components/schemas/Messages"
-                    },
-                    "DB_ACTION_OUTPUT": {
-                      "items": {},
-                      "type": "array"
-                    },
-                    "DB_ACTION_WARNING": {
-                      "$ref": "#/components/schemas/Messages"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success: the result in DB_ACTION_OUTPUT, with any warnings"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Invalid request: DB_ACTION_ERROR says why"
-          }
-        },
-        "summary": "Mark the given rows as deleted (soft delete, undone by undelete).",
-        "tags": [
-          "modification"
-        ]
-      }
-    },
-    "/modification/deprecate": {
-      "post": {
-        "description": "```text\nPOST: Mark the given rows as deprecated (undone by undeprecate).\nJSON describing the deprecate to be made.\nReturns: Result of the deprecate operation.\n```",
-        "operationId": "post_modification_deprecate",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "modification": [
-                  {
-                    "id": [
-                      1
-                    ],
-                    "table": "sample"
-                  }
-                ]
-              },
-              "schema": {
-                "properties": {
-                  "cascade": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "cascade_down": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "cascade_up": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "dry_run": {
-                    "default": false,
-                    "description": "Report the changes without saving",
-                    "type": "boolean"
-                  },
-                  "modification": {
-                    "items": {
-                      "properties": {
-                        "id": {
-                          "description": "Ids of the rows",
-                          "items": {
-                            "type": "integer"
-                          },
-                          "type": "array"
-                        },
-                        "table": {
-                          "description": "Table or class name, e.g. 'sample' or 'Sample'",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "table",
-                        "id"
-                      ],
-                      "type": "object"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "modification"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "DB_ACTION_ERROR": {
-                      "$ref": "#/components/schemas/Messages"
-                    },
-                    "DB_ACTION_OUTPUT": {
-                      "items": {},
-                      "type": "array"
-                    },
-                    "DB_ACTION_WARNING": {
-                      "$ref": "#/components/schemas/Messages"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success: the result in DB_ACTION_OUTPUT, with any warnings"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Invalid request: DB_ACTION_ERROR says why"
-          }
-        },
-        "summary": "Mark the given rows as deprecated (undone by undeprecate).",
-        "tags": [
-          "modification"
-        ]
-      }
-    },
-    "/modification/edit": {
-      "post": {
-        "description": "```text\nPOST: Change one column of the given rows.\nJSON describing the edit to be made.\nReturns: Result of the edit operation.\n```",
-        "operationId": "post_modification_edit",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "modification": [
-                  {
-                    "column": "name",
-                    "id": [
-                      1
-                    ],
-                    "new": "SPECIMEN-1_G2",
-                    "table": "sample_group"
-                  }
-                ]
-              },
-              "schema": {
-                "properties": {
-                  "dry_run": {
-                    "default": false,
-                    "description": "Report the changes without saving",
-                    "type": "boolean"
-                  },
-                  "modification": {
-                    "items": {
-                      "properties": {
-                        "column": {
-                          "description": "Column to change",
-                          "type": "string"
-                        },
-                        "id": {
-                          "description": "Ids of the rows",
-                          "items": {
-                            "type": "integer"
-                          },
-                          "type": "array"
-                        },
-                        "new": {
-                          "description": "New value: an enum takes its exact value or member name"
-                        },
-                        "table": {
-                          "description": "Table or class name, e.g. 'sample' or 'Sample'",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "table",
-                        "id",
-                        "column",
-                        "new"
-                      ],
-                      "type": "object"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "modification"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "DB_ACTION_ERROR": {
-                      "$ref": "#/components/schemas/Messages"
-                    },
-                    "DB_ACTION_OUTPUT": {
-                      "items": {},
-                      "type": "array"
-                    },
-                    "DB_ACTION_WARNING": {
-                      "$ref": "#/components/schemas/Messages"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success: the result in DB_ACTION_OUTPUT, with any warnings"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Invalid request: DB_ACTION_ERROR says why"
-          }
-        },
-        "summary": "Change one column of the given rows.",
-        "tags": [
-          "modification"
-        ]
-      }
-    },
-    "/modification/undelete": {
-      "post": {
-        "description": "```text\nPOST: Undo a delete of the given rows.\nJSON describing the undelete to be made.\nReturns: Result of the undelete operation.\n```",
-        "operationId": "post_modification_undelete",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "modification": [
-                  {
-                    "id": [
-                      1
-                    ],
-                    "table": "sample"
-                  }
-                ]
-              },
-              "schema": {
-                "properties": {
-                  "cascade": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "cascade_down": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "cascade_up": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "dry_run": {
-                    "default": false,
-                    "description": "Report the changes without saving",
-                    "type": "boolean"
-                  },
-                  "modification": {
-                    "items": {
-                      "properties": {
-                        "id": {
-                          "description": "Ids of the rows",
-                          "items": {
-                            "type": "integer"
-                          },
-                          "type": "array"
-                        },
-                        "table": {
-                          "description": "Table or class name, e.g. 'sample' or 'Sample'",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "table",
-                        "id"
-                      ],
-                      "type": "object"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "modification"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "DB_ACTION_ERROR": {
-                      "$ref": "#/components/schemas/Messages"
-                    },
-                    "DB_ACTION_OUTPUT": {
-                      "items": {},
-                      "type": "array"
-                    },
-                    "DB_ACTION_WARNING": {
-                      "$ref": "#/components/schemas/Messages"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success: the result in DB_ACTION_OUTPUT, with any warnings"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Invalid request: DB_ACTION_ERROR says why"
-          }
-        },
-        "summary": "Undo a delete of the given rows.",
-        "tags": [
-          "modification"
-        ]
-      }
-    },
-    "/modification/undeprecate": {
-      "post": {
-        "description": "```text\nPOST: Undo a deprecate of the given rows.\nJSON describing the undeprecate to be made.\nReturns: Result of the undeprecate operation.\n```",
-        "operationId": "post_modification_undeprecate",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "example": {
-                "modification": [
-                  {
-                    "id": [
-                      1
-                    ],
-                    "table": "sample"
-                  }
-                ]
-              },
-              "schema": {
-                "properties": {
-                  "cascade": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "cascade_down": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "cascade_up": {
-                    "default": false,
-                    "description": "Only one cascade mode at a time",
-                    "type": "boolean"
-                  },
-                  "dry_run": {
-                    "default": false,
-                    "description": "Report the changes without saving",
-                    "type": "boolean"
-                  },
-                  "modification": {
-                    "items": {
-                      "properties": {
-                        "id": {
-                          "description": "Ids of the rows",
-                          "items": {
-                            "type": "integer"
-                          },
-                          "type": "array"
-                        },
-                        "table": {
-                          "description": "Table or class name, e.g. 'sample' or 'Sample'",
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "table",
-                        "id"
-                      ],
-                      "type": "object"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "modification"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "DB_ACTION_ERROR": {
-                      "$ref": "#/components/schemas/Messages"
-                    },
-                    "DB_ACTION_OUTPUT": {
-                      "items": {},
-                      "type": "array"
-                    },
-                    "DB_ACTION_WARNING": {
-                      "$ref": "#/components/schemas/Messages"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success: the result in DB_ACTION_OUTPUT, with any warnings"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Invalid request: DB_ACTION_ERROR says why"
-          }
-        },
-        "summary": "Undo a deprecate of the given rows.",
-        "tags": [
-          "modification"
-        ]
-      }
-    },
     "/project": {
       "get": {
         "description": "```text\nGET:\n    project_id: uses the form \"1,3-8,9\", if not provided all projects are returned\nreturn: list all projects or selected projects\nQuery:\n(project_name):\nThe project_name query allows to get all projects labelled with a specific name\n    (name):\n        return: a subset of projects who have the name\n        Ex: /project?json={\"project_name\": \"<NAME1>,<NAME2>,...\"}\nIf project_id is provided, it will return the project with that ID.\nIf project_name is provided in digest_data, it will convert the name to an ID.\nIf no project_id or project_name is provided, it will return all projects.\nIf the project does not exist, it will return a warning with available projects.\n```",
@@ -3354,6 +2686,740 @@
         "summary": "Selected metrics, belonging to <project>",
         "tags": [
           "project"
+        ]
+      }
+    },
+    "/project/{project}/modification/curate": {
+      "post": {
+        "description": "```text\nPOST: Remove the given rows from the database for good (hard delete).\nJSON describing the curate to be made.\nOptional: \"dry_run\": true to simulate the operation.\nReturns: Result of the curate operation.\n```",
+        "operationId": "post_project_string_project_modification_curate",
+        "parameters": [
+          {
+            "description": "Project name, matched ignoring case. Numeric ids are refused.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "modification": [
+                  {
+                    "id": [
+                      1
+                    ],
+                    "table": "sample"
+                  }
+                ]
+              },
+              "schema": {
+                "properties": {
+                  "cascade": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "cascade_down": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "cascade_up": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "dry_run": {
+                    "default": false,
+                    "description": "Report the changes without saving",
+                    "type": "boolean"
+                  },
+                  "modification": {
+                    "items": {
+                      "properties": {
+                        "id": {
+                          "description": "Ids of the rows",
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "table": {
+                          "description": "Table or class name, e.g. 'sample' or 'Sample'",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "table",
+                        "id"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "modification"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "DB_ACTION_ERROR": {
+                      "$ref": "#/components/schemas/Messages"
+                    },
+                    "DB_ACTION_OUTPUT": {
+                      "items": {},
+                      "type": "array"
+                    },
+                    "DB_ACTION_WARNING": {
+                      "$ref": "#/components/schemas/Messages"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success: the result in DB_ACTION_OUTPUT, with any warnings"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid request: DB_ACTION_ERROR says why"
+          }
+        },
+        "summary": "Remove the given rows from the database for good (hard delete).",
+        "tags": [
+          "modification"
+        ]
+      }
+    },
+    "/project/{project}/modification/delete": {
+      "post": {
+        "description": "```text\nPOST: Mark the given rows as deleted (soft delete, undone by undelete).\nJSON describing the delete to be made.\nReturns: Result of the delete operation.\n```",
+        "operationId": "post_project_string_project_modification_delete",
+        "parameters": [
+          {
+            "description": "Project name, matched ignoring case. Numeric ids are refused.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "modification": [
+                  {
+                    "id": [
+                      1
+                    ],
+                    "table": "sample"
+                  }
+                ]
+              },
+              "schema": {
+                "properties": {
+                  "cascade": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "cascade_down": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "cascade_up": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "dry_run": {
+                    "default": false,
+                    "description": "Report the changes without saving",
+                    "type": "boolean"
+                  },
+                  "modification": {
+                    "items": {
+                      "properties": {
+                        "id": {
+                          "description": "Ids of the rows",
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "table": {
+                          "description": "Table or class name, e.g. 'sample' or 'Sample'",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "table",
+                        "id"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "modification"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "DB_ACTION_ERROR": {
+                      "$ref": "#/components/schemas/Messages"
+                    },
+                    "DB_ACTION_OUTPUT": {
+                      "items": {},
+                      "type": "array"
+                    },
+                    "DB_ACTION_WARNING": {
+                      "$ref": "#/components/schemas/Messages"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success: the result in DB_ACTION_OUTPUT, with any warnings"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid request: DB_ACTION_ERROR says why"
+          }
+        },
+        "summary": "Mark the given rows as deleted (soft delete, undone by undelete).",
+        "tags": [
+          "modification"
+        ]
+      }
+    },
+    "/project/{project}/modification/deprecate": {
+      "post": {
+        "description": "```text\nPOST: Mark the given rows as deprecated (undone by undeprecate).\nJSON describing the deprecate to be made.\nReturns: Result of the deprecate operation.\n```",
+        "operationId": "post_project_string_project_modification_deprecate",
+        "parameters": [
+          {
+            "description": "Project name, matched ignoring case. Numeric ids are refused.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "modification": [
+                  {
+                    "id": [
+                      1
+                    ],
+                    "table": "sample"
+                  }
+                ]
+              },
+              "schema": {
+                "properties": {
+                  "cascade": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "cascade_down": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "cascade_up": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "dry_run": {
+                    "default": false,
+                    "description": "Report the changes without saving",
+                    "type": "boolean"
+                  },
+                  "modification": {
+                    "items": {
+                      "properties": {
+                        "id": {
+                          "description": "Ids of the rows",
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "table": {
+                          "description": "Table or class name, e.g. 'sample' or 'Sample'",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "table",
+                        "id"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "modification"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "DB_ACTION_ERROR": {
+                      "$ref": "#/components/schemas/Messages"
+                    },
+                    "DB_ACTION_OUTPUT": {
+                      "items": {},
+                      "type": "array"
+                    },
+                    "DB_ACTION_WARNING": {
+                      "$ref": "#/components/schemas/Messages"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success: the result in DB_ACTION_OUTPUT, with any warnings"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid request: DB_ACTION_ERROR says why"
+          }
+        },
+        "summary": "Mark the given rows as deprecated (undone by undeprecate).",
+        "tags": [
+          "modification"
+        ]
+      }
+    },
+    "/project/{project}/modification/edit": {
+      "post": {
+        "description": "```text\nPOST: Change one column of the given rows.\nJSON describing the edit to be made.\nReturns: Result of the edit operation.\n```",
+        "operationId": "post_project_string_project_modification_edit",
+        "parameters": [
+          {
+            "description": "Project name, matched ignoring case. Numeric ids are refused.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "modification": [
+                  {
+                    "column": "name",
+                    "id": [
+                      1
+                    ],
+                    "new": "SPECIMEN-1_G2",
+                    "table": "sample_group"
+                  }
+                ]
+              },
+              "schema": {
+                "properties": {
+                  "dry_run": {
+                    "default": false,
+                    "description": "Report the changes without saving",
+                    "type": "boolean"
+                  },
+                  "modification": {
+                    "items": {
+                      "properties": {
+                        "column": {
+                          "description": "Column to change",
+                          "type": "string"
+                        },
+                        "id": {
+                          "description": "Ids of the rows",
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "new": {
+                          "description": "New value: an enum takes its exact value or member name"
+                        },
+                        "table": {
+                          "description": "Table or class name, e.g. 'sample' or 'Sample'",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "table",
+                        "id",
+                        "column",
+                        "new"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "modification"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "DB_ACTION_ERROR": {
+                      "$ref": "#/components/schemas/Messages"
+                    },
+                    "DB_ACTION_OUTPUT": {
+                      "items": {},
+                      "type": "array"
+                    },
+                    "DB_ACTION_WARNING": {
+                      "$ref": "#/components/schemas/Messages"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success: the result in DB_ACTION_OUTPUT, with any warnings"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid request: DB_ACTION_ERROR says why"
+          }
+        },
+        "summary": "Change one column of the given rows.",
+        "tags": [
+          "modification"
+        ]
+      }
+    },
+    "/project/{project}/modification/undelete": {
+      "post": {
+        "description": "```text\nPOST: Undo a delete of the given rows.\nJSON describing the undelete to be made.\nReturns: Result of the undelete operation.\n```",
+        "operationId": "post_project_string_project_modification_undelete",
+        "parameters": [
+          {
+            "description": "Project name, matched ignoring case. Numeric ids are refused.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "modification": [
+                  {
+                    "id": [
+                      1
+                    ],
+                    "table": "sample"
+                  }
+                ]
+              },
+              "schema": {
+                "properties": {
+                  "cascade": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "cascade_down": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "cascade_up": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "dry_run": {
+                    "default": false,
+                    "description": "Report the changes without saving",
+                    "type": "boolean"
+                  },
+                  "modification": {
+                    "items": {
+                      "properties": {
+                        "id": {
+                          "description": "Ids of the rows",
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "table": {
+                          "description": "Table or class name, e.g. 'sample' or 'Sample'",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "table",
+                        "id"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "modification"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "DB_ACTION_ERROR": {
+                      "$ref": "#/components/schemas/Messages"
+                    },
+                    "DB_ACTION_OUTPUT": {
+                      "items": {},
+                      "type": "array"
+                    },
+                    "DB_ACTION_WARNING": {
+                      "$ref": "#/components/schemas/Messages"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success: the result in DB_ACTION_OUTPUT, with any warnings"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid request: DB_ACTION_ERROR says why"
+          }
+        },
+        "summary": "Undo a delete of the given rows.",
+        "tags": [
+          "modification"
+        ]
+      }
+    },
+    "/project/{project}/modification/undeprecate": {
+      "post": {
+        "description": "```text\nPOST: Undo a deprecate of the given rows.\nJSON describing the undeprecate to be made.\nReturns: Result of the undeprecate operation.\n```",
+        "operationId": "post_project_string_project_modification_undeprecate",
+        "parameters": [
+          {
+            "description": "Project name, matched ignoring case. Numeric ids are refused.",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "modification": [
+                  {
+                    "id": [
+                      1
+                    ],
+                    "table": "sample"
+                  }
+                ]
+              },
+              "schema": {
+                "properties": {
+                  "cascade": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "cascade_down": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "cascade_up": {
+                    "default": false,
+                    "description": "Only one cascade mode at a time",
+                    "type": "boolean"
+                  },
+                  "dry_run": {
+                    "default": false,
+                    "description": "Report the changes without saving",
+                    "type": "boolean"
+                  },
+                  "modification": {
+                    "items": {
+                      "properties": {
+                        "id": {
+                          "description": "Ids of the rows",
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "table": {
+                          "description": "Table or class name, e.g. 'sample' or 'Sample'",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "table",
+                        "id"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "modification"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "DB_ACTION_ERROR": {
+                      "$ref": "#/components/schemas/Messages"
+                    },
+                    "DB_ACTION_OUTPUT": {
+                      "items": {},
+                      "type": "array"
+                    },
+                    "DB_ACTION_WARNING": {
+                      "$ref": "#/components/schemas/Messages"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success: the result in DB_ACTION_OUTPUT, with any warnings"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid request: DB_ACTION_ERROR says why"
+          }
+        },
+        "summary": "Undo a deprecate of the given rows.",
+        "tags": [
+          "modification"
         ]
       }
     },

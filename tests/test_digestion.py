@@ -338,7 +338,7 @@ def test_digest_unanalyzed_leaves_out_analysed_readsets(client, run_processing_j
     operation = json.loads(client.post(f'project/{project_name}/ingest_analysis', data=json.dumps(genpipes_json)).text)["DB_ACTION_OUTPUT"][0]
     assert unanalyzed() == sorted(set(before) - set(analysed))
 
-    client.post('modification/delete', data=json.dumps({"modification": [{"table": "operation", "id": [operation["id"]]}]}))
+    client.post(f'project/{project_name}/modification/delete', data=json.dumps({"modification": [{"table": "operation", "id": [operation["id"]]}]}))
     assert unanalyzed() == before
 
 
