@@ -283,6 +283,23 @@ POST /project/PROJ-B/modification/edit
 - A change the database refuses (e.g. a duplicate name) is reported in `DB_ACTION_ERROR`, and nothing is
   changed.
 
+`delete`, `deprecate` and `curate` take one cascade mode, `cascade_down`, `cascade_up` or `cascade` (both),
+to reach more rows than the ones named. Each reached row is reported with the row it was reached from.
+- **Down:** a row is reached when all its parents through that link are gone (named, reached, or already
+  flagged for `delete` and `deprecate`). Deleting a readset takes the files only it links to, not a job or
+  files it shares with live readsets. The links followed are specimen > sample > readset, sample > sample
+  group, readset > file, metric, job and operation, operation > job, job > metric and file, and file > location.
+- **Up:** a sample, specimen or file is reached once all its readsets, samples or locations are gone. A warning
+  names the row that stopped it.
+- Runs, experiments, operation configs and references are never reached, and no route changes `project` rows.
+- `curate` only removes the rows it reports. It is refused, with the rows it would also remove, when the
+  database would remove more: e.g. curating a sample without a cascade, while it still has readsets, or a run
+  that still has readsets.
+- `undelete` and `undeprecate` with a cascade restore the flagged rows below (`cascade_down`), and the flagged
+  sample, specimen or file above, not their siblings (`cascade_up`). The database keeps no history: going down
+  also restores rows that were deleted on their own earlier.
+- With `"dry_run": true`, the report is the same and nothing is saved.
+
 Database errors come back in the usual envelope:
 - **503** when the database cannot be reached (connection refused, authentication failure, missing
   database or role), with a hint on which database the project resolved to.

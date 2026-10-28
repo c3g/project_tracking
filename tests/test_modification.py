@@ -10,13 +10,17 @@ def reset_database(session, run_processing_json):
     db_actions.ingest_run_processing(project_id, run_processing_json, session=session)
 
 def test_curate_route_app(client, app, run_processing_json):
-    """Test the /curate route using app session."""
+    """Test the /curate route using app session: a specimen with samples needs a cascade that reaches them."""
     with app.app_context():
         reset_database(database.get_session(), run_processing_json)
         session = database.get_session()
 
         response = client.post('/project/TestProject/modification/curate', json={
             "modification": [{"table": "Specimen", "id": [1]}]
+        })
+        assert "Nothing was curated" in response.get_json()["DB_ACTION_ERROR"]
+        response = client.post('/project/TestProject/modification/curate', json={
+            "modification": [{"table": "Specimen", "id": [1]}], "cascade_down": True
         })
         assert response.status_code == 200
 

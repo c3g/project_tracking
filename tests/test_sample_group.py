@@ -182,6 +182,7 @@ def test_curate_sample_drops_its_memberships(client, run_processing_json):
     project_name = run_processing_json[vb.PROJECT_NAME]
     _ingest(client, run_processing_json)
     samples = json.loads(client.get(f'project/{project_name}/samples?json={json.dumps({"sample_name": CM_RNA})}').text)["DB_ACTION_OUTPUT"]
-    response = client.post(f'/project/{project_name}/modification/curate', json={"modification": [{"table": "Sample", "id": [samples[0]["id"]]}]})
+    response = client.post(f'/project/{project_name}/modification/curate', json={
+        "modification": [{"table": "Sample", "id": [samples[0]["id"]]}], "cascade_down": True})
     assert response.status_code == 200
     assert _groups(client, project_name, {"sample_group_name": [CM_GROUP]})[0]["sample_name"] == sorted([CM_TUMOUR, CM_NORMAL])
