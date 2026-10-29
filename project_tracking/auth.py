@@ -14,6 +14,8 @@ Settings (C3G_ environment variables, *_FILE for secrets):
 - OIDC_SCOPE: requested when pt-cli asks for none (default: openid profile email org.cilogon.userinfo)
 - OIDC_AUDIENCES: other accepted token audiences, e.g. each robot's client id (default: none)
 - OIDC_GROUPS_CLAIM: the token claim with the groups (default: groups)
+- OIDC_USERINFO_GROUPS: read the groups from the issuer's userinfo endpoint when the access token has none, as
+  CILogon's don't (default: True). Not for robots (client ids in OIDC_AUDIENCES): they have no user.
 - OPA_URL: the OPA sidecar (default: http://127.0.0.1:8181)
 - OPA_POLICY: the package of the policy (default: project_tracking/authz)
 """
@@ -134,7 +136,9 @@ def init_app(app):
 
     # Imported here: the 'auth' extra is only needed with AUTH_MODE 'oidc'
     from c3g_flask_opa import FlaskOPA, groups_header_from_g
-    from c3g_oidc.server import BearerTokenValidator, TokenValidationError, device_flow_broker
+    from c3g_oidc.server import (
+        BearerTokenValidator, TokenValidationError, UserinfoGroups, UserinfoUnavailableError, device_flow_broker
+    )
 
     app.register_blueprint(device_flow_broker(
         app.config["OIDC_ISSUER"],
@@ -142,10 +146,12 @@ def init_app(app):
         app.config["OIDC_CLIENT_SECRET"],
         scope=app.config.get("OIDC_SCOPE", DEFAULT_SCOPE),
     ))
-    audiences = [app.config["OIDC_CLIENT_ID"], *(app.config.get("OIDC_AUDIENCES") or [])]
-    validator = BearerTokenValidator(
-        app.config["OIDC_ISSUER"], audiences, groups_claim=app.config.get("OIDC_GROUPS_CLAIM", "groups")
-    )
+    robots = set(app.config.get("OIDC_AUDIENCES") or [])
+    audiences = [app.config["OIDC_CLIENT_ID"], *robots]
+    groups_claim = app.config.get("OIDC_GROUPS_CLAIM", "groups")
+    validator = BearerTokenValidator(app.config["OIDC_ISSUER"], audiences, groups_claim=groups_claim)
+    userinfo = UserinfoGroups(app.config["OIDC_ISSUER"], groups_claim) \
+        if app.config.get("OIDC_USERINFO_GROUPS", True) else None
 
     @app.before_request
     def authenticate():
@@ -157,14 +163,24 @@ def init_app(app):
         token = request.headers.get("Authorization", "")
         if not token.startswith("Bearer "):
             return refused(401, "Not logged in: log in with 'pt-cli login'.")
+        token = token.removeprefix("Bearer ").strip()
         try:
-            claims = validator.validate_claims(token.removeprefix("Bearer ").strip())
+            claims = validator.validate_claims(token)
+            g.client_id = claims.get("client_id") or claims.get("azp")
+            groups = claims.get(groups_claim)
+            if groups is None and userinfo is not None and g.client_id not in robots:
+                groups = userinfo.groups(token, claims)
         except TokenValidationError as error:
             logger.info("Token refused: %s", error)
             return refused(401, "Token expired or invalid: log in again with 'pt-cli login'.")
-        groups = claims.get(validator.groups_claim) or []
-        g.groups = [str(group) for group in groups] if isinstance(groups, list) else []
-        g.client_id = claims.get("client_id") or claims.get("azp")
+        except UserinfoUnavailableError as error:
+            logger.error("Groups not read from userinfo: %s", error)
+            return refused(503, "The identity provider can't be reached to read your groups: try again later.")
+        groups = [str(group) for group in groups] if isinstance(groups, list) else []
+        # OPA gets the groups joined with commas: a group name with a comma could pass for another group
+        g.groups = [group for group in groups if "," not in group]
+        if len(g.groups) != len(groups):
+            logger.warning("Groups with a comma ignored for %s", claims.get("sub"))
         g.user = claims.get("sub")
         return None
 

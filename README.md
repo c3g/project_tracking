@@ -331,12 +331,18 @@ pt-cli reads the envelope, and exits with an error when `DB_ACTION_ERROR` is set
 | `OIDC_SCOPE` | `openid profile email org.cilogon.userinfo` | Requested at login |
 | `OIDC_AUDIENCES` | none | Other accepted token audiences: each robot's client id |
 | `OIDC_GROUPS_CLAIM` | `groups` | The token claim with the COmanage groups |
+| `OIDC_USERINFO_GROUPS` | `true` | Read the groups from COmanage's userinfo when the access token has none (CILogon's don't) |
 | `OPA_URL` | `http://127.0.0.1:8181` | The OPA sidecar, in the API's podman pod |
 | `OPA_POLICY` | `project_tracking/authz` | The policy package |
 
 - **Logging in:** pt-cli logs in with a device code through `POST /auth/device_authorization` and `POST /auth/token`.
   These routes add the client's secret and forward to COmanage, so the secret never leaves the API. They only accept
   the device-code and refresh-token grants. Robots log in as their own confidential client (client credentials).
+- **Groups:** CILogon puts the client's `groups` claim in the ID token and in userinfo, not in its access tokens. So
+  the API asks COmanage's userinfo endpoint with the caller's token, once per token (cached until the token expires,
+  5 minutes at most). If userinfo refuses the token, the answer is 401 (log in again); if COmanage can't be
+  reached, 503. Robots (client ids in `OIDC_AUDIENCES`) skip it: OPA knows them by client id. Group names with a
+  comma are ignored, as OPA gets the groups joined with commas.
 - **Without a token:** only the login routes, `/docs`, `/openapi.json`, `/version` and `/health` answer. Anything
   else gets 401.
 - **Rights are per database:** the projects of one database share them. The policy gives each COmanage group a role

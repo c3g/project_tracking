@@ -35,17 +35,35 @@ def signing_key():
     return RSAKey.generate_key(2048, private=True, auto_kid=True)
 
 
+# What the issuer's userinfo answers, (status, body), and the tokens it was asked about. Reset for each test.
+USERINFO = {}
+
+
+@pytest.fixture(autouse=True)
+def userinfo_state():
+    USERINFO.clear()
+    USERINFO.update({"answer": (200, {"sub": "user-1", "groups": []}), "calls": []})
+    return USERINFO
+
+
 @pytest.fixture(scope="module")
 def issuer(signing_key):
     app = Flask("issuer")
 
     @app.route("/.well-known/openid-configuration")
     def discovery():
-        return jsonify({"jwks_uri": request.host_url + "jwks", "issuer": request.host_url.rstrip("/")})
+        return jsonify({"jwks_uri": request.host_url + "jwks", "issuer": request.host_url.rstrip("/"),
+                        "userinfo_endpoint": request.host_url + "userinfo"})
 
     @app.route("/jwks")
     def jwks():
         return jsonify(KeySet([signing_key]).as_dict(private=False))
+
+    @app.route("/userinfo")
+    def userinfo():
+        USERINFO["calls"].append(request.headers.get("Authorization"))
+        status, body = USERINFO["answer"]
+        return jsonify(body), status
 
     server, thread, url = _serve(app)
     yield url
@@ -175,6 +193,41 @@ def test_robot_token_reaches_opa_with_its_client(auth_app, issuer, signing_key, 
 
     assert client.get("/vocabulary/", headers=_bearer(token)).status_code == 200
     assert opa["inputs"][-1]["client_id"] == ROBOT_ID and opa["inputs"][-1]["groups_header"] == ""
+    assert USERINFO["calls"] == []
+
+
+def test_groups_from_userinfo_when_the_token_has_none(auth_app, issuer, signing_key, opa, userinfo_state):
+    """CILogon's access tokens carry no groups: they come from userinfo, once per token."""
+    client = auth_app.test_client()
+    token = _token(signing_key, issuer)
+    userinfo_state["answer"] = (200, {"sub": "user-1", "groups": ["CO:members:all", "pt-my-project-read"]})
+
+    assert client.get("/vocabulary/", headers=_bearer(token)).status_code == 200
+    assert client.get("/vocabulary/", headers=_bearer(token)).status_code == 200
+
+    assert opa["inputs"][-1]["groups_header"] == "CO:members:all,pt-my-project-read"
+    assert userinfo_state["calls"] == [f"Bearer {token}"]
+
+
+def test_userinfo_refusal_is_401_and_outage_503(auth_app, issuer, signing_key, opa, userinfo_state):
+    client = auth_app.test_client()
+
+    userinfo_state["answer"] = (401, {"error": "invalid_token"})
+    assert client.get("/vocabulary/", headers=_bearer(_token(signing_key, issuer))).status_code == 401
+    userinfo_state["answer"] = (200, {"sub": "someone-else", "groups": ["pt-admins"]})
+    assert client.get("/vocabulary/", headers=_bearer(_token(signing_key, issuer, jti="2"))).status_code == 401
+    userinfo_state["answer"] = (502, {"error": "bad_gateway"})
+    response = client.get("/vocabulary/", headers=_bearer(_token(signing_key, issuer, jti="3")))
+    assert response.status_code == 503 and response.get_json()["DB_ACTION_ERROR"]
+    assert opa["inputs"] == []
+
+
+def test_group_names_with_a_comma_are_ignored(auth_app, issuer, signing_key, opa):
+    token = _token(signing_key, issuer, groups=["x,pt-admins", "pt-my-project-read"])
+
+    auth_app.test_client().get("/vocabulary/", headers=_bearer(token))
+
+    assert opa["inputs"][-1]["groups_header"] == "pt-my-project-read"
 
 
 def test_public_routes_need_no_token_and_no_opa(auth_app, opa):
