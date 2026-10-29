@@ -5,10 +5,11 @@ import json
 import logging
 from importlib import resources
 
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, current_app, request, jsonify, g
 
 from .. import db_actions
-from ..database import session_scope, set_project_db_from_name
+from .. import auth
+from ..database import db_label, session_scope, set_project_db_from_name
 from ..schema import serialize
 from .decorators import openapi_doc, parse_json_input, parse_json_get
 
@@ -289,6 +290,12 @@ def projects(project_id=None, digest_data=None):
     If the project does not exist, it will return a warning with available projects.
     """
     project_id = resolve_project_scope(project_id, digest_data)
+
+    # Without a project in the URL, the list comes from the default database: only for who may read it
+    readable = auth.readable_databases()
+    if readable is not None and not (request.view_args or {}).get("project"):
+        if db_label(current_app.config["SQLALCHEMY_DATABASE_URI"]) not in readable:
+            return sanity_check("Project", [])
 
     # Unroll project_id if it's a string
     try:

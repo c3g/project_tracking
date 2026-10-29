@@ -15,6 +15,7 @@ from flask.cli import with_appcontext
 from sqlalchemy import Enum as SQLAlchemyEnum, JSON, inspect as sqlalchemy_inspect
 
 from . import schema
+from .auth import PUBLIC_ENDPOINTS
 from .__version__ import __version__
 
 OPENAPI_VERSION = "3.0.3"
@@ -26,6 +27,10 @@ metrics. [pt-cli](https://github.com/c3g/project_tracking_cli) is its command li
 Every response has the same envelope: `DB_ACTION_OUTPUT` holds the result, `DB_ACTION_WARNING` the non blocking
 warnings and `DB_ACTION_ERROR` the errors. GET filters go in one `json` query parameter holding a URL-encoded JSON
 object, e.g. `/project/MY-PROJECT/samples?json={"sample_name": ["SAMPLE-1-1DT"]}`.
+
+With authentication on, every route but the documentation, the login, `/version` and `/health` needs a COmanage
+token: `Authorization: Bearer <token>`. `pt-cli token` prints one to paste in **Authorize**. 401 means no valid
+token, 403 that your groups don't give the role the route needs on the project's database.
 """
 
 # Blueprint name -> tag, in display order
@@ -166,6 +171,12 @@ def operation_for(rule, method, view, entity_ref):
         operation["responses"]["404"] = {"description": "The project in the URL doesn't exist", "content": error}
     if rule.endpoint.split(".")[-1].startswith("ingest_"):
         operation["responses"]["409"] = {"description": "Duplicate, e.g. readsets already ingested", "content": error}
+    if rule.endpoint in PUBLIC_ENDPOINTS:
+        operation["security"] = []
+    else:
+        operation["responses"]["401"] = {"description": "No valid token", "content": error}
+        operation["responses"]["403"] = {"description": "Your groups don't give the role this route needs",
+                                         "content": error}
     if description:
         operation["description"] = description
     for argument in sorted(rule.arguments):
@@ -217,9 +228,11 @@ def build_spec(app):
         openapi_version=OPENAPI_VERSION,
         plugins=[marshmallow_plugin],
         info={"description": DESCRIPTION},
+        security=[{"bearerAuth": []}],
         tags=[{"name": name, "description": text} for name, text in TAGS],
     )
     converter = marshmallow_plugin.converter
+    spec.components.security_scheme("bearerAuth", {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"})
     spec.components.schema("Messages", {
         "description": "One message or a list of messages",
         "oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}],

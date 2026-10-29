@@ -314,6 +314,40 @@ request was refused. Nothing is saved then: each request commits once, at its en
 
 pt-cli reads the envelope, and exits with an error when `DB_ACTION_ERROR` is set.
 
+## Authentication and authorization
+
+`AUTH_MODE` (`C3G_AUTH_MODE`) chooses who checks requests:
+- `none` (the default): the API checks nothing, and logs a warning at startup. For local development, the tests,
+  and a deployment where a proxy in front (oauth2-proxy) does the check.
+- `oidc`: every request carries a COmanage (CILogon) token, `Authorization: Bearer <token>`, that the API checks,
+  then an OPA sidecar decides with the `project_tracking` policy of
+  [c3g-opa-policies](https://github.com/c3g/c3g-opa-policies). Install the `auth` extra
+  (`pip install .[postgres,auth]`). The API doesn't start when a setting below is missing.
+
+| Setting (`C3G_` prefix, `_FILE` for secrets) | Default | Meaning |
+|---|---|---|
+| `OIDC_ISSUER` | required | e.g. `https://cilogon.org` |
+| `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | required | The confidential client pt-cli logs in through |
+| `OIDC_SCOPE` | `openid profile email org.cilogon.userinfo` | Requested at login |
+| `OIDC_AUDIENCES` | none | Other accepted token audiences: each robot's client id |
+| `OIDC_GROUPS_CLAIM` | `groups` | The token claim with the COmanage groups |
+| `OPA_URL` | `http://127.0.0.1:8181` | The OPA sidecar, in the API's podman pod |
+| `OPA_POLICY` | `project_tracking/authz` | The policy package |
+
+- **Logging in:** pt-cli logs in with a device code through `POST /auth/device_authorization` and `POST /auth/token`.
+  These routes add the client's secret and forward to COmanage, so the secret never leaves the API. They only accept
+  the device-code and refresh-token grants. Robots log in as their own confidential client (client credentials).
+- **Without a token:** only the login routes, `/docs`, `/openapi.json`, `/version` and `/health` answer. Anything
+  else gets 401.
+- **Rights are per database:** the projects of one database share them. The policy gives each COmanage group a role
+  per database, read < ingest < modify, each including the ones below. Global admins can do everything, including
+  the `/admin` routes. OPA gets the Flask endpoint, the database the project routes to, the project, the groups and
+  the token's client. A refusal is a 403 naming the route, the project and its database. If OPA can't be reached,
+  every request but the public ones is refused.
+- **`GET /project/`** lists the default database's projects only for those who may read that database.
+- **`/health`** answers 200, or 503 when the default database or, with `oidc`, OPA can't be reached. It gives no
+  detail, so it is public.
+
 ## Production deployment with Podman secrets
 
 Use environment/secret injection from your orchestrator (podman secrets, Kubernetes secrets, etc.) and keep DB credentials out of the repository.

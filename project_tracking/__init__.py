@@ -8,11 +8,13 @@ from collections import defaultdict
 from urllib.parse import urlparse, urlunparse
 
 from flask import Flask, request, Response, make_response, json, jsonify, g
-from sqlalchemy.exc import OperationalError
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from . import db_actions
 from . import api
 from .api.decorators import TEXT_RESPONSE, openapi_doc
+from . import auth
 from . import database
 from .analysis import DEFAULT_ANALYSIS_OPERATIONS, validate_analysis_operations
 
@@ -288,6 +290,24 @@ def create_app(test_config=None):
         """
         return 'Welcome to the TechDev tracking API!\n'
 
+    @app.route('/health')
+    @openapi_doc(responses={
+        "200": {"description": "The API can serve requests", "content": {"application/json": {}}},
+        "503": {"description": "The default database or the OPA sidecar can't be reached", "content": {"application/json": {}}},
+    })
+    def health():
+        """
+        Whether the API can serve requests: its default database answers and, with AUTH_MODE 'oidc', its OPA sidecar
+        too. No detail, so it needs no login (for podman's health check and monitoring).
+        """
+        try:
+            with database.get_engine(app.config['SQLALCHEMY_DATABASE_URI']).connect() as connection:
+                connection.execute(text('SELECT 1'))
+            healthy = auth.auth_mode(app) == 'none' or auth.opa_reachable(app)
+        except SQLAlchemyError:
+            healthy = False
+        return jsonify({"status": "ok" if healthy else "unavailable"}), 200 if healthy else 503
+
     for bp in api.blueprints:
         app.register_blueprint(bp)
 
@@ -320,5 +340,7 @@ DOC: {}
         return response
 
     database.init_app(app)
+    # Last: it registers the login routes and exempts the public routes from OPA
+    auth.init_app(app)
 
     return app

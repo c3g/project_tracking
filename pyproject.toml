@@ -58,6 +58,11 @@ tests = [
 postgres = [
   "psycopg2-binary",
 ]
+# AUTH_MODE 'oidc': COmanage tokens and OPA (see project_tracking/auth.py)
+auth = [
+  "c3g-oidc[server]>=0.2.0",
+  "c3g-flask-opa>=0.2.0",
+]
 
 [tool.pdm]
 allow-direct-references = true

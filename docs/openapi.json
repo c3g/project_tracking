@@ -757,10 +757,17 @@
         ],
         "type": "object"
       }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      }
     }
   },
   "info": {
-    "description": "Tracks the C3G genomics data processing: projects, specimens, samples, readsets, runs, operations, jobs, files and\nmetrics. [pt-cli](https://github.com/c3g/project_tracking_cli) is its command line client.\n\nEvery response has the same envelope: `DB_ACTION_OUTPUT` holds the result, `DB_ACTION_WARNING` the non blocking\nwarnings and `DB_ACTION_ERROR` the errors. GET filters go in one `json` query parameter holding a URL-encoded JSON\nobject, e.g. `/project/MY-PROJECT/samples?json={\"sample_name\": [\"SAMPLE-1-1DT\"]}`.\n",
+    "description": "Tracks the C3G genomics data processing: projects, specimens, samples, readsets, runs, operations, jobs, files and\nmetrics. [pt-cli](https://github.com/c3g/project_tracking_cli) is its command line client.\n\nEvery response has the same envelope: `DB_ACTION_OUTPUT` holds the result, `DB_ACTION_WARNING` the non blocking\nwarnings and `DB_ACTION_ERROR` the errors. GET filters go in one `json` query parameter holding a URL-encoded JSON\nobject, e.g. `/project/MY-PROJECT/samples?json={\"sample_name\": [\"SAMPLE-1-1DT\"]}`.\n\nWith authentication on, every route but the documentation, the login, `/version` and `/health` needs a COmanage\ntoken: `Authorization: Bearer <token>`. `pt-cli token` prints one to paste in **Authorize**. 401 means no valid\ntoken, 403 that your groups don't give the role the route needs on the project's database.\n",
     "title": "Project tracking API",
     "version": "3.1.6.dev"
   },
@@ -872,6 +879,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           }
         },
         "summary": "Create or fetch a project by name.",
@@ -916,6 +943,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           }
         },
         "summary": "List projects across all configured databases.",
@@ -979,11 +1026,56 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           }
         },
         "summary": "Admin-only explicit project lookup by numeric ID within a selected database.",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "```text\nWhether the API can serve requests: its default database answers and, with AUTH_MODE 'oidc', its OPA sidecar\ntoo. No detail, so it needs no login (for podman's health check and monitoring).\n```",
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {}
+            },
+            "description": "The API can serve requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {}
+            },
+            "description": "The default database or the OPA sidecar can't be reached"
+          }
+        },
+        "security": [],
+        "summary": "Whether the API can serve requests: its default database answers and, with AUTH_MODE 'oidc', its OPA sidecar",
+        "tags": [
+          "general"
         ]
       }
     },
@@ -1067,6 +1159,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           }
         },
         "summary": "List all projects or selected projects",
@@ -1142,6 +1254,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -1222,6 +1354,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -1300,6 +1452,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -1380,6 +1552,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -1459,6 +1651,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -1537,6 +1749,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -1629,6 +1861,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -1729,6 +1981,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -1866,6 +2138,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -1977,6 +2269,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -2199,6 +2511,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2326,6 +2658,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2424,6 +2776,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2520,6 +2892,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2606,6 +2998,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -2702,6 +3114,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2792,6 +3224,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -2891,6 +3343,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -3025,6 +3497,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -3157,6 +3649,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -3291,6 +3803,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -3419,6 +3951,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -3553,6 +4105,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -3686,6 +4258,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -3773,6 +4365,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -3870,6 +4482,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -3958,6 +4590,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -4055,6 +4707,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -4156,6 +4828,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -4251,6 +4943,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -4351,6 +5063,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -4446,6 +5178,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -4547,6 +5299,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -4643,6 +5415,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -4913,6 +5705,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -5012,6 +5824,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -5113,6 +5945,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -5212,6 +6064,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -5308,6 +6180,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -5406,6 +6298,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -5494,6 +6406,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -5591,6 +6523,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -5692,6 +6644,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -5791,6 +6763,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -5887,6 +6879,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           },
           "404": {
             "content": {
@@ -5988,6 +7000,26 @@
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -6043,6 +7075,7 @@
             "description": "Invalid request: DB_ACTION_ERROR says why"
           }
         },
+        "security": [],
         "summary": "Get the current version of the application.",
         "tags": [
           "version"
@@ -6085,6 +7118,26 @@
               }
             },
             "description": "Invalid request: DB_ACTION_ERROR says why"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No valid token"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Your groups don't give the role this route needs"
           }
         },
         "summary": "Get the controlled vocabularies:",
@@ -6094,6 +7147,11 @@
       }
     }
   },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
   "tags": [
     {
       "description": "API root and route listing",
