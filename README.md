@@ -343,6 +343,12 @@ pt-cli reads the envelope, and exits with an error when `DB_ACTION_ERROR` is set
   5 minutes at most). If userinfo refuses the token, the answer is 401 (log in again); if COmanage can't be
   reached, 503. Robots (client ids in `OIDC_AUDIENCES`) skip it: OPA knows them by client id. Group names with a
   comma are ignored, as OPA gets the groups joined with commas.
+- **Group changes need a new login:** CILogon fixes the groups at login, and a refreshed token keeps them. Someone
+  added to a group gets the new rights at their next `pt-cli login`. Someone removed keeps the old rights until then,
+  up to the client's refresh token lifetime: keep it short (a few days). How to cut someone off at once (token
+  revocation, COmanage suspension with "Require active status") is still to be confirmed with CILogon.
+- **Group owners get the group's rights:** CILogon lists a group in `groups` for its owners too, not only its members
+  (seen on the test registry). Only make people owners of a `pt-*` group if they may also have its role.
 - **Without a token:** only the login routes, `/docs`, `/openapi.json`, `/version` and `/health` answer. Anything
   else gets 401.
 - **Rights are per database:** the projects of one database share them. The policy gives each COmanage group a role
