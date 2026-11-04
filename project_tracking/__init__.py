@@ -204,7 +204,7 @@ def create_app(test_config=None):
             requested_project = '-'
 
         logger.info(
-            "%s %s %s %s %s %s %s %s [source_file=%s project=%s db=%s db_route=%s]",
+            "%s %s %s %s %s %s %s %s [source_file=%s project=%s db=%s db_route=%s user=%s client=%s]",
             request.remote_addr,
             request.method,
             request.path,
@@ -217,6 +217,9 @@ def create_app(test_config=None):
             requested_project,
             resolved_db_label,
             db_route_source,
+            # Who: set by auth (AUTH_MODE oidc) for an accepted token; '-' otherwise
+            g.get('user') or '-',
+            g.get('client_id') or '-',
         )
         return response
 

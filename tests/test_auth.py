@@ -5,6 +5,7 @@ local ports; OPA's answers come from the decide function of each test.
 """
 import os
 import tempfile
+import logging
 import threading
 import time
 
@@ -208,6 +209,22 @@ def test_groups_from_userinfo_when_the_token_has_none(auth_app, issuer, signing_
 
     assert opa["inputs"][-1]["groups_header"] == "CO:members:all,pt-my-project-read"
     assert userinfo_state["calls"] == [f"Bearer {token}"]
+
+
+def test_access_log_says_who(auth_app, issuer, signing_key, opa, userinfo_state, caplog):
+    """The eppn (else email) from userinfo, else the token's sub; '-' without an accepted token."""
+    client = auth_app.test_client()
+    userinfo_state["answer"] = (200, {"sub": "user-1", "groups": ["pt-admins"], "eppn": "jdoe@mcgill.ca"})
+
+    with caplog.at_level(logging.INFO, logger="app.access"):
+        client.get("/vocabulary/", headers=_bearer(_token(signing_key, issuer)))
+        client.get("/vocabulary/")
+        client.get("/vocabulary/", headers=_bearer(_token(signing_key, issuer, groups=["pt-admins"], jti="2")))
+    lines = [r.getMessage() for r in caplog.records if r.name == "app.access"]
+
+    assert "user=jdoe@mcgill.ca client=" in lines[0]
+    assert "user=- client=-" in lines[1]
+    assert "user=user-1 client=" in lines[2]
 
 
 def test_userinfo_refusal_is_401_and_outage_503(auth_app, issuer, signing_key, opa, userinfo_state):

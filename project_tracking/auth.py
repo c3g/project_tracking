@@ -171,8 +171,10 @@ def init_app(app):
             claims = validator.validate_claims(token)
             g.client_id = claims.get("client_id") or claims.get("azp")
             groups = claims.get(groups_claim)
+            identity = None
             if groups is None and userinfo is not None and g.client_id not in robots:
-                groups = userinfo.groups(token, claims)
+                answer = userinfo.lookup(token, claims)
+                groups, identity = answer.groups, answer.identity
         except TokenValidationError as error:
             logger.info("Token refused: %s", error)
             return refused(401, "Token expired or invalid: log in again with 'pt-cli login'.")
@@ -184,7 +186,8 @@ def init_app(app):
         g.groups = [group for group in groups if "," not in group]
         if len(g.groups) != len(groups):
             logger.warning("Groups with a comma ignored for %s", claims.get("sub"))
-        g.user = claims.get("sub")
+        # Readable in the access log: the eppn (or email) userinfo gave, else the token's opaque sub
+        g.user = identity or claims.get("sub")
         return None
 
     # Registered after authenticate: before_request hooks run in order, and OPA needs the groups
