@@ -244,6 +244,16 @@ def test_public_routes_need_no_token_and_no_opa(auth_app, opa):
     assert opa["inputs"] == []
 
 
+def test_browsers_without_token_go_from_the_welcome_page_to_the_docs(auth_app, opa):
+    client = auth_app.test_client()
+
+    response = client.get("/", headers={"Accept": "text/html,application/xhtml+xml,*/*;q=0.8"})
+    assert response.status_code == 302 and response.headers["Location"].endswith("/docs")
+    assert client.get("/").status_code == 401
+    assert client.get("/vocabulary/", headers={"Accept": "text/html"}).status_code == 401
+    assert opa["inputs"] == []
+
+
 def test_login_routes_only_forward_device_code_and_refresh(auth_app):
     response = auth_app.test_client().post("/auth/token", data={"grant_type": "client_credentials"})
 

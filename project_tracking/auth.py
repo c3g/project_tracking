@@ -22,7 +22,7 @@ Settings (C3G_ environment variables, *_FILE for secrets):
 import logging
 
 import requests
-from flask import current_app, g, jsonify, request
+from flask import current_app, g, jsonify, redirect, request, url_for
 
 from . import database
 
@@ -162,6 +162,9 @@ def init_app(app):
             return None
         token = request.headers.get("Authorization", "")
         if not token.startswith("Bearer "):
+            # A browser on the welcome page: there is no login page, the docs take a token from 'pt-cli token'
+            if request.endpoint == "welcome" and "text/html" in request.headers.get("Accept", ""):
+                return redirect(url_for("docs.swagger_ui"))
             return refused(401, "Not logged in: log in with 'pt-cli login'.")
         token = token.removeprefix("Bearer ").strip()
         try:
