@@ -8,7 +8,7 @@ from flask import Blueprint, current_app, g, jsonify, request
 
 from .. import db_actions
 
-from ..database import _configured_db_uris, db_label, session_scope, set_project_db_from_name
+from ..database import _configured_db_uris, db_label, session_scope, set_project_db_from_name, write_lock
 from ..schema import serialize
 from .decorators import TEXT_RESPONSE, openapi_doc, parse_json_input
 
@@ -167,7 +167,7 @@ def create_project(project_name: str, ingest_data=None):
     set_project_db_from_name(project_name)
     unmapped = current_app.config.get("PROJECT_DATABASES") and not g.get("project_db_uri")
 
-    with session_scope() as session:
+    with write_lock(), session_scope() as session:
         result = db_actions.create_project(
             project_name=project_name,
             session=session,

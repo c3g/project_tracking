@@ -37,6 +37,17 @@ class RequestError(Error):
         else:
             self.message = f"For current request, '{argument}' is required"
 
+class DatabaseBusyError(Error):
+    """DatabaseBusyError: another write holds the database's write lock (HTTP 503 with Retry-After): nothing was done"""
+    status_code = 503
+
+    def __init__(self, database, waited, retry_after):
+        super().__init__(
+            f"Another write to database '{database}' is running: waited {waited} s, nothing was done. "
+            f"Retry in {retry_after} s."
+        )
+        self.headers = {"Retry-After": str(retry_after)}
+
 class UniqueConstraintError(Error):
     """UniqueConstraintError: the request conflicts with an existing row (HTTP 409)"""
     status_code = 409

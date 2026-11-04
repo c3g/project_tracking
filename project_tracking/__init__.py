@@ -146,6 +146,9 @@ def create_app(test_config=None):
         INGEST_FOLDER=app.instance_path,
         ANALYSIS_OPERATIONS=DEFAULT_ANALYSIS_OPERATIONS,
         SQLALCHEMY_DATABASE_URI=f'sqlite:///{os.path.join(app.instance_path, "tracking_db.sql")}',
+        # Seconds a write waits for another write to the same database before a 503 (database.write_lock)
+        WRITE_LOCK_TIMEOUT=60,
+        WRITE_LOCK_RETRY_AFTER=30,
     )
     app.config.from_prefixed_env("C3G")
     _load_prefixed_file_env(app, "C3G")
@@ -220,7 +223,7 @@ def create_app(test_config=None):
     def handle_exception(e):
         # Refused requests get a real status (400, or 409 for a duplicate): nothing was saved, as every action
         # commits once, at its end
-        return jsonify(e.to_dict()), e.status_code
+        return jsonify(e.to_dict()), e.status_code, getattr(e, "headers", None) or {}
 
     @app.errorhandler(OperationalError)
     def handle_operational_error(e):

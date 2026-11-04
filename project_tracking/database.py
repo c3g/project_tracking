@@ -9,7 +9,9 @@ import flask
 from sqlalchemy import (
     create_engine,
     inspect as sqlalchemy_inspect,
+    text,
     )
+from sqlalchemy.exc import OperationalError
 
 from sqlalchemy.orm import sessionmaker, scoped_session
 
@@ -144,6 +146,57 @@ def get_session(no_app=False, db_uri=None, project_id=None):  # noqa: project_id
         flask.g.base_query_bound = True
 
     return sessions[db_uri]
+
+# Key of the write lock. PostgreSQL advisory locks are per database, so one key gives each database its own lock.
+# Hold it in psql to keep the API's writes out of a database during manual changes:
+#   SELECT pg_advisory_lock(8103206596171625573);  ...  SELECT pg_advisory_unlock(8103206596171625573);
+WRITE_LOCK_KEY = 8103206596171625573  # b"pt_write" as a big-endian integer
+
+
+@contextmanager
+def write_lock(db_uri=None):
+    """
+    Run a write request alone on its database: take the database's write lock (WRITE_LOCK_KEY) on a connection of its
+    own, waiting at most WRITE_LOCK_TIMEOUT seconds, else raise DatabaseBusyError (503 with Retry-After). The lock is
+    released when the block ends, or by PostgreSQL if the connection dies. Reads never take it. A no-op on SQLite,
+    which locks the whole file for a write anyway.
+    """
+    db_uri = resolve_db_uri(db_uri=db_uri)
+    engine = get_engine(db_uri)
+    if engine.dialect.name != "postgresql":
+        yield
+        return
+    # Not at the top: db_actions imports this module
+    from .db_actions.errors import DatabaseBusyError
+
+    config = flask.current_app.config
+    timeout = int(config["WRITE_LOCK_TIMEOUT"])
+    connection = engine.connect()
+    try:
+        try:
+            # SET LOCAL: the timeout ends with this transaction, the lock (session level) stays
+            connection.execute(text(f"SET LOCAL lock_timeout = '{timeout}s'"))
+            connection.execute(text("SELECT pg_advisory_lock(:key)"), {"key": WRITE_LOCK_KEY})
+            connection.commit()
+        except OperationalError as error:
+            connection.rollback()
+            # 55P03 lock_not_available: lock_timeout reached
+            if getattr(error.orig, "pgcode", None) == "55P03":
+                raise DatabaseBusyError(db_label(db_uri), timeout, int(config["WRITE_LOCK_RETRY_AFTER"])) from error
+            raise
+        try:
+            yield
+        finally:
+            try:
+                connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": WRITE_LOCK_KEY})
+                connection.commit()
+            except Exception:  # pylint: disable=broad-except
+                # Drop the connection instead of pooling it: closing it releases the lock
+                logging.exception("Couldn't release the write lock of %s", db_label(db_uri))
+                connection.invalidate()
+    finally:
+        connection.close()
+
 
 @contextmanager
 def session_scope(no_app=False, db_uri=None, project_id=None, dry_run=False):

@@ -360,6 +360,28 @@ pt-cli reads the envelope, and exits with an error when `DB_ACTION_ERROR` is set
 - **`/health`** answers 200, or 503 when the default database or, with `oidc`, OPA can't be reached. It gives no
   detail, so it is public.
 
+## Concurrent writes
+
+Writes (every `POST`: ingest, modification, sample groups, `admin/create_project`) run one at a time per database:
+each takes a PostgreSQL advisory lock on the database its project routes to, and releases it when it ends (PostgreSQL
+releases it too if the worker dies). Reads never take it, and writes to other databases don't wait. So the API can
+run several workers, and an ingest doesn't hold up the queries of others.
+
+A write that waits more than `WRITE_LOCK_TIMEOUT` seconds (default 60) for another write to its database is refused
+with **503** and `Retry-After: WRITE_LOCK_RETRY_AFTER` (default 30): nothing was done, send it again. SQLite needs no
+lock (it locks the whole file for a write).
+
+To change a database by hand in `psql` without an API write running alongside, hold the same lock in your session;
+the API's writes to that database wait, then get 503:
+```sql
+SELECT pg_advisory_lock(8103206596171625573);    -- waits for a running write to end
+-- your changes
+SELECT pg_advisory_unlock(8103206596171625573);  -- or end the psql session
+```
+
+Run gunicorn with threads, e.g. `-w 2 --threads 8` (the image's default): a write waiting for the lock holds a thread,
+not a whole worker.
+
 ## Production deployment with Podman secrets
 
 Use environment/secret injection from your orchestrator (podman secrets, Kubernetes secrets, etc.) and keep DB credentials out of the repository.
@@ -447,7 +469,7 @@ ExecStart=/usr/bin/podman run \
         -e C3G_PROJECT_DATABASES_FILE=/run/secrets/C3G_PROJECT_DATABASES \
         --network slirp4netns:allow_host_loopback=true \
         -e C3G_ALEMBIC_UPGRADE=1 \
-        -p 8000:8000 ghcr.io/c3g/project_tracking:latest -w 1 -t 180
+        -p 8000:8000 ghcr.io/c3g/project_tracking:latest -w 2 --threads 8 -t 180
 ```
 
 Reload and start:
@@ -1030,7 +1052,9 @@ pytest -v
 ```
 
 Each test runs on its own temporary SQLite database, so PostgreSQL-only behaviour (regex filters,
-JSONB) is not covered by the suite: check it against a PostgreSQL database.
+JSONB) is not covered by the suite: check it against a PostgreSQL database. The write lock tests (`tests/test_write_lock.py`) run
+only when `PT_TEST_POSTGRES` is a PostgreSQL server URI whose user may create databases, e.g.
+`PT_TEST_POSTGRES=postgresql+psycopg2://pt:pw@127.0.0.1:5432/postgres pytest tests/test_write_lock.py`.
 
 ### Schema changes
 

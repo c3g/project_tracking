@@ -9,7 +9,7 @@ from flask import Blueprint, current_app, request, jsonify, g
 
 from .. import db_actions
 from .. import auth
-from ..database import db_label, session_scope, set_project_db_from_name
+from ..database import db_label, session_scope, set_project_db_from_name, write_lock
 from ..schema import serialize
 from .decorators import openapi_doc, parse_json_input, parse_json_get
 
@@ -160,6 +160,10 @@ def convcheck_project(func):
         if isinstance(project_id, dict) and project_id.get("DB_ACTION_WARNING"):
             return jsonify(project_id)
 
+        if request.method == "POST":
+            # Writes (ingest, modification, sample groups) run one at a time per database
+            with write_lock():
+                return func(*args, project_id=project_id, **kwargs)
         return func(*args, project_id=project_id, **kwargs)
 
     return wrapper

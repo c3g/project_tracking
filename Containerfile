@@ -15,4 +15,5 @@ RUN cd $APP && pip install .[postgres] && chmod 755 entrypoint.sh
 EXPOSE 8000
 WORKDIR /app/$APP
 ENTRYPOINT ["./entrypoint.sh", "-b", "0.0.0.0"]
-CMD ["-w", "4"]
+# Threads: a write waiting for its database's write lock holds a thread, not a worker (README, Concurrent writes)
+CMD ["-w", "2", "--threads", "8"]
