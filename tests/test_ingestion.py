@@ -1,14 +1,11 @@
 import copy
 import json
-import re
-import os
 import logging
 
 import pytest
 from sqlalchemy import select
 
-from flask import g
-from project_tracking import model, database, db_actions
+from project_tracking import model, db_actions
 from project_tracking import vocabulary as vb
 from project_tracking import create_app
 from project_tracking.db_actions.errors import RequestError

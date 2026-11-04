@@ -36,11 +36,11 @@ def test_serialization(not_app_db):
     re2 = model.Readset(name=re2_name, sample=sa, experiment=exp, run=ru)
     job1 = model.Job(operation=op, status=model.StatusEnum.COMPLETED, readsets=[re1])
     job2 = model.Job(operation=op, status=model.StatusEnum.COMPLETED, readsets=[re2])
-    metric1 = model.Metric(value=me1_value, job=job1, name=metric_name, readsets=[re1])
-    metric2 = model.Metric(value=me2_value, job=job2, name=metric_name, readsets=[re2])
+    model.Metric(value=me1_value, job=job1, name=metric_name, readsets=[re1])
+    model.Metric(value=me2_value, job=job2, name=metric_name, readsets=[re2])
     file1 = model.File(name='my.fastq', readsets=[re1], jobs=[job1])
-    location1 = model.Location.from_uri(uri=b1_uri+'/my.fastq', file=file1, session=not_app_db)
-    location2 = model.Location.from_uri(uri=b2_uri+'/my.fastq', file=file1, session=not_app_db)
+    model.Location.from_uri(uri=b1_uri+'/my.fastq', file=file1, session=not_app_db)
+    model.Location.from_uri(uri=b2_uri+'/my.fastq', file=file1, session=not_app_db)
 
     # Add to session and commit
     with not_app_db as db:

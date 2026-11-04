@@ -3,7 +3,6 @@ import os
 import tempfile
 import contextlib
 
-import pytest
 import sqlalchemy
 from sqlalchemy.exc import OperationalError
 

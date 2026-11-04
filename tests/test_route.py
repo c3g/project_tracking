@@ -76,7 +76,7 @@ def test_specimens_route(client, app, run_processing_json):
 
     with app.app_context():
         session = database.get_session()
-        project_id = reset_database(session, run_processing_json)
+        reset_database(session, run_processing_json)
         response = client.get("/project/TestProject/specimens")
         assert response.status_code == 200
         data = response.json
@@ -113,7 +113,7 @@ def test_samples_route(client, app, run_processing_json):
 
     with app.app_context():
         session = database.get_session()
-        project_id = reset_database(session, run_processing_json)
+        reset_database(session, run_processing_json)
         response = client.get("/project/TestProject/samples")
         assert response.status_code == 200
         data = response.json
@@ -149,7 +149,7 @@ def test_readsets_route(client, app, run_processing_json):
 
     with app.app_context():
         session = database.get_session()
-        project_id = reset_database(session, run_processing_json)
+        reset_database(session, run_processing_json)
         response = client.get("/project/TestProject/readsets")
         assert response.status_code == 200
         data = response.json
@@ -185,7 +185,7 @@ def test_metrics_route(client, app, run_processing_json):
 
     with app.app_context():
         session = database.get_session()
-        project_id = reset_database(session, run_processing_json)
+        reset_database(session, run_processing_json)
         response = client.get("/project/TestProject/metrics")
         assert response.status_code == 200
         data = response.json
@@ -221,7 +221,7 @@ def test_files_route(client, app, run_processing_json):
 
     with app.app_context():
         session = database.get_session()
-        project_id = reset_database(session, run_processing_json)
+        reset_database(session, run_processing_json)
         response = client.get("/project/TestProject/files")
         assert response.status_code == 200
         data = response.json
@@ -254,7 +254,7 @@ def test_operations_route(client, app, run_processing_json):
 
     with app.app_context():
         session = database.get_session()
-        project_id = reset_database(session, run_processing_json)
+        reset_database(session, run_processing_json)
         response = client.get("/project/TestProject/operations")
         assert response.status_code == 200
         data = response.json
@@ -278,7 +278,7 @@ def test_operations_route(client, app, run_processing_json):
 def test_jobs_route(client, app, run_processing_json):
     with app.app_context():
         session = database.get_session()
-        project_id = reset_database(session, run_processing_json)
+        reset_database(session, run_processing_json)
         response = client.get("/project/TestProject/jobs")
         assert response.status_code == 200
         data = response.json

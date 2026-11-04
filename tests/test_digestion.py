@@ -2,7 +2,6 @@
 import logging
 import json
 
-from project_tracking import database
 from project_tracking import vocabulary as vb
 
 logger = logging.getLogger(__name__)
@@ -205,9 +204,6 @@ def test_digest_api(client, run_processing_json, readset_file_json, app):
     response = client.get(f'project/{project_name}/digest_delivery?json={json.dumps(delivery_json)}')
     assert response.status_code == 200
     assert sorted(json.loads(response.text)["DB_ACTION_OUTPUT"], key=lambda x: x["specimen"]) == sorted(DELIVERY["DB_ACTION_OUTPUT"], key=lambda x: x["specimen"])
-
-    with app.app_context():
-        s = database.get_session()
 
 
 def _clone_sample(sample_json, new_name):
