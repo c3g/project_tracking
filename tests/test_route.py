@@ -4,6 +4,7 @@ import json
 import pytest
 
 from project_tracking import database, db_actions, model
+from project_tracking import vocabulary as vb
 from project_tracking.db_actions.errors import RequestError
 
 def reset_database(session, run_processing_json):
@@ -376,3 +377,21 @@ def test_project_name_case_ambiguity(app):
         with pytest.raises(RequestError) as error:
             db_actions.project_name_to_id("Moh-Q", session=session)
         assert error.value.message == "'Project' 'Moh-Q' is ambiguous: it matches 'MOH-Q', 'moh-q'. Use the exact name."
+
+
+def test_readset_nucleic_acid_type(client, run_processing_json):
+    """Readsets selected by id or name show their experiment's nucleic_acid_type."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
+
+    expected = {
+        readset_json[vb.READSET_NAME]: readset_json[vb.EXPERIMENT_NUCLEIC_ACID_TYPE]
+        for specimen_json in run_processing_json[vb.SPECIMEN]
+        for sample_json in specimen_json[vb.SAMPLE]
+        for readset_json in sample_json[vb.READSET]
+    }
+    samples = sum(len(specimen_json[vb.SAMPLE]) for specimen_json in run_processing_json[vb.SPECIMEN])
+    readsets = json.loads(client.get(f'project/{project_name}/samples/1-{samples}/readsets').data)["DB_ACTION_OUTPUT"]
+    assert {readset["name"]: readset["nucleic_acid_type"] for readset in readsets} == expected
+    assert {"DNA", "RNA"} <= set(expected.values())

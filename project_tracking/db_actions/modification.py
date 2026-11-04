@@ -13,7 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 # Local modules
 from .errors import DidNotFindError, RequestError
-from .utils import to_enum
+from .utils import check_one_nucleic_acid_type, sample_nucleic_acid_types, to_enum
 from .sample_group import group_name_problem
 from .. import vocabulary as vb
 from .. import model
@@ -120,6 +120,18 @@ def check_edit(the_table, column, new_value, ids, session):
             raise RequestError(f"'SampleGroup' '{new_value}' already exists.")
 
 
+def check_samples_nucleic_acid_type(sample_ids, session, hint):
+    """
+    A sample has one nucleic acid type: after a change, before it is saved, raise RequestError (the request's
+    session is rolled back) listing every sample of sample_ids whose readsets, deprecated and deleted ones too, now
+    have several.
+    """
+    if sample_ids:
+        # Sessions don't autoflush: send the change so the query sees it
+        session.flush()
+        check_one_nucleic_acid_type(sample_nucleic_acid_types(session, model.Sample.id.in_(sample_ids)), hint)
+
+
 def edit_value(the_table, column, value):
     """
     Value to store in the_table.column: for an enum column, the member matching value (exact value,
@@ -150,11 +162,17 @@ def edit(ingest_data, session, cascade_mode=None, dry_run=False):
     if not ingest_data[vb.MODIFICATION]:
         raise RequestError("No 'table' provided under 'modification' list, this json is malformed.")
 
+    # Samples whose readsets may change nucleic acid type
+    sample_ids = set()
     for table in ingest_data[vb.MODIFICATION]:
         the_table = modifiable_table(table[vb.TABLE])
         new_value = edit_value(the_table, table[vb.COLUMN], table[vb.NEW])
         if table[vb.ID]:
             check_edit(the_table, table[vb.COLUMN], new_value, table[vb.ID], session)
+            if the_table is model.Experiment and table[vb.COLUMN] == "nucleic_acid_type":
+                sample_ids.update(session.execute(
+                    select(model.Readset.sample_id).where(model.Readset.experiment_id.in_(table[vb.ID]))
+                ).scalars())
             for current_id in set(table[vb.ID]):
                 stmt = select(the_table).where(the_table.id == current_id)
                 selected_entry = session.execute(stmt).scalar_one_or_none()
@@ -170,6 +188,9 @@ def edit(ingest_data, session, cascade_mode=None, dry_run=False):
                     ret["DB_ACTION_OUTPUT"].append(f"Table '{table[vb.TABLE]}' edited: column '{table[vb.COLUMN]}' with id '{current_id}' changes from '{old}' to '{new}'.")
         else:
             ret["DB_ACTION_WARNING"].append(f"No IDs provided for table '{table[vb.TABLE]}'. Skipping...")
+    check_samples_nucleic_acid_type(
+        sample_ids, session, "edit all the experiments of its readsets in the same request."
+    )
 
     if not dry_run:
         commit(session)

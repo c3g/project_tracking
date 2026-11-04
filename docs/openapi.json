@@ -566,6 +566,9 @@
           "name": {
             "type": "string"
           },
+          "nucleic_acid_type": {
+            "readOnly": true
+          },
           "run_id": {
             "type": "integer"
           },

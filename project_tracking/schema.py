@@ -250,12 +250,19 @@ def create_readset_schema(include_relationships=True, **kwargs):
 
         if include_relationships:
             specimen_id = fields.Method("get_specimen_id")
+            nucleic_acid_type = fields.Method("get_nucleic_acid_type")
 
         def get_specimen_id(self, obj):
             """
             Get associated specimen ID.
             """
             return obj.specimen_id
+
+        def get_nucleic_acid_type(self, obj):
+            """
+            Get the nucleic acid type of the readset's experiment.
+            """
+            return obj.experiment.nucleic_acid_type.value if obj.experiment else None
 
     return ReadsetSchema(**kwargs)
 

@@ -1,6 +1,12 @@
+import copy
 import json
+
+import pytest
+
+from sqlalchemy import select
 from project_tracking import database, db_actions
-from project_tracking.model import Specimen, Sample
+from project_tracking.db_actions.errors import RequestError
+from project_tracking.model import Experiment, Readset, Specimen, Sample
 
 # Helper function to reset database state
 def reset_database(session, run_processing_json):
@@ -200,3 +206,67 @@ def test_refused_requests_get_a_real_status(client, run_processing_json):
     assert both.status_code == 400 and "Only one of" in both.get_json()["DB_ACTION_ERROR"][0]
     duplicate = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
     assert duplicate.status_code == 409 and duplicate.get_json()["DB_ACTION_ERROR"]
+
+
+def test_edit_refuses_sample_with_dna_and_rna(client, app, run_processing_json):
+    """A sample is either DNA or RNA: one of its two experiments can't change type alone, both together can."""
+    data = copy.deepcopy(run_processing_json)
+    rna_sample = next(sample for specimen in data["specimen"] for sample in specimen["sample"]
+                      if sample["sample_name"].endswith("RT"))
+    rna_sample["readset"][0]["experiment_library_kit"] = "other kit"
+    with app.app_context():
+        session = database.get_session()
+        reset_database(session, data)
+        experiment_ids = sorted(session.execute(
+            select(Readset.experiment_id).join(Readset.sample).where(Sample.name == rna_sample["sample_name"])
+        ).scalars().unique())
+    assert len(experiment_ids) == 2
+
+    def edit(ids):
+        payload = {"modification": [{"table": "experiment", "id": ids, "column": "nucleic_acid_type", "new": "DNA"}]}
+        return client.post('/project/TestProject/modification/edit', json=payload)
+
+    response = edit(experiment_ids[:1])
+    assert response.status_code == 400
+    error = response.get_json()["DB_ACTION_ERROR"][0]
+    assert f"'Sample' '{rna_sample['sample_name']}' can't mix nucleic acid types" in error
+    assert "'DNA' for" in error and "'RNA' for" in error
+    with app.app_context():
+        assert {experiment.nucleic_acid_type.value for experiment in database.get_session().execute(
+            select(Experiment).where(Experiment.id.in_(experiment_ids))).scalars()} == {"RNA"}
+
+    assert edit(experiment_ids).status_code == 200
+
+
+@pytest.mark.parametrize("flag", ["deleted", "deprecated"])
+def test_removed_readsets_keep_their_nucleic_acid_type(client, app, run_processing_json, flag):
+    """Deleted or deprecated RNA readsets still make their sample RNA: a DNA run of it is refused, so they can come back."""
+    remove, restore = {"deleted": ("delete", "undelete"), "deprecated": ("deprecate", "undeprecate")}[flag]
+    rna_sample = next(sample["sample_name"] for specimen in run_processing_json["specimen"]
+                      for sample in specimen["sample"] if sample["sample_name"].endswith("RT"))
+    with app.app_context():
+        session = database.get_session()
+        reset_database(session, copy.deepcopy(run_processing_json))
+        rna_ids = sorted(session.execute(
+            select(Readset.id).join(Readset.sample).where(Sample.name == rna_sample)
+        ).scalars())
+
+    def modification(action, ids):
+        return client.post(f'/project/TestProject/modification/{action}',
+                           json={"modification": [{"table": "readset", "id": ids}]})
+
+    assert modification(remove, rna_ids).status_code == 200
+    dna_run = json.loads(json.dumps(run_processing_json).replace("A01433_0157", "A01433_0998"))
+    for specimen in dna_run["specimen"]:
+        for sample in specimen["sample"]:
+            if sample["sample_name"] == rna_sample:
+                for readset in sample["readset"]:
+                    readset["experiment_nucleic_acid_type"] = "DNA"
+    with app.app_context():
+        session = database.get_session()
+        project_id = db_actions.name_to_id("Project", "TestProject", session=session)
+        with pytest.raises(RequestError) as error:
+            db_actions.ingest_run_processing(project_id, dna_run, session=session)
+    assert f"'Sample' '{rna_sample}' can't mix nucleic acid types" in error.value.message[0]
+
+    assert modification(restore, rna_ids).status_code == 200

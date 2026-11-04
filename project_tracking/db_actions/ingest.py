@@ -17,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from .errors import DidNotFindError, RequestError, UniqueConstraintError
 from .route import projects
 from .sample_group import check_sample_groups, add_samples_to_groups
-from .utils import check_enum
+from .utils import check_enum, check_one_nucleic_acid_type, sample_nucleic_acid_types
 from ..analysis import RESERVED_OPERATION_NAMES, analysis_operations
 from .. import vocabulary as vb
 from .. import database
@@ -105,6 +105,23 @@ def check_run_processing_payload(ingest_data):
                     check_enum(invalid, FlagEnum, metric_json.get(vb.METRIC_FLAG), vb.METRIC_FLAG, "Metric", f"{metric_json[vb.METRIC_NAME]}' of 'Readset' '{name}", optional=True)
     if invalid:
         raise RequestError(message=invalid)
+
+
+def check_sample_nucleic_acid_type(ingest_data, session):
+    """
+    A sample has one nucleic acid type: raises RequestError listing every sample whose readsets, in the payload and
+    in the database (deprecated and deleted ones too), would have several experiment_nucleic_acid_type.
+    """
+    readsets_by_type = {}
+    for specimen_json in ingest_data[vb.SPECIMEN]:
+        for sample_json in specimen_json[vb.SAMPLE]:
+            types = readsets_by_type.setdefault(sample_json[vb.SAMPLE_NAME], {})
+            for readset_json in sample_json[vb.READSET]:
+                types.setdefault(readset_json[vb.EXPERIMENT_NUCLEIC_ACID_TYPE], []).append(readset_json[vb.READSET_NAME])
+    sample_nucleic_acid_types(session, Sample.name.in_(readsets_by_type), readsets_by_type)
+    check_one_nucleic_acid_type(
+        readsets_by_type, "give each nucleic acid type its own sample, or fix or curate the readsets of the other types."
+    )
 
 
 def _allowed(values):
@@ -215,6 +232,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
     normalize_tumour_metadata(ingest_data)
     check_sample_groups(ingest_data, session)
     check_run_processing_payload(ingest_data)
+    check_sample_nucleic_acid_type(ingest_data, session)
 
     operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],

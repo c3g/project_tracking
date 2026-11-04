@@ -408,7 +408,8 @@ def readsets(project_id, session, specimen_id=None, sample_id=None, readset_id=N
         .options(
             selectinload(Readset.sample)
             .selectinload(Sample.specimen)
-            .selectinload(Specimen.project)
+            .selectinload(Specimen.project),
+            selectinload(Readset.experiment)
         )
         .where(
             Readset.deprecated.is_(deprecated),

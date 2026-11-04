@@ -238,6 +238,42 @@ def test_run_processing_rejects_malformed_oncotree_code(not_app_db, run_processi
 
 
 
+RNA_SAMPLE = "MoHQ-CM-1-3-6929-1RT"
+
+
+def _set_nucleic_acid_type(data, sample_name, nucleic_acid_type, first_only=False):
+    for specimen_json in data[vb.SPECIMEN]:
+        for sample_json in specimen_json[vb.SAMPLE]:
+            if sample_json[vb.SAMPLE_NAME] == sample_name:
+                for readset_json in sample_json[vb.READSET][:1] if first_only else sample_json[vb.READSET]:
+                    readset_json[vb.EXPERIMENT_NUCLEIC_ACID_TYPE] = nucleic_acid_type
+
+
+def test_run_processing_rejects_sample_with_dna_and_rna(not_app_db, run_processing_json):
+    """A sample is either DNA or RNA, within one payload and against the readsets already in the database."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    db_actions.create_project(project_name, session=not_app_db)
+    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+
+    mixed = copy.deepcopy(run_processing_json)
+    _set_nucleic_acid_type(mixed, RNA_SAMPLE, "DNA", first_only=True)
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_run_processing(project_id, mixed, not_app_db)
+    assert len(error.value.message) == 1
+    assert f"'Sample' '{RNA_SAMPLE}' can't mix nucleic acid types" in error.value.message[0]
+    assert "'RNA' for" in error.value.message[0] and "'DNA' for" in error.value.message[0]
+    assert not_app_db.execute(select(model.Sample)).first() is None
+
+    db_actions.ingest_run_processing(project_id, copy.deepcopy(run_processing_json), not_app_db)
+    dna_run = _new_run(run_processing_json, "A01433_0998")
+    _set_nucleic_acid_type(dna_run, RNA_SAMPLE, "DNA")
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_run_processing(project_id, dna_run, not_app_db)
+    assert len(error.value.message) == 1
+    assert "A01433_0157_1 (experiment " in error.value.message[0]
+    assert "A01433_0998_1" in error.value.message[0]
+
+
 def _set_cancer_type(data, cancer_type):
     for specimen_json in data[vb.SPECIMEN]:
         for sample_json in specimen_json[vb.SAMPLE]:

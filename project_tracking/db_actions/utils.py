@@ -32,6 +32,42 @@ def check_enum(errors, enum_class, value, key, entity, name, optional=False):
         )
 
 
+def sample_nucleic_acid_types(session, sample_filter, readsets_by_type=None):
+    """
+    Add to readsets_by_type, {sample name: {nucleic acid type: [readsets]}}, the readsets of the samples sample_filter
+    selects, e.g. model.Sample.id.in_(ids), as they stand in the session. Deprecated and deleted readsets count: they
+    can be brought back, so only curate (hard delete) takes a readset out of the rule.
+    """
+    readsets_by_type = {} if readsets_by_type is None else readsets_by_type
+    stmt = (
+        select(model.Sample.name, model.Readset.name, model.Experiment.id, model.Experiment.nucleic_acid_type)
+        .join(model.Readset.sample)
+        .join(model.Readset.experiment)
+        .where(sample_filter)
+        .order_by(model.Sample.name, model.Readset.name)
+    )
+    for sample_name, readset_name, experiment_id, nucleic_acid_type in session.execute(stmt):
+        readsets_by_type.setdefault(sample_name, {}).setdefault(nucleic_acid_type.value, []).append(
+            f"{readset_name} (experiment {experiment_id})"
+        )
+    return readsets_by_type
+
+
+def check_one_nucleic_acid_type(readsets_by_type, hint):
+    """
+    A sample has one nucleic acid type, whichever values NucleicAcidTypeEnum holds: raise RequestError listing every
+    sample of readsets_by_type (see sample_nucleic_acid_types) with readsets of several, each message ending with hint.
+    """
+    invalid = [
+        f"'Sample' '{sample_name}' can't mix nucleic acid types: "
+        + "; ".join(f"'{nucleic_acid_type}' for {', '.join(readsets)}" for nucleic_acid_type, readsets in types.items())
+        + f". A sample has one nucleic acid type: {hint}"
+        for sample_name, types in readsets_by_type.items() if len(types) > 1
+    ]
+    if invalid:
+        raise RequestError(message=invalid)
+
+
 def is_explicit_regex(s):
     """
     Checks if a string is marked as an explicit regex.
