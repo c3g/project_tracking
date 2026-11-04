@@ -6,6 +6,7 @@ PT_TEST_POSTGRES=postgresql+psycopg2://pt:pt-local-only@127.0.0.1:55432/postgres
 import json
 import os
 import threading
+import time
 import uuid
 
 import pytest
@@ -55,7 +56,7 @@ def client(databases):
     for project in ("PROJ-A", "PROJ-B"):
         assert client.post(f"/admin/create_project/{project}").status_code == 200
     yield client
-    for engine in Engine.ENGINES.values():
+    for engine in [*Engine.ENGINES.values(), *Engine.LOCK_ENGINES.values()]:
         engine.dispose()
 
 
@@ -112,3 +113,30 @@ def test_writes_to_one_database_run_one_at_a_time(client, databases, run_process
     with engine.connect() as connection:
         samples = connection.execute(text("SELECT name, count(*) FROM sample GROUP BY name")).all()
     assert samples and all(count == 1 for _, count in samples)
+
+
+def test_pool_follows_the_config_and_waiting_writes_leave_it_to_reads(client, databases, run_processing_json):
+    """A one-connection pool (DB_POOL_SIZE 1, no overflow): three writes waiting for the lock don't hold it, a read gets
+    it at once."""
+    client.application.config.update(DB_POOL_SIZE=1, DB_MAX_OVERFLOW=0, WRITE_LOCK_TIMEOUT=3)
+    for engine in [*Engine.ENGINES.values(), *Engine.LOCK_ENGINES.values()]:
+        engine.dispose()
+    Engine.ENGINES.clear()
+    holder = _held(databases[0])
+    results = []
+    writers = [threading.Thread(target=lambda: results.append(_ingest(client, "PROJ-A", run_processing_json).status_code))
+               for _ in range(3)]
+    try:
+        for writer in writers:
+            writer.start()
+        time.sleep(0.5)
+        started = time.monotonic()
+        assert client.get("/project/PROJ-A/readsets").status_code == 200
+        assert time.monotonic() - started < 2
+        pool = Engine.ENGINES[databases[0]].pool
+        assert (pool.size(), pool._max_overflow) == (1, 0)
+    finally:
+        for writer in writers:
+            writer.join()
+        holder.close()
+    assert results == [503, 503, 503]

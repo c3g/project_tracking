@@ -382,6 +382,13 @@ SELECT pg_advisory_unlock(8103206596171625573);  -- or end the psql session
 Run gunicorn with threads, e.g. `-w 2 --threads 8` (the image's default): a write waiting for the lock holds a thread,
 not a whole worker.
 
+Each gunicorn worker keeps one connection pool per PostgreSQL database: `DB_POOL_SIZE` connections stay open (default
+2), up to `DB_MAX_OVERFLOW` more under load (default 4), renewed after `DB_POOL_RECYCLE` seconds (default 1800). The API
+can so hold up to workers × databases × (size + overflow) connections, e.g. 2 × 2 × 6 = 24, against the server's
+`max_connections` (100 by default) shared with every other app: keep the pools small as databases are added, and give
+each database's role a `CONNECTION LIMIT`. A write holds one more connection, outside the pools, while it waits for or
+holds the lock.
+
 ## Production deployment with Podman secrets
 
 Use environment/secret injection from your orchestrator (podman secrets, Kubernetes secrets, etc.) and keep DB credentials out of the repository.

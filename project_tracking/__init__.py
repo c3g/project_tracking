@@ -149,6 +149,7 @@ def create_app(test_config=None):
         # Seconds a write waits for another write to the same database before a 503 (database.write_lock)
         WRITE_LOCK_TIMEOUT=60,
         WRITE_LOCK_RETRY_AFTER=30,
+        **database.POOL_DEFAULTS,
     )
     app.config.from_prefixed_env("C3G")
     _load_prefixed_file_env(app, "C3G")

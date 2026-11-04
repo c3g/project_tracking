@@ -12,13 +12,26 @@ from sqlalchemy import (
     text,
     )
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.pool import NullPool
 
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 
 class Engine:
     ENGINES = {}
+    # Engines of the write lock, without a pool: a connection of its own per write (see write_lock)
+    LOCK_ENGINES = {}
     NO_APP_SESSION_FACTORIES = {}
+
+
+# Connection pool of each PostgreSQL database, per gunicorn worker: DB_POOL_SIZE connections kept open, up to
+# DB_MAX_OVERFLOW more under load, renewed after DB_POOL_RECYCLE seconds. Every project database has its own pool, so
+# the API holds up to workers x databases x (size + overflow) connections (README, Concurrent writes).
+POOL_DEFAULTS = {
+    "DB_POOL_SIZE": 2,
+    "DB_MAX_OVERFLOW": 4,
+    "DB_POOL_RECYCLE": 1800,
+}
 
 
 def db_label(db_uri: str) -> str:
@@ -100,9 +113,23 @@ def get_engine(db_uri):
     logging.debug('Connecting to %s', db_label(db_uri))
 
     if db_uri not in Engine.ENGINES:
-        Engine.ENGINES[db_uri] = create_engine(db_uri, echo=False)
+        Engine.ENGINES[db_uri] = create_engine(db_uri, echo=False, **_pool_options(db_uri))
 
     return Engine.ENGINES[db_uri]
+
+
+def _pool_options(db_uri):
+    """Pool settings of a PostgreSQL engine, from the app's DB_POOL_* config (POOL_DEFAULTS outside an app)."""
+    if not db_uri.startswith("postgresql"):
+        return {}
+    config = {**POOL_DEFAULTS, **(flask.current_app.config if flask.has_app_context() else {})}
+    return {
+        "pool_size": int(config["DB_POOL_SIZE"]),
+        "max_overflow": int(config["DB_MAX_OVERFLOW"]),
+        "pool_recycle": int(config["DB_POOL_RECYCLE"]),
+        # A connection PostgreSQL closed (restart, recycle) is replaced instead of failing a request
+        "pool_pre_ping": True,
+    }
 
 
 def get_session(no_app=False, db_uri=None, project_id=None):  # noqa: project_id kept for compat
@@ -171,7 +198,10 @@ def write_lock(db_uri=None):
 
     config = flask.current_app.config
     timeout = int(config["WRITE_LOCK_TIMEOUT"])
-    connection = engine.connect()
+    # Not from the pool: writes waiting for the lock would hold the connections reads need
+    if db_uri not in Engine.LOCK_ENGINES:
+        Engine.LOCK_ENGINES[db_uri] = create_engine(db_uri, poolclass=NullPool)
+    connection = Engine.LOCK_ENGINES[db_uri].connect()
     try:
         try:
             # SET LOCAL: the timeout ends with this transaction, the lock (session level) stays
@@ -191,7 +221,7 @@ def write_lock(db_uri=None):
                 connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": WRITE_LOCK_KEY})
                 connection.commit()
             except Exception:  # pylint: disable=broad-except
-                # Drop the connection instead of pooling it: closing it releases the lock
+                # Drop the connection: closing it releases the lock
                 logging.exception("Couldn't release the write lock of %s", db_label(db_uri))
                 connection.invalidate()
     finally:
