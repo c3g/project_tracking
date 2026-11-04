@@ -112,73 +112,35 @@ def test_create_project_rejects_non_integer_ext_id(client):
     assert "ext_id must be an integer when provided." in data["DB_ACTION_ERROR"]
 
 
-def test_run_processing_skips_file_without_md5sum(not_app_db, run_processing_json):
+def _new_project(session, run_processing_json):
+    """Create the payload's project and return its id."""
     project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    db_actions.create_project(project_name, session=session)
+    return db_actions.name_to_id("Project", project_name, session=session)[0]
 
-    data = copy.deepcopy(run_processing_json)
-    first_file = data[vb.SPECIMEN][0][vb.SAMPLE][0][vb.READSET][0][vb.FILE][0]
-    first_file_name = first_file[vb.FILE_NAME]
+
+@pytest.mark.parametrize("analysis", [False, True], ids=["run_processing", "genpipes"])
+@pytest.mark.parametrize("force", [False, True], ids=["skips", "force"])
+def test_file_without_md5sum(not_app_db, run_processing_json, genpipes_json, analysis, force):
+    """A file without md5sum is skipped with a warning, or ingested anyway with force."""
+    project_id = _new_project(not_app_db, run_processing_json)
+    if analysis:
+        db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+        data = copy.deepcopy(genpipes_json)
+        first_file = data[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0][vb.FILE][0]
+    else:
+        data = copy.deepcopy(run_processing_json)
+        first_file = data[vb.SPECIMEN][0][vb.SAMPLE][0][vb.READSET][0][vb.FILE][0]
     first_file[vb.FILE_MD5SUM] = None
+    data[vb.FORCE] = force
 
-    result = db_actions.ingest_run_processing(project_id, data, not_app_db)
+    ingest = db_actions.ingest_analysis if analysis else db_actions.ingest_run_processing
+    result = ingest(project_id, data, not_app_db)
 
-    assert any("has no md5sum, skipping" in w for w in result["DB_ACTION_WARNING"])
-    assert not_app_db.execute(select(model.File).where(model.File.name == first_file_name)).scalar_one_or_none() is None
-
-
-def test_run_processing_force_ingest_file_without_md5sum(not_app_db, run_processing_json):
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
-
-    data = copy.deepcopy(run_processing_json)
-    first_file = data[vb.SPECIMEN][0][vb.SAMPLE][0][vb.READSET][0][vb.FILE][0]
-    first_file_name = first_file[vb.FILE_NAME]
-    first_file[vb.FILE_MD5SUM] = None
-    data[vb.FORCE] = True
-
-    result = db_actions.ingest_run_processing(project_id, data, not_app_db)
-
-    assert any("ingesting anyway (force=True)" in w for w in result["DB_ACTION_WARNING"])
-    assert not_app_db.execute(select(model.File).where(model.File.name == first_file_name)).scalar_one_or_none() is not None
-
-
-def test_genpipes_skips_file_without_md5sum(not_app_db, run_processing_json, genpipes_json):
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
-    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
-
-    data = copy.deepcopy(genpipes_json)
-    first_file = data[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0][vb.FILE][0]
-    first_file_name = first_file[vb.FILE_NAME]
-    first_file[vb.FILE_MD5SUM] = None
-
-    result = db_actions.ingest_analysis(project_id, data, not_app_db)
-
-    assert any("has no md5sum, skipping" in w for w in result["DB_ACTION_WARNING"])
-    assert not_app_db.execute(select(model.File).where(model.File.name == first_file_name)).scalar_one_or_none() is None
-
-
-def test_genpipes_force_ingest_file_without_md5sum(not_app_db, run_processing_json, genpipes_json):
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
-    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
-
-    data = copy.deepcopy(genpipes_json)
-    first_file = data[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0][vb.FILE][0]
-    first_file_name = first_file[vb.FILE_NAME]
-    first_file[vb.FILE_MD5SUM] = None
-    data[vb.FORCE] = True
-
-    result = db_actions.ingest_analysis(project_id, data, not_app_db)
-
-    assert any("ingesting anyway (force=True)" in w for w in result["DB_ACTION_WARNING"])
-    assert not_app_db.execute(select(model.File).where(model.File.name == first_file_name)).scalar_one_or_none() is not None
-
+    expected = "ingesting anyway (force=True)" if force else "has no md5sum, skipping"
+    assert any(expected in w for w in result["DB_ACTION_WARNING"])
+    stored = not_app_db.execute(select(model.File).where(model.File.name == first_file[vb.FILE_NAME])).scalar_one_or_none()
+    assert (stored is not None) == force
 
 TUMOUR_SAMPLE = "MoHQ-JG-9-23-15000863775-19933DT"
 
@@ -201,9 +163,7 @@ def _oncotree_code(session):
 
 def test_run_processing_oncotree_code(not_app_db, run_processing_json):
     """Code is stored (normalized), a conflicting code is kept with a warning, and force replaces it."""
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    project_id = _new_project(not_app_db, run_processing_json)
 
     data = copy.deepcopy(run_processing_json)
     _set_oncotree_code(data, " luad ")
@@ -225,9 +185,7 @@ def test_run_processing_oncotree_code(not_app_db, run_processing_json):
 
 
 def test_run_processing_rejects_malformed_oncotree_code(not_app_db, run_processing_json):
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    project_id = _new_project(not_app_db, run_processing_json)
 
     data = copy.deepcopy(run_processing_json)
     _set_oncotree_code(data, "LU-AD")
@@ -235,7 +193,6 @@ def test_run_processing_rejects_malformed_oncotree_code(not_app_db, run_processi
         db_actions.ingest_run_processing(project_id, data, not_app_db)
     assert "LU-AD" in error.value.message[0]
     assert not_app_db.execute(select(model.Sample)).first() is None
-
 
 
 RNA_SAMPLE = "MoHQ-CM-1-3-6929-1RT"
@@ -251,9 +208,7 @@ def _set_nucleic_acid_type(data, sample_name, nucleic_acid_type, first_only=Fals
 
 def test_run_processing_rejects_sample_with_dna_and_rna(not_app_db, run_processing_json):
     """A sample is either DNA or RNA, within one payload and against the readsets already in the database."""
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    project_id = _new_project(not_app_db, run_processing_json)
 
     mixed = copy.deepcopy(run_processing_json)
     _set_nucleic_acid_type(mixed, RNA_SAMPLE, "DNA", first_only=True)
@@ -287,9 +242,7 @@ def _cancer_type(session):
 
 def test_run_processing_cancer_type(not_app_db, run_processing_json):
     """Type is stored with underscores for spaces and its case, a conflicting type is kept with a warning, and force replaces it."""
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    project_id = _new_project(not_app_db, run_processing_json)
 
     data = copy.deepcopy(run_processing_json)
     _set_oncotree_code(data, "LUAD")
@@ -312,9 +265,7 @@ def test_run_processing_cancer_type(not_app_db, run_processing_json):
 
 
 def test_run_processing_rejects_non_string_cancer_type(not_app_db, run_processing_json):
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    project_id = _new_project(not_app_db, run_processing_json)
 
     data = copy.deepcopy(run_processing_json)
     _set_cancer_type(data, ["Lung", "Adenocarcinoma"])
@@ -334,9 +285,7 @@ def _readsets(data):
 
 def test_run_processing_readset_state(not_app_db, run_processing_json):
     """Exact states are stored as sent; a missing or null state gives VALID, a null metric flag no flag."""
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    project_id = _new_project(not_app_db, run_processing_json)
 
     data = copy.deepcopy(run_processing_json)
     readsets = _readsets(data)
@@ -377,9 +326,7 @@ def test_run_processing_rejects_invalid_enum_values(client, run_processing_json)
 
 
 def test_genpipes_rejects_invalid_enum_values(not_app_db, run_processing_json, genpipes_json):
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    project_id = _new_project(not_app_db, run_processing_json)
     db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
 
     data = copy.deepcopy(genpipes_json)
@@ -394,9 +341,7 @@ def test_genpipes_rejects_invalid_enum_values(not_app_db, run_processing_json, g
 
 def test_analysis_operation_status(not_app_db, run_processing_json, genpipes_json):
     """operation_status when given, otherwise COMPLETED only when every job is; re-ingesting updates the same operation."""
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    project_id = _new_project(not_app_db, run_processing_json)
     db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
 
     def operation():
@@ -426,9 +371,7 @@ def test_analysis_operation_status(not_app_db, run_processing_json, genpipes_jso
 
 
 def test_analysis_rejects_invalid_operation_status(not_app_db, run_processing_json, genpipes_json):
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    project_id = _new_project(not_app_db, run_processing_json)
     db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
 
     data = copy.deepcopy(genpipes_json)
@@ -621,9 +564,7 @@ def test_analysis_dragen_somatic_needs_protocol(not_app_db, run_processing_json,
 
 
 def _ingest_run(not_app_db, run_processing_json):
-    project_name = run_processing_json[vb.PROJECT_NAME]
-    db_actions.create_project(project_name, session=not_app_db)
-    project_id = db_actions.name_to_id("Project", project_name, session=not_app_db)[0]
+    project_id = _new_project(not_app_db, run_processing_json)
     db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
     return project_id
 

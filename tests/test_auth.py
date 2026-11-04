@@ -25,7 +25,8 @@ ROBOT_ID = "cilogon:oa4mp,2012:/client_id/robot"
 
 def _serve(app):
     server = make_server("127.0.0.1", 0, app)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    # A short poll interval: shutdown() waits up to one interval
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
     thread.start()
     return server, thread, f"http://127.0.0.1:{server.server_port}"
 
