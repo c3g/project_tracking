@@ -1422,7 +1422,7 @@ class Location(BaseTable):
         if not location:
             # Create new location
             if endpoint is None:
-                endpoint = uri.split(':///')[0]
+                endpoint = uri.split('://', 1)[0]
             location = cls(uri=uri, file=file, endpoint=endpoint)
             session.add(location)
             session.flush()
