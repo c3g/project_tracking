@@ -252,7 +252,7 @@ def test_public_routes_need_no_token_and_no_opa(auth_app, opa):
     client = auth_app.test_client()
     public = {
         rule.rule for rule in auth_app.url_map.iter_rules()
-        if client.open(rule.rule.replace("<path:filename>", "swagger-ui.css"),
+        if client.open(rule.rule.replace("<path:filename>", "swagger-ui.css").replace("<int:project_id>", "1"),
                        method="POST" if "POST" in rule.methods else "GET").status_code != 401
     }
 
@@ -268,6 +268,18 @@ def test_browsers_without_token_go_from_the_welcome_page_to_the_docs(auth_app, o
     assert response.status_code == 302 and response.headers["Location"].endswith("/docs")
     assert client.get("/").status_code == 401
     assert client.get("/vocabulary/", headers={"Accept": "text/html"}).status_code == 401
+    assert opa["inputs"] == []
+
+
+def test_unknown_route_or_method_is_404_or_405_with_or_without_token(auth_app, issuer, signing_key, opa):
+    client = auth_app.test_client()
+    token = _bearer(_token(signing_key, issuer, groups=["pt-admins"]))
+
+    for headers in ({}, token):
+        # A wrong --url-root, e.g. https://host/h: not a login problem
+        assert client.get("/h/project/MY-PROJECT/samples", headers=headers).status_code == 404, headers
+        assert client.post("/h/auth/device_authorization", headers=headers).status_code == 404, headers
+        assert client.delete("/vocabulary/", headers=headers).status_code == 405, headers
     assert opa["inputs"] == []
 
 

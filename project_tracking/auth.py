@@ -158,6 +158,10 @@ def init_app(app):
         """
         Check the Bearer token of every request but the public ones, and keep its groups and client for OPA.
         """
+        # No such route (404) or method (405): say so, as in AUTH_MODE none, rather than ask for a login (a wrong
+        # --url-root looked like a login problem) or a role (OPA refuses an unknown endpoint)
+        if request.routing_exception is not None:
+            raise request.routing_exception
         if request.endpoint in PUBLIC_ENDPOINTS:
             return None
         token = request.headers.get("Authorization", "")
