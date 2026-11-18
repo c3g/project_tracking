@@ -96,6 +96,8 @@ Table readset {
   adapter2 text
   sequencing_type sequencing_type
   state state
+  project_year text
+  project_phase text
 
   indexes {
     experiment_id [name: 'ix_readset_experiment_id']

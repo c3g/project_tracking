@@ -739,7 +739,7 @@ podman run --rm "${PT_SECRETS[@]}" --entrypoint sh ghcr.io/c3g/project_tracking:
 
 For a database created from the models at revision `64a560017524` (release 3.1.6, before the
 `3c7f1a2d9e64` migration adding sample metadata, analysis operations and sample groups), stamp
-`64a560017524`; the next restart then applies the pending migration. Run `db-revisions` again to
+`64a560017524`; the next restart then applies the pending migrations. Run `db-revisions` again to
 confirm.
 
 ---
@@ -826,6 +826,21 @@ is stored as `Lung_Adenocarcinoma`.
   written.
 - Re-ingesting a sample that already has a **different** type keeps the stored type and returns a
   warning. Use `force` to replace it, or `pt-cli edit` on the `sample.cancer_type` column.
+
+### `readset_project_year` and `readset_project_phase`
+
+The project year (e.g. `Y1`, `Y2` for MoH) and phase a readset was sequenced for, as optional readset keys of
+`run_processing`:
+
+```json
+{"readset_name": "SAMPLE-1-1DN.A00000_0001_1", "readset_project_year": "Y1", "readset_project_phase": "Phase 2", ...}
+```
+
+- Both are free text, stored in `readset.project_year` and `readset.project_phase`. Leading and trailing
+  spaces are dropped, an empty string is ignored and a number such as `1` is stored as text (`"1"`). Any other
+  type rejects the whole payload before anything is written.
+- They are set when the readset is created: a readset is never ingested twice. Change them with
+  `pt-cli edit` on the `readset.project_year` or `readset.project_phase` column.
 
 ## Controlled vocabularies
 

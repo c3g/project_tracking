@@ -569,6 +569,14 @@
           "nucleic_acid_type": {
             "readOnly": true
           },
+          "project_phase": {
+            "nullable": true,
+            "type": "string"
+          },
+          "project_year": {
+            "nullable": true,
+            "type": "string"
+          },
           "run_id": {
             "type": "integer"
           },
@@ -2391,6 +2399,8 @@
                             "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
                             "readset_lane": "1",
                             "readset_name": "SAMPLE-1-1DN.A00000_0001_1",
+                            "readset_project_phase": "Phase 2",
+                            "readset_project_year": "Y1",
                             "readset_quality_offset": "33",
                             "readset_sequencing_type": "PAIRED_END"
                           }

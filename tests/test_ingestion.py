@@ -576,6 +576,33 @@ def test_analysis_djerba_takes_no_pipeline(not_app_db, run_processing_json, genp
     assert (operation.name, operation.pipeline, operation.protocol) == ("djerba", None, None)
 
 
+def _readset_projects(session):
+    rows = session.execute(select(model.Readset.name, model.Readset.project_year, model.Readset.project_phase))
+    return {name: (year, phase) for name, year, phase in rows}
+
+
+def test_run_processing_readset_project_year_and_phase(not_app_db, run_processing_json):
+    """readset_project_year and readset_project_phase are optional free text: trimmed, a number becomes text."""
+    project_id = _new_project(not_app_db, run_processing_json)
+    data = copy.deepcopy(run_processing_json)
+    readsets = [readset for specimen in data[vb.SPECIMEN] for sample in specimen[vb.SAMPLE] for readset in sample[vb.READSET]]
+    first, second, without = readsets[0], readsets[1], readsets[2]
+    first[vb.READSET_PROJECT_YEAR], first[vb.READSET_PROJECT_PHASE] = " Y1 ", "Phase 2"
+    second[vb.READSET_PROJECT_YEAR], second[vb.READSET_PROJECT_PHASE] = 2, ""
+
+    invalid = copy.deepcopy(data)
+    [r for specimen in invalid[vb.SPECIMEN] for sample in specimen[vb.SAMPLE] for r in sample[vb.READSET]][0][vb.READSET_PROJECT_PHASE] = ["Phase 2"]
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_run_processing(project_id, invalid, not_app_db)
+    assert f"'Readset' '{first[vb.READSET_NAME]}' has an invalid 'readset_project_phase' ['Phase 2'] (expected text)." in error.value.message
+
+    db_actions.ingest_run_processing(project_id, data, not_app_db)
+    projects = _readset_projects(not_app_db)
+    assert projects[first[vb.READSET_NAME]] == ("Y1", "Phase 2")
+    assert projects[second[vb.READSET_NAME]] == ("2", None)
+    assert projects[without[vb.READSET_NAME]] == (None, None)
+
+
 def _ingest_run(not_app_db, run_processing_json):
     project_id = _new_project(not_app_db, run_processing_json)
     db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)

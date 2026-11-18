@@ -91,7 +91,8 @@ def check_run_processing_payload(ingest_data):
     """
     Check every enum field of a run_processing payload before anything is written; raises RequestError
     listing all invalid values. Values must be exact (e.g. 'ON_HOLD', lane '1'); readset_state and
-    metric_flag may be null or missing.
+    metric_flag may be null or missing. Also trims readset_project_year and readset_project_phase (free text,
+    a number becomes text, empty becomes None), rejecting other types.
     """
     invalid = []
     for specimen_json in ingest_data[vb.SPECIMEN]:
@@ -101,6 +102,14 @@ def check_run_processing_payload(ingest_data):
                 check_enum(invalid, LaneEnum, readset_json.get(vb.READSET_LANE), vb.READSET_LANE, "Readset", name)
                 check_enum(invalid, SequencingTypeEnum, readset_json.get(vb.READSET_SEQUENCING_TYPE), vb.READSET_SEQUENCING_TYPE, "Readset", name)
                 check_enum(invalid, StateEnum, readset_json.get(vb.READSET_STATE), vb.READSET_STATE, "Readset", name, optional=True)
+                for key in (vb.READSET_PROJECT_YEAR, vb.READSET_PROJECT_PHASE):
+                    value = readset_json.get(key)
+                    if value is None:
+                        continue
+                    if isinstance(value, bool) or not isinstance(value, (str, int)):
+                        invalid.append(f"'Readset' '{name}' has an invalid '{key}' {value!r} (expected text).")
+                        continue
+                    readset_json[key] = str(value).strip() or None
                 for metric_json in readset_json[vb.METRIC]:
                     check_enum(invalid, FlagEnum, metric_json.get(vb.METRIC_FLAG), vb.METRIC_FLAG, "Metric", f"{metric_json[vb.METRIC_NAME]}' of 'Readset' '{name}", optional=True)
     if invalid:
@@ -338,6 +347,8 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                     adapter2=readset_json[vb.READSET_ADAPTER2],
                     sequencing_type=SequencingTypeEnum(readset_json[vb.READSET_SEQUENCING_TYPE]),
                     state=StateEnum(readset_json.get(vb.READSET_STATE) or StateEnum.VALID.value),
+                    project_year=readset_json.get(vb.READSET_PROJECT_YEAR),
+                    project_phase=readset_json.get(vb.READSET_PROJECT_PHASE),
                     sample=sample,
                     experiment=experiment,
                     run=run,

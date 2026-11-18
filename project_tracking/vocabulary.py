@@ -71,6 +71,8 @@ READSET_ADAPTER2 = "readset_adapter2"
 READSET_SEQUENCING_TYPE = "readset_sequencing_type"
 READSET_QUALITY_OFFSET = "readset_quality_offset"
 READSET_STATE = "readset_state"
+READSET_PROJECT_YEAR = "readset_project_year"
+READSET_PROJECT_PHASE = "readset_project_phase"
 
 # operation table
 OPERATION_PLATFORM = "operation_platform"

@@ -700,6 +700,8 @@ class Readset(BaseTable):
         adapter2 text
         sequencing_type sequencing_type
         state state
+        project_year text
+        project_phase text
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -724,6 +726,8 @@ class Readset(BaseTable):
     adapter2: Mapped[str] = mapped_column(default=None, nullable=True)
     sequencing_type: Mapped[SequencingTypeEnum] = mapped_column(default=None, nullable=True)
     state: Mapped[StateEnum] = mapped_column(default=StateEnum.VALID, nullable=True)
+    project_year: Mapped[str] = mapped_column(default=None, nullable=True)
+    project_phase: Mapped[str] = mapped_column(default=None, nullable=True)
 
     sample: Mapped[Sample] = relationship(back_populates="readsets")
     experiment: Mapped[Experiment] = relationship(back_populates="readsets")
