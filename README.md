@@ -338,6 +338,11 @@ pt-cli reads the envelope, and exits with an error when `DB_ACTION_ERROR` is set
 - **Logging in:** pt-cli logs in with a device code through `POST /auth/device_authorization` and `POST /auth/token`.
   These routes add the client's secret and forward to COmanage, so the secret never leaves the API. They only accept
   the device-code and refresh-token grants. Robots log in as their own confidential client (client credentials).
+- **Until robots can log in:** CILogon doesn't allow client credentials yet. Meanwhile, a person runs `pt-cli login` on
+  the automation's account, and pt-cli refreshes the token on its own, without a terminal, until the refresh token
+  expires (30 days on the test registry). Then pt-cli exits with code 3 ("Not logged in"): the automation should
+  alert on it, and the person logs in again. The automation has that person's rights, and the access log shows their
+  name.
 - **Groups:** CILogon puts the client's `groups` claim in the ID token and in userinfo, not in its access tokens. So
   the API asks COmanage's userinfo endpoint with the caller's token, once per token (cached until the token expires,
   5 minutes at most). If userinfo refuses the token, the answer is 401 (log in again); if COmanage can't be
@@ -479,12 +484,17 @@ ExecStart=/usr/bin/podman run \
         -p 8000:8000 ghcr.io/c3g/project_tracking:latest -w 2 --threads 8 -t 180
 ```
 
+With `AUTH_MODE` `oidc`, production runs the API in a podman pod with its OPA sidecar, as the dev instance does: units
+`podman-project_tracking-pod.service` (it publishes `-p 8000:8000`), `podman-project_tracking-api.service` (the
+`ExecStart` above, with `--pod-id-file` in place of `-p`) and `podman-project_tracking-opa.service`. The 3.1.6 database
+`oauth2-db` was copied into `project_tracking_moh`, owned by its own role, with `utils/project_tracking-prod-copy-db.sh`.
+
 Reload and start:
 
 ```bash
 systemctl --user daemon-reload
-systemctl --user restart container-project_tracking-api.service
-systemctl --user status container-project_tracking-api.service
+systemctl --user restart podman-project_tracking-api.service
+systemctl --user status podman-project_tracking-api.service
 ```
 
 ---
@@ -570,8 +580,8 @@ podman secret create C3G_PROJECT_DATABASES /etc/project_tracking/secrets/C3G_PRO
 #### 5 — Restart the service
 
 ```bash
-systemctl --user restart container-project_tracking-api.service
-systemctl --user status container-project_tracking-api.service
+systemctl --user restart podman-project_tracking-api.service
+systemctl --user status podman-project_tracking-api.service
 ```
 
 The new routing entry is now live. 
@@ -596,7 +606,7 @@ Recommended defaults in the systemd unit:
 **The container refuses to start on a failed migration.** If reading a secret, `init-db` or
 `upgrade-all-dbs` fails at startup, the container exits with an error instead of serving the API on a
 database with the wrong schema. `systemctl --user status` shows the failure; the cause is in
-`journalctl --user -u container-project_tracking-api.service`. Database URIs are logged by label only
+`journalctl --user -u podman-project_tracking-api.service`. Database URIs are logged by label only
 (e.g. `project_tracking_prja`), never with credentials.
 
 #### Running maintenance commands in production
@@ -634,7 +644,7 @@ only logs a warning when it finds problems.
 No special action. Just restart:
 
 ```bash
-systemctl --user restart container-project_tracking-api.service
+systemctl --user restart podman-project_tracking-api.service
 ```
 
 At startup the container runs `upgrade-all-dbs` and migrates all configured DBs. If the service does
@@ -659,7 +669,7 @@ podman run --rm "${PT_SECRETS[@]}" --entrypoint flask ghcr.io/c3g/project_tracki
   --app project_tracking init-all-dbs
 
 # 3) Restart service (startup runs upgrade-all-dbs, a no-op on the freshly stamped DB)
-systemctl --user restart container-project_tracking-api.service
+systemctl --user restart podman-project_tracking-api.service
 ```
 
 #### Use case C — Brand new empty default DB and you want explicit init first
@@ -668,7 +678,7 @@ Run `C3G_INIT_DB` as a one-off, then remove it:
 
 ```bash
 systemctl --user set-environment C3G_INIT_DB=1
-systemctl --user restart container-project_tracking-api.service
+systemctl --user restart podman-project_tracking-api.service
 systemctl --user unset-environment C3G_INIT_DB
 ```
 

@@ -9,6 +9,8 @@ set -euo pipefail
 DATABASES=(project_tracking_moh_dev project_tracking_cphi_dev)
 API_UNIT=podman-project_tracking-dev-api.service
 IMAGE=ghcr.io/c3g/project_tracking:dev
+# Roles that read every dev database (the dev pgweb instances of pgweb.c3g-app.sd4h.ca), granted again after the reset
+READERS=(pgweb)
 
 log() { echo "$*"; logger -t project_tracking-dev-reset -- "$*"; }
 refuse() { log "REFUSED, nothing changed: $*"; exit 1; }
@@ -87,6 +89,15 @@ with app.app_context():
             project = db_actions.create_project(name, session=session)['DB_ACTION_OUTPUT'][0]
             print(f'  project {name} created (id {project.id}) in {db_label(uri)}')" 2>/dev/null | grep '^  project' \
     | while read -r line; do log "  $line"; done
+# 6. Read access for the readers again, on the new tables and those the next migrations create
+for db in "${DATABASES[@]}"; do
+    for reader in "${READERS[@]}"; do
+        psql_at -d "$db" -c "GRANT CONNECT ON DATABASE \"$db\" TO \"$reader\"" -c "GRANT USAGE ON SCHEMA public TO \"$reader\"" \
+            -c "GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"$reader\"" \
+            -c "ALTER DEFAULT PRIVILEGES FOR ROLE \"$db\" IN SCHEMA public GRANT SELECT ON TABLES TO \"$reader\""
+    done
+done
+log "  read access for ${READERS[*]} granted again"
 "${S[@]}" start "$API_UNIT"
 trap - ERR
 for _ in $(seq 30); do [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8010/health)" = 200 ] && break; sleep 2; done
