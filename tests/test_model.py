@@ -32,3 +32,17 @@ def test_location_from_uri_reuses_deleted_location(not_app_db):
 
         assert found.id == location.id
         assert warning is not None
+
+
+def test_location_from_uri_endpoint_is_the_scheme(not_app_db):
+    """The endpoint is the URI's scheme, for cluster paths (abacus:///) and buckets (s3://bucket/) alike."""
+    with not_app_db as db:
+        file = model.File(name="sample.bam", type="bam")
+        db.add(file)
+        db.flush()
+
+        cluster, _ = model.Location.from_uri(uri="abacus:///path/sample.bam", file=file, session=db)
+        bucket, _ = model.Location.from_uri(uri="s3://bucket/path/sample.bam", file=file, session=db)
+        given, _ = model.Location.from_uri(uri="s3://bucket/other.bam", file=file, endpoint="ceph", session=db)
+
+        assert (cluster.endpoint, bucket.endpoint, given.endpoint) == ("abacus", "s3", "ceph")
