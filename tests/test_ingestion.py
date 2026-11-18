@@ -560,6 +560,22 @@ def test_analysis_dragen_somatic_needs_protocol(not_app_db, run_processing_json,
     assert (operation.name, operation.pipeline, operation.protocol) == ("dragen", "somatic", "tumor_normal")
 
 
+def test_analysis_djerba_takes_no_pipeline(not_app_db, run_processing_json, genpipes_json):
+    """djerba takes no pipeline and no protocol."""
+    project_id = _analysis_project(not_app_db, run_processing_json)
+    data = copy.deepcopy(genpipes_json)
+    data[vb.OPERATION_NAME] = "djerba"
+
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_analysis(project_id, copy.deepcopy(data), not_app_db)
+    assert "'operation_name' 'djerba' takes no 'operation_pipeline', got 'RnaSeqLight'." in error.value.message
+
+    del data[vb.OPERATION_PIPELINE], data[vb.OPERATION_PROTOCOL]
+    db_actions.ingest_analysis(project_id, data, not_app_db)
+    [operation] = _analyses(not_app_db)
+    assert (operation.name, operation.pipeline, operation.protocol) == ("djerba", None, None)
+
+
 def _ingest_run(not_app_db, run_processing_json):
     project_id = _new_project(not_app_db, run_processing_json)
     db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)

@@ -26,5 +26,6 @@
         "methylation": [],
         "imputation": [],
         "tso500_ctdna": []
-    }
+    },
+    "djerba": {}
 }

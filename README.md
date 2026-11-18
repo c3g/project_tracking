@@ -919,6 +919,7 @@ The default vocabulary is `project_tracking/analysis_operations.json`. It lists:
   by GenPipes stays `genpipes` / `MethylSeq` / `dragen`. Demultiplexing, ORA compression and the
   reference builder are left out: they aren't analyses of a readset. Put the DRAGEN version in the
   operation config, not in the protocol.
+- `djerba` (OICR's clinical report generator): no pipeline and no protocol.
 
 To change it without a release, copy the file, edit it and set it as `ANALYSIS_OPERATIONS` in the
 config, or as `C3G_ANALYSIS_OPERATIONS` / `C3G_ANALYSIS_OPERATIONS_FILE`. It replaces the whole
