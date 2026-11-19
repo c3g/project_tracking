@@ -87,14 +87,50 @@ def normalize_tumour_metadata(ingest_data):
         raise RequestError(message=invalid)
 
 
+MD5SUM_RE = re.compile(r"[0-9a-f]{32}")
+
+
+def check_md5sum(invalid, missing, file_json, allow_missing):
+    """
+    Check the md5sum of a payload's file: 32 hexadecimal characters, stored in lowercase. A missing or empty one is
+    refused, unless allow_missing (files no longer on disk, e.g. payloads rebuilt for past runs): it is then stored as
+    None and the file name added to missing.
+    """
+    name = file_json[vb.FILE_NAME]
+    value = file_json.get(vb.FILE_MD5SUM)
+    if isinstance(value, str):
+        value = value.strip().lower() or None
+    if value is None:
+        if allow_missing:
+            file_json[vb.FILE_MD5SUM] = None
+            missing.append(name)
+        else:
+            invalid.append(f"'File' '{name}' has no '{vb.FILE_MD5SUM}' (send '{vb.ALLOW_MISSING_MD5SUM}': true only for files no longer on disk).")
+        return
+    if not isinstance(value, str) or not MD5SUM_RE.fullmatch(value):
+        invalid.append(f"'File' '{name}' has an invalid '{vb.FILE_MD5SUM}' {file_json[vb.FILE_MD5SUM]!r} (expected 32 hexadecimal characters).")
+        return
+    file_json[vb.FILE_MD5SUM] = value
+
+
+def missing_md5sum_warning(missing):
+    """Warning listing the files ingested without md5sum, or None."""
+    if missing:
+        return f"{len(missing)} file(s) ingested without md5sum ('{vb.ALLOW_MISSING_MD5SUM}'): {', '.join(missing)}."
+    return None
+
+
 def check_run_processing_payload(ingest_data):
     """
     Check every enum field of a run_processing payload before anything is written; raises RequestError
     listing all invalid values. Values must be exact (e.g. 'ON_HOLD', lane '1'); readset_state and
     metric_flag may be null or missing. Also trims readset_project_year and readset_project_phase (free text,
-    a number becomes text, empty becomes None), rejecting other types.
+    a number becomes text, empty becomes None), rejecting other types, and checks every file's md5sum
+    (check_md5sum). Returns the names of the files allowed without md5sum.
     """
     invalid = []
+    missing = []
+    allow_missing = ingest_data.get(vb.ALLOW_MISSING_MD5SUM) is True
     for specimen_json in ingest_data[vb.SPECIMEN]:
         for sample_json in specimen_json[vb.SAMPLE]:
             for readset_json in sample_json[vb.READSET]:
@@ -112,8 +148,11 @@ def check_run_processing_payload(ingest_data):
                     readset_json[key] = str(value).strip() or None
                 for metric_json in readset_json[vb.METRIC]:
                     check_enum(invalid, FlagEnum, metric_json.get(vb.METRIC_FLAG), vb.METRIC_FLAG, "Metric", f"{metric_json[vb.METRIC_NAME]}' of 'Readset' '{name}", optional=True)
+                for file_json in readset_json[vb.FILE]:
+                    check_md5sum(invalid, missing, file_json, allow_missing)
     if invalid:
         raise RequestError(message=invalid)
+    return missing
 
 
 def check_sample_nucleic_acid_type(ingest_data, session):
@@ -171,10 +210,13 @@ def check_analysis_operation(invalid, ingest_data):
 def check_analysis_payload(ingest_data):
     """
     Check an analysis payload before anything is written: the operation name, pipeline and protocol against the
-    analysis operations vocabulary, and every enum field (operation_status, job_status and metric_flag may be null
-    or missing). Raises RequestError listing all problems.
+    analysis operations vocabulary, every enum field (operation_status, job_status and metric_flag may be null
+    or missing) and every file's md5sum (check_md5sum). Raises RequestError listing all problems; returns the names
+    of the files allowed without md5sum.
     """
     invalid = []
+    missing = []
+    allow_missing = ingest_data.get(vb.ALLOW_MISSING_MD5SUM) is True
     check_analysis_operation(invalid, ingest_data)
     check_enum(invalid, StatusEnum, ingest_data.get(vb.OPERATION_STATUS), vb.OPERATION_STATUS, "Operation",
                ingest_data.get(vb.OPERATION_NAME), optional=True)
@@ -185,8 +227,11 @@ def check_analysis_payload(ingest_data):
                 check_enum(invalid, StatusEnum, job_json.get(vb.JOB_STATUS) or None, vb.JOB_STATUS, "Job", name, optional=True)
                 for metric_json in job_json.get(vb.METRIC, []):
                     check_enum(invalid, FlagEnum, metric_json.get(vb.METRIC_FLAG), vb.METRIC_FLAG, "Metric", f"{metric_json[vb.METRIC_NAME]}' of 'Job' '{name}", optional=True)
+                for file_json in job_json.get(vb.FILE, []):
+                    check_md5sum(invalid, missing, file_json, allow_missing)
     if invalid:
         raise RequestError(message=invalid)
+    return missing
 
 
 def check_transfer_payload(ingest_data):
@@ -240,8 +285,10 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
         raise UniqueConstraintError(message=message)
     normalize_tumour_metadata(ingest_data)
     check_sample_groups(ingest_data, session)
-    check_run_processing_payload(ingest_data)
+    missing_md5sum = check_run_processing_payload(ingest_data)
     check_sample_nucleic_acid_type(ingest_data, session)
+    if missing_md5sum:
+        ret["DB_ACTION_WARNING"].append(missing_md5sum_warning(missing_md5sum))
 
     operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
@@ -356,11 +403,6 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                     jobs=[job]
                     )
                 for file_json in readset_json[vb.FILE]:
-                    if not file_json.get(vb.FILE_MD5SUM):
-                        if not force:
-                            ret["DB_ACTION_WARNING"].append(f"File '{file_json[vb.FILE_NAME]}' has no md5sum, skipping. Use force to ingest anyway.")
-                            continue
-                        ret["DB_ACTION_WARNING"].append(f"File '{file_json[vb.FILE_NAME]}' has no md5sum, ingesting anyway (force=True).")
                     suffixes = Path(file_json[vb.FILE_NAME]).suffixes
                     file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
                     if ".gz" in suffixes:
@@ -633,7 +675,9 @@ def ingest_analysis(project_id: str, ingest_data, session):
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
     force = ingest_data.get(vb.FORCE, False)
-    check_analysis_payload(ingest_data)
+    missing_md5sum = check_analysis_payload(ingest_data)
+    if missing_md5sum:
+        ret["DB_ACTION_WARNING"].append(missing_md5sum_warning(missing_md5sum))
 
     job = None
 
@@ -713,11 +757,6 @@ def ingest_analysis(project_id: str, ingest_data, session):
                         job.readsets.append(readset)
                     if vb.FILE in job_json:
                         for file_json in job_json[vb.FILE]:
-                            if not file_json.get(vb.FILE_MD5SUM):
-                                if not force:
-                                    ret["DB_ACTION_WARNING"].append(f"File '{file_json[vb.FILE_NAME]}' has no md5sum, skipping. Use force to ingest anyway.")
-                                    continue
-                                ret["DB_ACTION_WARNING"].append(f"File '{file_json[vb.FILE_NAME]}' has no md5sum, ingesting anyway (force=True).")
                             suffixes = Path(file_json[vb.FILE_NAME]).suffixes
                             file_type = os.path.splitext(file_json[vb.FILE_NAME])[-1][1:]
                             if ".gz" in suffixes:

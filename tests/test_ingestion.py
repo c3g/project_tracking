@@ -3,7 +3,7 @@ import json
 import logging
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from project_tracking import model, db_actions
 from project_tracking import vocabulary as vb
@@ -116,28 +116,106 @@ def _new_project(session, run_processing_json):
     return db_actions.name_to_id("Project", project_name, session=session)[0]
 
 
-@pytest.mark.parametrize("analysis", [False, True], ids=["run_processing", "genpipes"])
-@pytest.mark.parametrize("force", [False, True], ids=["skips", "force"])
-def test_file_without_md5sum(not_app_db, run_processing_json, genpipes_json, analysis, force):
-    """A file without md5sum is skipped with a warning, or ingested anyway with force."""
+def _md5sum_payload(not_app_db, run_processing_json, genpipes_json, analysis):
+    """Project, payload and its first file, for run_processing or (after run_processing) genpipes."""
     project_id = _new_project(not_app_db, run_processing_json)
     if analysis:
-        db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+        db_actions.ingest_run_processing(project_id, copy.deepcopy(run_processing_json), not_app_db)
         data = copy.deepcopy(genpipes_json)
         first_file = data[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0][vb.FILE][0]
     else:
         data = copy.deepcopy(run_processing_json)
         first_file = data[vb.SPECIMEN][0][vb.SAMPLE][0][vb.READSET][0][vb.FILE][0]
-    first_file[vb.FILE_MD5SUM] = None
-    data[vb.FORCE] = force
-
     ingest = db_actions.ingest_analysis if analysis else db_actions.ingest_run_processing
+    return project_id, data, first_file, ingest
+
+
+def _stored_file(session, name):
+    return session.execute(select(model.File).where(model.File.name == name)).scalars().all()
+
+
+@pytest.mark.parametrize("analysis", [False, True], ids=["run_processing", "genpipes"])
+@pytest.mark.parametrize("md5sum, problem", [
+    (None, "has no 'file_md5sum'"),
+    ("", "has no 'file_md5sum'"),
+    ("not-an-md5", "has an invalid 'file_md5sum' 'not-an-md5'"),
+    ("0" * 31, "has an invalid 'file_md5sum'"),
+    (12345, "has an invalid 'file_md5sum' 12345"),
+], ids=["null", "empty", "text", "short", "number"])
+def test_file_md5sum_missing_or_invalid_is_refused(not_app_db, run_processing_json, genpipes_json, analysis, md5sum, problem):
+    """A missing or malformed md5sum refuses the whole payload, force or not, and nothing of it is written."""
+    project_id, data, first_file, ingest = _md5sum_payload(not_app_db, run_processing_json, genpipes_json, analysis)
+    first_file[vb.FILE_MD5SUM] = md5sum
+    data[vb.FORCE] = True
+    jobs_before = not_app_db.execute(select(func.count(model.Job.id))).scalar()
+
+    with pytest.raises(RequestError) as error:
+        ingest(project_id, data, not_app_db)
+
+    assert any(f"'File' '{first_file[vb.FILE_NAME]}' {problem}" in m for m in error.value.message)
+    not_app_db.rollback()
+    assert not_app_db.execute(select(func.count(model.Job.id))).scalar() == jobs_before
+
+
+@pytest.mark.parametrize("analysis", [False, True], ids=["run_processing", "genpipes"])
+def test_file_md5sum_allowed_missing(not_app_db, run_processing_json, genpipes_json, analysis):
+    """With allow_missing_md5sum, a file without md5sum is ingested with a warning; a malformed one is still refused."""
+    project_id, data, first_file, ingest = _md5sum_payload(not_app_db, run_processing_json, genpipes_json, analysis)
+    first_file[vb.FILE_MD5SUM] = ""
+    data[vb.ALLOW_MISSING_MD5SUM] = True
+    bad = copy.deepcopy(data)
+    bad_file = (bad[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0][vb.FILE][0] if analysis
+                else bad[vb.SPECIMEN][0][vb.SAMPLE][0][vb.READSET][0][vb.FILE][0])
+    bad_file[vb.FILE_MD5SUM] = "xyz"
+    with pytest.raises(RequestError):
+        ingest(project_id, bad, not_app_db)
+    not_app_db.rollback()
+
     result = ingest(project_id, data, not_app_db)
 
-    expected = "ingesting anyway (force=True)" if force else "has no md5sum, skipping"
-    assert any(expected in w for w in result["DB_ACTION_WARNING"])
-    stored = not_app_db.execute(select(model.File).where(model.File.name == first_file[vb.FILE_NAME])).scalar_one_or_none()
-    assert (stored is not None) == force
+    assert f"1 file(s) ingested without md5sum ('allow_missing_md5sum'): {first_file[vb.FILE_NAME]}." in result["DB_ACTION_WARNING"]
+    assert [f.md5sum for f in _stored_file(not_app_db, first_file[vb.FILE_NAME])] == [None]
+
+
+def test_file_md5sum_is_stored_in_lowercase(not_app_db, run_processing_json):
+    """An md5sum is stored in lowercase, without surrounding spaces."""
+    project_id, data, first_file, ingest = _md5sum_payload(not_app_db, run_processing_json, None, False)
+    first_file[vb.FILE_MD5SUM] = " " + "ABCDEF0123456789" * 2 + " "
+
+    ingest(project_id, data, not_app_db)
+
+    assert [f.md5sum for f in _stored_file(not_app_db, first_file[vb.FILE_NAME])] == ["abcdef0123456789" * 2]
+
+
+def test_genpipes_sent_again_with_md5sums_fills_them_in(not_app_db, run_processing_json, genpipes_json):
+    """A genpipes payload ingested without md5sum, then sent again with them, fills them in: no file is deprecated or duplicated."""
+    project_id, data, first_file, ingest = _md5sum_payload(not_app_db, run_processing_json, genpipes_json, True)
+    md5sum = first_file[vb.FILE_MD5SUM]
+    without = copy.deepcopy(data)
+    without[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0][vb.FILE][0][vb.FILE_MD5SUM] = None
+    without[vb.ALLOW_MISSING_MD5SUM] = True
+    without[vb.FORCE] = True  # 3.1.6 and earlier: the way a file got in without md5sum
+    ingest(project_id, without, not_app_db)
+
+    result = ingest(project_id, data, not_app_db)
+
+    assert not any("different MD5 checksum" in w for w in result["DB_ACTION_WARNING"])
+    files = _stored_file(not_app_db, first_file[vb.FILE_NAME])
+    assert [(f.md5sum, f.deprecated) for f in files] == [(md5sum, False)]
+
+
+def test_genpipes_sent_again_with_another_md5sum_deprecates(not_app_db, run_processing_json, genpipes_json):
+    """The same job's file sent again with another md5sum deprecates the old file."""
+    project_id, data, first_file, ingest = _md5sum_payload(not_app_db, run_processing_json, genpipes_json, True)
+    ingest(project_id, copy.deepcopy(data), not_app_db)
+    first_file[vb.FILE_MD5SUM] = "f" * 32
+
+    result = ingest(project_id, data, not_app_db)
+
+    assert any("different MD5 checksum" in w for w in result["DB_ACTION_WARNING"])
+    files = _stored_file(not_app_db, first_file[vb.FILE_NAME])
+    assert sorted((f.md5sum == "f" * 32, f.deprecated) for f in files) == [(False, True), (True, False)]
+
 
 TUMOUR_SAMPLE = "MoHQ-JG-9-23-15000863775-19933DT"
 

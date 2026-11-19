@@ -2094,11 +2094,16 @@
                 ]
               },
               "schema": {
-                "description": "An analysis operation, e.g. a GenPipes run: its config, and per sample and readset the jobs with their files and metrics. Names come from GET /vocabulary; see the README (Analysis ingestion).",
+                "description": "An analysis operation, e.g. a GenPipes run: its config, and per sample and readset the jobs with their files and metrics. Names come from GET /vocabulary; see the README (Analysis ingestion). Every file needs a file_md5sum (README: File md5sums).",
                 "properties": {
                   "_source_file": {
                     "description": "Name of the file the payload comes from, for the logs (set by pt-cli)",
                     "type": "string"
+                  },
+                  "allow_missing_md5sum": {
+                    "default": false,
+                    "description": "Ingest files without file_md5sum (files no longer on disk); otherwise they refuse the payload, even with force",
+                    "type": "boolean"
                   },
                   "force": {
                     "default": false,
@@ -2473,11 +2478,16 @@
                 ]
               },
               "schema": {
-                "description": "A sequencing run: its specimens, samples and readsets, with their files and metrics. Sample keys are described in the README (Sample metadata at ingestion).",
+                "description": "A sequencing run: its specimens, samples and readsets, with their files and metrics. Sample keys are described in the README (Sample metadata at ingestion). Every file needs a file_md5sum (README: File md5sums).",
                 "properties": {
                   "_source_file": {
                     "description": "Name of the file the payload comes from, for the logs (set by pt-cli)",
                     "type": "string"
+                  },
+                  "allow_missing_md5sum": {
+                    "default": false,
+                    "description": "Ingest files without file_md5sum (files no longer on disk); otherwise they refuse the payload, even with force",
+                    "type": "boolean"
                   },
                   "force": {
                     "default": false,

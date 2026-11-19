@@ -842,6 +842,19 @@ The project year (e.g. `Y1`, `Y2` for MoH) and phase a readset was sequenced for
 - They are set when the readset is created: a readset is never ingested twice. Change them with
   `pt-cli edit` on the `readset.project_year` or `readset.project_phase` column.
 
+## File md5sums
+
+Every file of a `run_processing` or `analysis` payload needs a `file_md5sum`: 32 hexadecimal characters,
+stored in lowercase (surrounding spaces are dropped).
+
+- A missing, empty or malformed md5sum rejects the whole payload before anything is written, with one
+  message per file. `force` doesn't bypass it.
+- Files no longer on disk (e.g. JSON rebuilt for past runs) can't get one: send `"allow_missing_md5sum": true`
+  (`pt-cli ingest run_processing|analysis --allow-missing-md5sum`). Their md5sum is stored empty and the
+  warning lists them. A malformed md5sum is still refused.
+- In an analysis payload sent again for the same job, a file whose md5sum was empty gets the new one. A
+  different md5sum deprecates the old file and adds a new one, with a warning.
+
 ## Controlled vocabularies
 
 There are two kinds of controlled vocabularies. Pick the kind by what the code does with the values:

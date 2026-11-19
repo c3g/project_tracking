@@ -35,6 +35,10 @@ INGEST_EXAMPLES = json.loads(
 )
 SOURCE_FILE = {"type": "string", "description": "Name of the file the payload comes from, for the logs (set by pt-cli)"}
 FORCE = {"type": "boolean", "default": False, "description": "Replace stored values that differ instead of warning"}
+ALLOW_MISSING_MD5SUM = {
+    "type": "boolean", "default": False,
+    "description": "Ingest files without file_md5sum (files no longer on disk); otherwise they refuse the payload, even with force",
+}
 
 
 def ingest_body(kind, description, **flags):
@@ -1105,8 +1109,10 @@ def metrics(project_id, specimen_id=None, sample_id=None, readset_id=None, metri
 @openapi_doc(requestBody=ingest_body(
     "run_processing",
     "A sequencing run: its specimens, samples and readsets, with their files and metrics. "
-    "Sample keys are described in the README (Sample metadata at ingestion).",
+    "Sample keys are described in the README (Sample metadata at ingestion). Every file needs a file_md5sum "
+    "(README: File md5sums).",
     force=FORCE,
+    allow_missing_md5sum=ALLOW_MISSING_MD5SUM,
 ))
 @convcheck_project
 @parse_json_input
@@ -1152,8 +1158,10 @@ def ingest_transfer(project_id: str, ingest_data):
 @openapi_doc(requestBody=ingest_body(
     "analysis",
     "An analysis operation, e.g. a GenPipes run: its config, and per sample and readset the jobs with their "
-    "files and metrics. Names come from GET /vocabulary; see the README (Analysis ingestion).",
+    "files and metrics. Names come from GET /vocabulary; see the README (Analysis ingestion). Every file needs a "
+    "file_md5sum (README: File md5sums).",
     force=FORCE,
+    allow_missing_md5sum=ALLOW_MISSING_MD5SUM,
     operation_status={"type": "string", "description": "Operation status, deduced from the job statuses when missing"},
 ))
 @convcheck_project

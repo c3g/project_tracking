@@ -14,6 +14,7 @@ CASCADE_DOWN = "cascade_down"
 CASCADE_UP = "cascade_up"
 DELETE = "delete"
 FORCE = "force"
+ALLOW_MISSING_MD5SUM = "allow_missing_md5sum"
 
 # project table
 PROJECT_EXT_ID = "project_ext_id"

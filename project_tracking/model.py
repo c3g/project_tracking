@@ -1302,6 +1302,8 @@ class File(BaseTable):
 
         This method checks if a file with the given name, type, and md5sum already exists for the specified readset and job.
         If such a file exists, it links the readset and job to the existing file.
+        A missing md5sum (stored or given) is unknown, not different: such a file matches, and a given md5sum fills
+        in a missing stored one (e.g. a payload sent again once its md5sums are known).
         If a file with the same name but different md5sum exists, it deprecates the old file and adds a warning.
         If no matching file is found, it creates a new file.
 
@@ -1344,15 +1346,17 @@ class File(BaseTable):
         )
         files = session.execute(stmt).scalars().all()
         warning = None
-        file = None
+        file = (
+            next((f for f in files if f.md5sum == md5sum), None)
+            or next((f for f in files if f.md5sum is None or md5sum is None), None)
+        )
         for f in files:
-            if f.md5sum == md5sum:
-                file = f
-                break
-            if f.md5sum != md5sum:
+            if f is not file and f.md5sum is not None and md5sum is not None and f.md5sum != md5sum:
                 f.deprecated = True
-                warning = f"Warning: File '{name}' already exists for readset '{readset.id}' and job '{job.id}' with a different MD5 checksum (old: '{f.md5sum}', new: '{md5sum}). Deprecating the old file."
+                warning = f"Warning: File '{name}' already exists for readset '{readset.id}' and job '{job.id}' with a different MD5 checksum (old: '{f.md5sum}', new: '{md5sum}'). Deprecating the old file."
         if file:
+            if file.md5sum is None and md5sum is not None:
+                file.md5sum = md5sum
             # File with the same name and md5sum exists, link to readset and job
             if readset not in file.readsets:
                 file.readsets.append(readset)

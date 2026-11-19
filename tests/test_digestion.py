@@ -1,4 +1,5 @@
 """ PyTest for the digestion API endpoints in the project_tracking module. """
+import hashlib
 import logging
 import json
 
@@ -349,7 +350,7 @@ def _fastq_files(readset_name, lane):
         {
             "location_uri": f"abacus://{ONCOANALYSER_DIR}.{lane}/{readset_name}_L00{lane}_{read_type}_001.fastq.gz",
             "file_name": f"{readset_name}_L00{lane}_{read_type}_001.fastq.gz",
-            "file_md5sum": f"{read_type}{readset_name}",
+            "file_md5sum": hashlib.md5(f"{read_type}{readset_name}".encode()).hexdigest(),
             "file_extra_metadata": {"read_type": read_type},
             "file_deliverable": True,
         }
