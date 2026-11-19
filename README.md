@@ -855,6 +855,26 @@ stored in lowercase (surrounding spaces are dropped).
 - In an analysis payload sent again for the same job, a file whose md5sum was empty gets the new one. A
   different md5sum deprecates the old file and adds a new one, with a warning.
 
+## Transfer and delivery destinations
+
+A location belongs to one file, and its URI is unique. When a transfer or delivery copies a file to a URI another
+file owns (typically a rerun delivered to the bucket key of an earlier run), the location **moves** to the file just
+copied: its bytes are now there, the last copy wins. The warning names both files and compares their md5sums.
+
+- The previous file is deprecated, with `extra_metadata` `duplicate_of` (same md5sum) or `superseded_by` (different
+  or unknown md5sum) set to the new file's id. It stays live if it keeps another live location (e.g. a delivery
+  with `"delete": false`). `pt-cli undeprecate` reverses it.
+- When the file copied is older than the previous one, the warning says so: check an older run wasn't copied
+  over a newer one.
+- Sending a transfer or delivery again changes nothing: the location already belongs to the file.
+- A delivery marks its source location deleted (unless `"delete": false`) after the destination is set.
+
+Before 4.0.0 the location stayed on the previous file, leaving the delivered file without live location (issue #81).
+`utils/project_tracking-repair-delivered-locations.sh <database> [--yes]` repairs those bucket keys the same way: the
+key goes to the file delivered last (or stays on the owner when it was delivered last), and the other files of the
+same name are deprecated. Dry run by default, one transaction under the write lock, and a CSV of the keys left for
+review (an older file delivered over a newer one, or the same name in several keys). It can be run again.
+
 ## Controlled vocabularies
 
 There are two kinds of controlled vocabularies. Pick the kind by what the code does with the values:

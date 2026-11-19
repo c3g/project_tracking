@@ -503,6 +503,57 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
     return ret
 
 
+def attach_destination(file, uri, session, warnings):
+    """
+    Give file the location of uri, the destination of a transfer or delivery: the bytes there are now file's, as the
+    last copy wins. A location another file owned moves to file (issue #81: it used to stay on the other file and
+    leave file without location). The other file is then deprecated, unless it keeps another live location, with
+    extra_metadata 'duplicate_of' (same md5sum) or 'superseded_by' (different or unknown md5sum) set to file's id.
+    Undeletes and undeprecates the location. Appends a message to warnings for anything but a new location or one
+    file already owns (a replay).
+    """
+    stmt = select(Location).where(Location.uri == uri)
+    location = session.execute(stmt).scalar_one_or_none()
+    if location is None:
+        location, _ = Location.from_uri(uri=uri, file=file, session=session)
+    elif location.file is not file:
+        warnings.append(move_location(location, file))
+    if location.deleted:
+        warnings.append(f"Existing deleted location found for uri '{location.uri}', undeleting it.")
+        location.deleted = False
+    if location.deprecated:
+        warnings.append(f"Existing deprecated location found for uri '{location.uri}', undeprecating it.")
+        location.deprecated = False
+    return location
+
+
+def move_location(location, file):
+    """Move location from the file owning it to file (see attach_destination); returns the warning."""
+    owner = location.file
+    message = f"Location '{location.uri}' moved from 'File' {owner.id} to 'File' {file.id} '{file.name}'"
+    if owner.md5sum is None or file.md5sum is None:
+        same, detail = False, "md5sum not verified"
+    elif owner.md5sum == file.md5sum:
+        same, detail = True, f"same md5sum {file.md5sum}"
+    else:
+        same, detail = False, f"md5sum {owner.md5sum} replaced by {file.md5sum}"
+    message += f" ({detail})"
+    if owner.creation and file.creation and file.creation < owner.creation:
+        message += f"; 'File' {file.id} is older than 'File' {owner.id}: check an older run wasn't copied over a newer one"
+    keeps_location = any(
+        other is not location and not other.deleted and not other.deprecated for other in owner.locations
+    )
+    location.file = file
+    if owner.deprecated or owner.deleted:
+        return message + "."
+    if keeps_location:
+        return message + f"; 'File' {owner.id} keeps its other locations."
+    key = "duplicate_of" if same else "superseded_by"
+    owner.extra_metadata = {**(owner.extra_metadata or {}), key: file.id}
+    owner.deprecated = True
+    return message + f"; 'File' {owner.id} is deprecated ({key} {file.id})."
+
+
 def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=True):
     """Ingesting transfer"""
     if not isinstance(ingest_data, dict):
@@ -604,18 +655,9 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
                 if not file:
                     raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}'")
 
-            new_location, warning = Location.from_uri(uri=dest_uri, file=file, session=session)
-            if warning:
-                ret["DB_ACTION_WARNING"].append(warning)
-            if new_location.deleted:
-                ret["DB_ACTION_WARNING"].append(f"Existing deleted location found for uri '{new_location.uri}', undeleting it.")
-                new_location.deleted = False
-            if new_location.deprecated:
-                ret["DB_ACTION_WARNING"].append(f"Existing deprecated location found for uri '{new_location.uri}', undeprecating it.")
-                new_location.deprecated = False
+            attach_destination(file, dest_uri, session, ret["DB_ACTION_WARNING"])
             if job not in file.jobs:
                 file.jobs.append(job)
-            session.add(new_location)
     # Get existing readset IDs from the relationship
     existing_operation_readset_ids = {r.id for r in operation.readsets}
     # Filter only new readsets not already present
@@ -952,27 +994,18 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
                     raise DidNotFindError(f"No 'File' with 'uri' '{src_uri}'")
                 file.state = StateEnum("DELIVERED")
 
+            # The destination first: the source is then deleted only if it is another location
+            new_location = attach_destination(file, dest_uri, session, ret["DB_ACTION_WARNING"])
             if delete:
                 stmt = (
                     select(Location)
                     .where(Location.uri == src_uri)
                 )
                 location = session.execute(stmt).scalar_one_or_none()
-                if location is not None:
+                if location is not None and location is not new_location:
                     location.deleted = True
-
-            new_location, warning = Location.from_uri(uri=dest_uri, file=file, session=session)
-            if warning:
-                ret["DB_ACTION_WARNING"].append(warning)
-            if new_location.deleted:
-                ret["DB_ACTION_WARNING"].append(f"Existing deleted location found for uri '{new_location.uri}', undeleting it.")
-                new_location.deleted = False
-            if new_location.deprecated:
-                ret["DB_ACTION_WARNING"].append(f"Existing deprecated location found for uri '{new_location.uri}', undeprecating it.")
-                new_location.deprecated = False
             if job not in file.jobs:
                 file.jobs.append(job)
-            session.add(new_location)
 
     # Get existing readset IDs from the relationship
     existing_operation_readset_ids = {r.id for r in operation.readsets}

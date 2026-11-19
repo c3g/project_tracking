@@ -737,3 +737,125 @@ def test_transfer_unknown_readset(client, run_processing_json, transfer_json):
     response = client.post(f'project/{project_name}/ingest_transfer', data=json.dumps(data))
 
     assert response.get_json()["DB_ACTION_ERROR"] == "No 'Readset' with 'name' 'UNKNOWN-READSET'"
+
+
+BUCKET_KEY = "c3g-data-repos:///MOH-Q/alignment/SAMPLE.bam"
+
+
+def _two_runs(session, run_processing_json, rerun_md5sum):
+    """
+    A run_processing file (first run) and a same-named file of the same readset from a rerun at another path,
+    as in issue #81. Returns the project id, the readset name and both files.
+    """
+    project_id = _ingest_run(session, run_processing_json)
+    readset_json = run_processing_json[vb.SPECIMEN][0][vb.SAMPLE][0][vb.READSET][0]
+    first = session.execute(
+        select(model.File).where(model.File.name == readset_json[vb.FILE][0][vb.FILE_NAME])
+    ).scalar_one()
+    rerun = model.File(name=first.name, md5sum=rerun_md5sum, readsets=list(first.readsets), jobs=[])
+    model.Location(uri=f"abacus:///rerun/{first.name}", endpoint="abacus", file=rerun)
+    session.add(rerun)
+    session.commit()
+    return project_id, readset_json[vb.READSET_NAME], first, rerun
+
+
+def _copy(session, project_id, readset_name, file, dest, kind="delivery", delete=True):
+    """Deliver (or transfer) file from its live location to dest; returns the warnings."""
+    src = next(location.uri for location in file.locations if not location.deleted)
+    data = {
+        vb.OPERATION_PLATFORM: "abacus",
+        vb.OPERATION_CMD_LINE: f"{kind} {src}",
+        vb.READSET: [{vb.READSET_NAME: readset_name, vb.FILE: [{vb.SRC_LOCATION_URI: src, vb.DEST_LOCATION_URI: dest}]}],
+    }
+    if kind == "delivery":
+        data[vb.DELETE] = delete
+        return db_actions.ingest_delivery(project_id, data, session).get("DB_ACTION_WARNING", [])
+    return db_actions.ingest_transfer(project_id, data, session).get("DB_ACTION_WARNING", [])
+
+
+def _owner(session, uri):
+    return session.execute(select(model.Location).where(model.Location.uri == uri)).scalar_one().file
+
+
+@pytest.mark.parametrize("rerun_md5sum, key", [
+    ("0" * 32, "superseded_by"),
+    ("same", "duplicate_of"),
+    (None, "superseded_by"),
+], ids=["replaced", "duplicate", "unknown"])
+def test_delivery_over_another_files_key_moves_it(not_app_db, run_processing_json, rerun_md5sum, key):
+    """Issue #81: a rerun delivered to a key the first run owns takes it; the first run's file is deprecated."""
+    first_md5sum = run_processing_json[vb.SPECIMEN][0][vb.SAMPLE][0][vb.READSET][0][vb.FILE][0][vb.FILE_MD5SUM]
+    rerun_md5sum = first_md5sum if rerun_md5sum == "same" else rerun_md5sum
+    detail = {
+        "duplicate_of": f"same md5sum {first_md5sum}",
+        "superseded_by": f"md5sum {first_md5sum} replaced by {rerun_md5sum}" if rerun_md5sum else "md5sum not verified",
+    }[key]
+    project_id, readset_name, first, rerun = _two_runs(not_app_db, run_processing_json, rerun_md5sum)
+    _copy(not_app_db, project_id, readset_name, first, BUCKET_KEY)
+
+    warnings = _copy(not_app_db, project_id, readset_name, rerun, BUCKET_KEY)
+
+    assert _owner(not_app_db, BUCKET_KEY) is rerun
+    assert [location.uri for location in rerun.locations if not location.deleted] == [BUCKET_KEY]
+    assert rerun.state == model.StateEnum.DELIVERED and not rerun.deprecated
+    assert first.deprecated and first.extra_metadata[key] == rerun.id
+    assert warnings == [
+        f"Location '{BUCKET_KEY}' moved from 'File' {first.id} to 'File' {rerun.id} '{first.name}' ({detail}); "
+        f"'File' {first.id} is deprecated ({key} {rerun.id})."
+    ]
+
+
+def test_delivery_sent_again_changes_nothing(not_app_db, run_processing_json):
+    """A delivery ingested twice keeps the key on its file, without warning or deprecation."""
+    project_id, readset_name, first, _ = _two_runs(not_app_db, run_processing_json, "0" * 32)
+    src = next(location.uri for location in first.locations)
+    _copy(not_app_db, project_id, readset_name, first, BUCKET_KEY)
+    data = {
+        vb.OPERATION_PLATFORM: "abacus",
+        vb.OPERATION_CMD_LINE: "delivery",
+        vb.READSET: [{vb.READSET_NAME: readset_name, vb.FILE: [{vb.SRC_LOCATION_URI: src, vb.DEST_LOCATION_URI: BUCKET_KEY}]}],
+    }
+
+    warnings = db_actions.ingest_delivery(project_id, data, not_app_db).get("DB_ACTION_WARNING", [])
+
+    assert not [warning for warning in warnings if "moved" in warning]
+    assert _owner(not_app_db, BUCKET_KEY) is first and not first.deprecated
+
+
+def test_delivery_over_a_file_keeping_another_location(not_app_db, run_processing_json):
+    """The key's previous file stays live when it keeps another location (delivered with delete false)."""
+    project_id, readset_name, first, rerun = _two_runs(not_app_db, run_processing_json, "0" * 32)
+    _copy(not_app_db, project_id, readset_name, first, BUCKET_KEY, delete=False)
+
+    warnings = _copy(not_app_db, project_id, readset_name, rerun, BUCKET_KEY)
+
+    assert _owner(not_app_db, BUCKET_KEY) is rerun
+    assert not first.deprecated and "superseded_by" not in (first.extra_metadata or {})
+    assert warnings[0].endswith(f"'File' {first.id} keeps its other locations.")
+
+
+def test_delivery_of_an_older_file_over_a_newer_one_warns(not_app_db, run_processing_json):
+    """An older run delivered over a newer one still takes the key, with a warning to check it."""
+    project_id, readset_name, first, rerun = _two_runs(not_app_db, run_processing_json, "0" * 32)
+    rerun.creation = first.creation.replace(year=first.creation.year - 1)
+    not_app_db.commit()
+    _copy(not_app_db, project_id, readset_name, first, BUCKET_KEY)
+
+    warnings = _copy(not_app_db, project_id, readset_name, rerun, BUCKET_KEY)
+
+    assert _owner(not_app_db, BUCKET_KEY) is rerun
+    assert f"'File' {rerun.id} is older than 'File' {first.id}: check an older run wasn't copied over a newer one" in warnings[0]
+
+
+def test_transfer_over_another_files_location_moves_it(not_app_db, run_processing_json):
+    """A transfer to a path another file owns moves it too; that file keeps its source location and stays live."""
+    project_id, readset_name, first, rerun = _two_runs(not_app_db, run_processing_json, "0" * 32)
+    dest = f"beluga:///project/{first.name}"
+    _copy(not_app_db, project_id, readset_name, first, dest, kind="transfer")
+
+    warnings = _copy(not_app_db, project_id, readset_name, rerun, dest, kind="transfer")
+
+    assert _owner(not_app_db, dest) is rerun
+    assert sorted(location.uri for location in rerun.locations) == sorted([f"abacus:///rerun/{first.name}", dest])
+    assert not first.deprecated
+    assert warnings[0].startswith(f"Location '{dest}' moved from 'File' {first.id} to 'File' {rerun.id}")
