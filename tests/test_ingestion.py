@@ -775,6 +775,172 @@ def test_transfer_unknown_readset(client, run_processing_json, transfer_json):
     assert response.get_json()["DB_ACTION_ERROR"] == "No 'Readset' with 'name' 'UNKNOWN-READSET'"
 
 
+def test_delivery_unknown_readset(client, run_processing_json, delivery_json):
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
+    data = copy.deepcopy(delivery_json)
+    data[vb.READSET][0][vb.READSET_NAME] = "UNKNOWN-READSET"
+    data[vb.READSET][0][vb.FILE] = []
+
+    response = client.post(f'project/{project_name}/ingest_delivery', data=json.dumps(data))
+
+    assert response.status_code == 400
+    assert response.get_json()["DB_ACTION_ERROR"] == "No 'Readset' with 'name' 'UNKNOWN-READSET'"
+
+
+def test_run_processing_metric_without_value(client, run_processing_json):
+    """A metric without metric_value is a 400 naming it (it was a 500), and nothing is written."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+    data = copy.deepcopy(run_processing_json)
+    readset = _readsets(data)[0]
+    metric = readset[vb.METRIC][0]
+    del metric[vb.METRIC_VALUE]
+
+    response = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(data))
+
+    assert response.status_code == 400
+    assert response.get_json()["DB_ACTION_ERROR"] == [
+        f"'Metric' '{metric[vb.METRIC_NAME]}' of 'Readset' '{readset[vb.READSET_NAME]}' has no 'metric_value'."
+    ]
+    assert not client.get(f'project/{project_name}/readsets').get_json().get("DB_ACTION_OUTPUT")
+
+
+def test_refusal_is_logged_with_its_reason_and_source_file(client, monkeypatch, caplog, run_processing_json):
+    """The server log tells why a request was refused, and which file pt-cli sent (no JSON content type)."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+    data = copy.deepcopy(run_processing_json)
+    del _readsets(data)[0][vb.METRIC][0][vb.METRIC_VALUE]
+    data["_source_file"] = "run.json"
+    access = logging.getLogger("app.access")
+    # An alembic test's fileConfig disables existing loggers: listen on the logger itself
+    monkeypatch.setattr(access, "disabled", False)
+    access.addHandler(caplog.handler)
+    try:
+        with caplog.at_level(logging.INFO, logger="app.access"):
+            response = client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(data),
+                                   content_type="text/plain")
+    finally:
+        access.removeHandler(caplog.handler)
+
+    assert response.status_code == 400
+    lines = [record.getMessage() for record in caplog.records if record.name == "app.access"]
+    assert any("source_file=run.json" in line for line in lines)
+    assert any(f"ingest_run_processing 400 refused: {response.get_json()['DB_ACTION_ERROR'][0]}" in line for line in lines)
+
+
+def _first(data, *keys):
+    """The first object down the lists keys that has the next key, e.g. _first(data, 'specimen', 'sample')."""
+    for index, key in enumerate(keys):
+        following = keys[index + 1:]
+        data = next(item for item in data[key] if not following or following[0] in item)
+    return data
+
+
+RP_READSET = (vb.SPECIMEN, vb.SAMPLE, vb.READSET)
+AN_JOB = (vb.SAMPLE, vb.READSET, vb.JOB)
+
+
+@pytest.mark.parametrize("kind, path, key, value, expected", [
+    ("run_processing", (), vb.RUN_DATE, None, "The run_processing payload has no 'run_date'."),
+    ("run_processing", (), vb.RUN_DATE, "2024/01/31", "The run_processing payload has an invalid 'run_date' '2024/01/31' (expected e.g. '2024-01-31 14:05:00')."),
+    ("run_processing", (), vb.JOB_START, "yesterday", "The run_processing payload has an invalid 'job_start' 'yesterday' (expected e.g. '2024-01-31 14:05:00')."),
+    ("run_processing", (), vb.SPECIMEN, "S1", "The run_processing payload has no list 'specimen' (got 'S1')."),
+    ("run_processing", RP_READSET, vb.EXPERIMENT_KIT_EXPIRATION_DATE, "31-01-2024", "has an invalid 'experiment_kit_expiration_date' '31-01-2024' (expected e.g. '2024-01-31')."),
+    ("run_processing", RP_READSET, vb.EXPERIMENT_NUCLEIC_ACID_TYPE, "dna", "has an invalid 'experiment_nucleic_acid_type' 'dna': expected one of"),
+    ("run_processing", RP_READSET, vb.READSET_NAME, "", "'Readset' #1 of 'Sample' "),
+    ("run_processing", RP_READSET + (vb.FILE,), vb.FILE_NAME, None, "'File' #1 of 'Readset' "),
+    ("transfer", (vb.READSET, vb.FILE), vb.DEST_LOCATION_URI, None, "has no 'dest_location_uri'."),
+    ("transfer", (vb.READSET,), vb.FILE, None, "has no list 'file'."),
+    ("delivery", (), vb.OPERATION_PLATFORM, None, "The delivery payload has no 'operation_platform'."),
+    ("analysis", AN_JOB, vb.JOB_STOP, "2024-01-31", "has an invalid 'job_stop' '2024-01-31' (expected e.g. '2024-01-31 14:05:00')."),
+    ("analysis", AN_JOB + (vb.METRIC,), vb.METRIC_VALUE, None, "has no 'metric_value'."),
+    ("analysis", (), vb.OPERATION_CONFIG_DATA, "", "The analysis payload has no 'operation_config_data' ('')."),
+])
+def test_ingest_rejects_malformed_payload(not_app_db, run_processing_json, transfer_json, delivery_json, genpipes_json,
+                                          kind, path, key, value, expected):
+    """A missing key, a wrong list or date is a RequestError (400) naming the object, before anything is written."""
+    project_id = _new_project(not_app_db, run_processing_json)
+    payloads = {"run_processing": run_processing_json, "transfer": transfer_json, "delivery": delivery_json, "analysis": genpipes_json}
+    data = copy.deepcopy(payloads[kind])
+    target = _first(data, *path)
+    if value is None:
+        del target[key]
+    else:
+        target[key] = value
+
+    with pytest.raises(RequestError) as error:
+        getattr(db_actions, f"ingest_{kind}")(project_id, data, not_app_db)
+
+    [message] = error.value.message
+    assert expected in message
+    assert not_app_db.execute(select(model.Operation)).first() is None
+
+
+def test_ingest_rejects_payload_not_an_object(not_app_db, run_processing_json):
+    project_id = _new_project(not_app_db, run_processing_json)
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_transfer(project_id, [], not_app_db)
+    assert error.value.message == ["The transfer payload must be a JSON object, got list."]
+
+
+def test_analysis_job_times_and_status_may_be_missing_or_empty(not_app_db, run_processing_json, genpipes_json):
+    """GenPipes sends empty job_start/job_stop for a job that didn't run; missing ones are the same as null."""
+    project_id = _new_project(not_app_db, run_processing_json)
+    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+    data = copy.deepcopy(genpipes_json)
+    jobs = data[vb.SAMPLE][0][vb.READSET][0][vb.JOB]
+    jobs[0][vb.JOB_START] = jobs[0][vb.JOB_STOP] = ""
+    for key in (vb.JOB_START, vb.JOB_STOP, vb.JOB_STATUS):
+        jobs[1].pop(key, None)
+
+    result = db_actions.ingest_analysis(project_id, data, not_app_db)
+
+    stored = not_app_db.execute(select(model.Job).where(model.Job.name == jobs[0][vb.JOB_NAME])).scalars().all()
+    assert any(job.start is None and job.stop is None for job in stored)
+    assert f"'Job' with 'name' '{jobs[1][vb.JOB_NAME]}' with no status, skipping." in " ".join(result["DB_ACTION_WARNING"])
+
+
+def test_unexpected_error_is_json_without_its_message(client, monkeypatch, caplog, run_processing_json):
+    """
+    Any other error stays a 500, in the envelope for pt-cli, with its type and a reference but not its message
+    (it can hold a password, a path or SQL): that goes to the log. HTTP errors keep their status.
+    """
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+
+    def broken(**_):
+        raise RuntimeError("could not reach postgresql://pt:s3cret@db.internal/pt")
+    monkeypatch.setattr(db_actions, "ingest_transfer", broken)
+    # An alembic test's fileConfig disables existing loggers: listen on the app's logger itself
+    monkeypatch.setattr(client.application.logger, "disabled", False)
+    client.application.logger.addHandler(caplog.handler)
+    try:
+        response = client.post(f'project/{project_name}/ingest_transfer', data=json.dumps({}))
+    finally:
+        client.application.logger.removeHandler(caplog.handler)
+
+    assert response.status_code == 500
+    [message] = response.get_json()["DB_ACTION_ERROR"]
+    assert message.startswith(f"Internal error on POST /project/{project_name}/ingest_transfer (RuntimeError, reference ")
+    assert "s3cret" not in response.get_data(as_text=True) and "db.internal" not in response.get_data(as_text=True)
+    reference = message.split("reference ")[1].split(")")[0]
+    assert any(reference in record.getMessage() and record.exc_info for record in caplog.records)
+    assert client.get('/no-such-route').status_code == 404
+
+
+def test_shape_messages_cut_long_values(not_app_db, run_processing_json):
+    project_id = _new_project(not_app_db, run_processing_json)
+    data = copy.deepcopy(run_processing_json)
+    data[vb.RUN_DATE] = "x" * 10000
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_run_processing(project_id, data, not_app_db)
+    [message] = error.value.message
+    assert len(message) < 200 and "xxx..." in message
+
+
 BUCKET_KEY = "c3g-data-repos:///MOH-Q/alignment/SAMPLE.bam"
 
 

@@ -653,7 +653,7 @@ def create_project(project_name, session, ext_id=None, ext_src=None):
             session.commit()
         except SQLAlchemyError as error:
             logger.warning(f"Could not commit {project_name}: {error}")
-            ret["DB_ACTION_WARNING"].append(f"Could not commit {project_name}: {error}")
+            ret["DB_ACTION_WARNING"].append(f"Could not commit {project_name} (logged).")
             session.rollback()
 
         # Re-query to get the project newly created

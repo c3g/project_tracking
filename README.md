@@ -306,11 +306,11 @@ request was refused. Nothing is saved then: each request commits once, at its en
 | Status | When |
 |---|---|
 | 200 | Done, possibly with `DB_ACTION_WARNING` (e.g. skipped readsets) |
-| 400 | Invalid request or data: invalid JSON or keys, invalid enum value, a row the payload refers to doesn't exist, a modification or curate refused |
+| 400 | Invalid request or data: invalid JSON or keys, a missing key, list or malformed date in an ingest payload (e.g. `'Metric' 'reads' of 'Readset' 'R1' has no 'metric_value'.`), invalid enum value, a row the payload refers to doesn't exist, a modification or curate refused |
 | 404 | The project in the URL doesn't exist (the payload's rows give 400) |
 | 409 | Duplicate, e.g. readsets already ingested |
 | 503 | The database can't be reached (connection refused, authentication failure, missing database or role), with a hint on which database the project resolved to |
-| 500 | Other database errors (e.g. a lock or statement timeout), with the database message |
+| 500 | Other database errors: a known one is named (e.g. a lock or statement timeout), any other gets a reference to the API's log; any other error is a bug of the API, given as `Internal error on <method> <path> (<error type>, reference <id>)`. Responses never carry the database's or the error's own message (it can hold a host, a role, a password or SQL): look the reference up in the API's log |
 
 pt-cli reads the envelope, and exits with an error when `DB_ACTION_ERROR` is set.
 

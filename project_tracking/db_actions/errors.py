@@ -1,6 +1,13 @@
 """
 Custom exceptions for the db_actions package.
 """
+import uuid
+
+
+def error_reference():
+    """Short random id tying an error response to its log line, which holds the details the response leaves out."""
+    return uuid.uuid4().hex[:12]
+
 
 class Error(Exception):
     """Generic error for db_action"""

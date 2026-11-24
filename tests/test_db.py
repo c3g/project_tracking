@@ -296,6 +296,33 @@ def _app_raising(orig_message):
     return app, tmp.name
 
 
+def test_operational_error_hides_driver_message_and_role():
+    """An unknown driver message, or a role's name, stays in the log: the response gives its reference."""
+    app, path = _app_raising('FATAL:  password for "pt_admin" at db.internal:5432 rejected, SQL: SELECT secret')
+    try:
+        response = app.test_client().get('/_raise_operational')
+        assert response.status_code == 500
+        text = response.get_data(as_text=True)
+        assert "Database error (logged, reference " in text
+        assert not any(word in text for word in ("pt_admin", "db.internal", "SELECT"))
+    finally:
+        os.unlink(path)
+    app, path = _app_raising('FATAL:  role "pt_admin" does not exist')
+    try:
+        response = app.test_client().get('/_raise_operational')
+        assert response.status_code == 503
+        assert "pt_admin" not in response.get_data(as_text=True)
+        assert "role does not exist" in response.get_json()["DB_ACTION_ERROR"][0]
+    finally:
+        os.unlink(path)
+
+
+def test_db_label_never_shows_credentials():
+    assert db_label("postgresql+psycopg2://pt:s3cret@db.internal:5432/pt_moh") == "pt_moh"
+    assert db_label("postgresql+psycopg2://pt:s3cret@db.internal:5432") == "db.internal"
+    assert db_label("postgresql+psycopg2://pt:s3cret@/") == "unknown"
+
+
 def test_connection_refused_operational_error_returns_503():
     app, path = _app_raising(
         'connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused'

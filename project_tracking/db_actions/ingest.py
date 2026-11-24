@@ -14,7 +14,7 @@ from sqlalchemy import select, inspect
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 # Local modules
-from .errors import DidNotFindError, RequestError, UniqueConstraintError
+from .errors import DidNotFindError, RequestError, UniqueConstraintError, error_reference
 from .route import projects
 from .sample_group import check_sample_groups, add_samples_to_groups
 from .utils import check_enum, check_one_nucleic_acid_type, sample_nucleic_acid_types
@@ -23,6 +23,7 @@ from .. import vocabulary as vb
 from .. import database
 from ..model import (
     LaneEnum,
+    NucleicAcidTypeEnum,
     PreservationEnum,
     SequencingTypeEnum,
     StatusEnum,
@@ -121,6 +122,118 @@ def missing_md5sum_warning(missing):
     return None
 
 
+# Shape of each ingest payload, checked by check_payload_shape before anything else reads it. At each level:
+# "required" keys must be there (null allowed), "not_null" keys there, not null and not empty, "dates" null, empty or in their
+# format (GenPipes sends an empty job_start for a job that didn't run),
+# "lists" the lists of objects under it ("optional" ones may be missing or null), "label" and "name" name an
+# object in the messages.
+_JOB_TIMES = {vb.JOB_START: vb.DATE_LONG_FMT, vb.JOB_STOP: vb.DATE_LONG_FMT}
+_METRIC_SHAPE = {"label": "Metric", "name": vb.METRIC_NAME, "not_null": (vb.METRIC_NAME,), "required": (vb.METRIC_VALUE,)}
+_FILE_SHAPE = {"label": "File", "name": vb.FILE_NAME, "not_null": (vb.FILE_NAME, vb.LOCATION_URI)}
+_COPY_SHAPE = {
+    "not_null": (vb.OPERATION_PLATFORM,),
+    "required": (vb.OPERATION_CMD_LINE,),
+    "dates": _JOB_TIMES,
+    "lists": {vb.READSET: {
+        "label": "Readset", "name": vb.READSET_NAME, "not_null": (vb.READSET_NAME,),
+        "lists": {vb.FILE: {
+            "label": "File", "name": vb.SRC_LOCATION_URI, "not_null": (vb.SRC_LOCATION_URI, vb.DEST_LOCATION_URI),
+        }},
+    }},
+}
+PAYLOAD_SHAPES = {
+    "run_processing": {
+        "not_null": (vb.OPERATION_PLATFORM, vb.RUN_NAME, vb.RUN_DATE),
+        "required": (vb.RUN_EXT_ID, vb.RUN_EXT_SRC, vb.RUN_INSTRUMENT),
+        "dates": {vb.RUN_DATE: vb.DATE_LONG_FMT, **_JOB_TIMES},
+        "lists": {vb.SPECIMEN: {
+            "label": "Specimen", "name": vb.SPECIMEN_NAME, "not_null": (vb.SPECIMEN_NAME,),
+            "required": (vb.SPECIMEN_COHORT, vb.SPECIMEN_INSTITUTION),
+            "lists": {vb.SAMPLE: {
+                "label": "Sample", "name": vb.SAMPLE_NAME, "not_null": (vb.SAMPLE_NAME,), "required": (vb.SAMPLE_TUMOUR,),
+                "lists": {vb.READSET: {
+                    "label": "Readset", "name": vb.READSET_NAME,
+                    "not_null": (vb.READSET_NAME,),
+                    "required": (vb.EXPERIMENT_SEQUENCING_TECHNOLOGY, vb.EXPERIMENT_TYPE, vb.EXPERIMENT_LIBRARY_KIT,
+                                 vb.EXPERIMENT_KIT_EXPIRATION_DATE, vb.READSET_ADAPTER1, vb.READSET_ADAPTER2),
+                    "dates": {vb.EXPERIMENT_KIT_EXPIRATION_DATE: vb.DATE_FMT},
+                    "lists": {vb.FILE: _FILE_SHAPE, vb.METRIC: _METRIC_SHAPE},
+                }},
+            }},
+        }},
+    },
+    "transfer": _COPY_SHAPE,
+    "delivery": _COPY_SHAPE,
+    "analysis": {
+        "not_null": (vb.OPERATION_PLATFORM, vb.OPERATION_CONFIG_NAME, vb.OPERATION_CONFIG_DATA),
+        "required": (vb.OPERATION_CMD_LINE, vb.OPERATION_CONFIG_VERSION, vb.OPERATION_CONFIG_MD5SUM),
+        "lists": {vb.SAMPLE: {
+            "label": "Sample", "name": vb.SAMPLE_NAME, "not_null": (vb.SAMPLE_NAME,),
+            "lists": {vb.READSET: {
+                "label": "Readset", "name": vb.READSET_NAME, "not_null": (vb.READSET_NAME,),
+                "lists": {vb.JOB: {
+                    "label": "Job", "name": vb.JOB_NAME, "not_null": (vb.JOB_NAME,), "dates": _JOB_TIMES,
+                    "lists": {vb.FILE: {**_FILE_SHAPE, "optional": True}, vb.METRIC: {**_METRIC_SHAPE, "optional": True}},
+                }},
+            }},
+        }},
+    },
+}
+
+
+def check_payload_shape(ingest_data, kind):
+    """
+    Check an ingest payload has the keys, lists and dates its route reads (PAYLOAD_SHAPES[kind]) before anything
+    else reads it; raises RequestError listing every problem, so a malformed payload gets a 400 saying what to fix
+    instead of a 500.
+    """
+    if not isinstance(ingest_data, dict):
+        raise RequestError(message=[f"The {kind} payload must be a JSON object, got {type(ingest_data).__name__}."])
+    invalid = []
+    _check_shape(invalid, ingest_data, PAYLOAD_SHAPES[kind], f"The {kind} payload", None)
+    if invalid:
+        raise RequestError(message=invalid)
+
+
+def _shown(value):
+    """A payload value as messages quote it, cut to 80 characters."""
+    text = repr(value)
+    return text if len(text) <= 80 else text[:77] + "..."
+
+
+def _check_shape(invalid, obj, shape, where, own):
+    """Append to invalid the problems of obj (named where in messages; own: its name without its parent)."""
+    for key in shape.get("required", ()):
+        if key not in obj:
+            invalid.append(f"{where} has no '{key}'.")
+    for key in shape.get("not_null", ()):
+        if obj.get(key) is None or obj.get(key) == "":
+            invalid.append(f"{where} has no '{key}'" + (f" ({_shown(obj[key])})." if key in obj else "."))
+    for key, fmt in shape.get("dates", {}).items():
+        value = obj.get(key)
+        if value is None or value == "":
+            continue
+        try:
+            datetime.strptime(value, fmt)
+        except (TypeError, ValueError):
+            invalid.append(f"{where} has an invalid '{key}' {_shown(value)} (expected e.g. '{datetime(2024, 1, 31, 14, 5).strftime(fmt)}').")
+    for key, sub in shape.get("lists", {}).items():
+        items = obj.get(key)
+        if items is None and sub.get("optional"):
+            continue
+        if not isinstance(items, list):
+            invalid.append(f"{where} has no list '{key}'" + (f" (got {_shown(items)})." if key in obj else "."))
+            continue
+        for number, item in enumerate(items, 1):
+            name = item.get(sub["name"]) if isinstance(item, dict) else None
+            item_own = f"'{sub['label']}' '{name}'" if isinstance(name, str) and name else f"'{sub['label']}' #{number}"
+            item_where = f"{item_own} of {own}" if own else item_own
+            if not isinstance(item, dict):
+                invalid.append(f"{item_where} must be a JSON object, got {_shown(item)}.")
+                continue
+            _check_shape(invalid, item, sub, item_where, item_own)
+
+
 def check_run_processing_payload(ingest_data):
     """
     Check every enum field of a run_processing payload before anything is written; raises RequestError
@@ -137,6 +250,7 @@ def check_run_processing_payload(ingest_data):
             for readset_json in sample_json[vb.READSET]:
                 name = readset_json[vb.READSET_NAME]
                 check_enum(invalid, LaneEnum, readset_json.get(vb.READSET_LANE), vb.READSET_LANE, "Readset", name)
+                check_enum(invalid, NucleicAcidTypeEnum, readset_json.get(vb.EXPERIMENT_NUCLEIC_ACID_TYPE), vb.EXPERIMENT_NUCLEIC_ACID_TYPE, "Readset", name)
                 check_enum(invalid, SequencingTypeEnum, readset_json.get(vb.READSET_SEQUENCING_TYPE), vb.READSET_SEQUENCING_TYPE, "Readset", name)
                 check_enum(invalid, StateEnum, readset_json.get(vb.READSET_STATE), vb.READSET_STATE, "Readset", name, optional=True)
                 for key in (vb.READSET_PROJECT_YEAR, vb.READSET_PROJECT_PHASE):
@@ -269,7 +383,7 @@ def analysis_operation_status(ingest_data):
 
 def ingest_run_processing(project_id: str, ingest_data: dict, session):
     """Ingesting run for MoH"""
-    if not isinstance(ingest_data, dict):
+    if isinstance(ingest_data, (str, bytes)):
         ingest_data = json.loads(ingest_data)
 
     ret = {
@@ -279,6 +393,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
+    check_payload_shape(ingest_data, "run_processing")
     force = ingest_data.get(vb.FORCE, False)
 
     # Looking for potential readsets duplicates before starting the ingestion to be able to report all of them at once
@@ -303,7 +418,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
         ret["DB_ACTION_WARNING"].append(warning)
 
     try:
-        job_start_value = ingest_data.get(vb.JOB_START)
+        job_start_value = ingest_data.get(vb.JOB_START) or None
         if job_start_value is not None:
             job_start = datetime.strptime(job_start_value, vb.DATE_LONG_FMT)
         else:
@@ -311,7 +426,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
     except TypeError:
         job_start = datetime.now()
     try:
-        job_stop_value = ingest_data.get(vb.JOB_STOP)
+        job_stop_value = ingest_data.get(vb.JOB_STOP) or None
         if job_stop_value is not None:
             job_stop = datetime.strptime(job_stop_value, vb.DATE_LONG_FMT)
         else:
@@ -477,7 +592,13 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                 session.rollback()
                 message = unique_constraint_error(session, "run_processing", ingest_data)
                 if not message:
-                    raise UniqueConstraintError(message=str(error.orig)) from error
+                    # The database's message (constraint, SQL, values) stays in the log
+                    reference = error_reference()
+                    logger.error("Integrity error %s in run_processing: %s", reference, error.orig, exc_info=error)
+                    raise UniqueConstraintError(
+                        message=f"The database refused the run (a duplicate or a missing value; logged, reference "
+                                f"{reference}): nothing was saved."
+                    ) from error
                 raise UniqueConstraintError(message=message) from error
 
     ret["DB_ACTION_WARNING"].extend(add_samples_to_groups(samples_groups, session))
@@ -559,7 +680,7 @@ def move_location(location, file):
 
 def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=True):
     """Ingesting transfer"""
-    if not isinstance(ingest_data, dict):
+    if isinstance(ingest_data, (str, bytes)):
         ingest_data = json.loads(ingest_data)
 
     if not session:
@@ -572,6 +693,7 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
+    check_payload_shape(ingest_data, "transfer")
     check_transfer_payload(ingest_data)
 
     operation, warning = Operation.from_attributes(
@@ -586,7 +708,7 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
         ret["DB_ACTION_WARNING"].append(warning)
 
     try:
-        job_start_value = ingest_data.get(vb.JOB_START)
+        job_start_value = ingest_data.get(vb.JOB_START) or None
         if job_start_value is not None:
             job_start = datetime.strptime(job_start_value, vb.DATE_LONG_FMT)
         else:
@@ -594,7 +716,7 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
     except TypeError:
         job_start = datetime.now()
     try:
-        job_stop_value = ingest_data.get(vb.JOB_STOP)
+        job_stop_value = ingest_data.get(vb.JOB_STOP) or None
         if job_stop_value is not None:
             job_stop = datetime.strptime(job_stop_value, vb.DATE_LONG_FMT)
         else:
@@ -706,7 +828,7 @@ def ingest_transfer(project_id: str, ingest_data, session, check_readset_name=Tr
 
 def ingest_analysis(project_id: str, ingest_data, session):
     """Ingesting an analysis operation (e.g. a GenPipes run)"""
-    if not isinstance(ingest_data, dict):
+    if isinstance(ingest_data, (str, bytes)):
         ingest_data = json.loads(ingest_data)
 
     if not session:
@@ -719,6 +841,7 @@ def ingest_analysis(project_id: str, ingest_data, session):
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
+    check_payload_shape(ingest_data, "analysis")
     force = ingest_data.get(vb.FORCE, False)
     missing_md5sum = check_analysis_payload(ingest_data)
     if missing_md5sum:
@@ -779,15 +902,15 @@ def ingest_analysis(project_id: str, ingest_data, session):
                 raise DidNotFindError(f"'Sample' with 'name' '{sample_json[vb.SAMPLE_NAME]}' not linked with 'Readset' with 'name' '{readset_json[vb.READSET_NAME]}'")
             for job_json in readset_json[vb.JOB]:
                 try:
-                    job_start = datetime.strptime(job_json[vb.JOB_START], vb.DATE_LONG_FMT)
+                    job_start = datetime.strptime(job_json.get(vb.JOB_START) or None, vb.DATE_LONG_FMT)
                 except TypeError:
                     job_start = None
                 try:
-                    job_stop = datetime.strptime(job_json[vb.JOB_STOP], vb.DATE_LONG_FMT)
+                    job_stop = datetime.strptime(job_json.get(vb.JOB_STOP) or None, vb.DATE_LONG_FMT)
                 except TypeError:
                     job_stop = None
                 # Check if job_status exists otherwise skip it
-                if job_json[vb.JOB_STATUS]:
+                if job_json.get(vb.JOB_STATUS):
                     job, warning = Job.from_attributes(
                         name=job_json[vb.JOB_NAME],
                         status=StatusEnum(job_json[vb.JOB_STATUS]),
@@ -905,7 +1028,7 @@ def ingest_analysis(project_id: str, ingest_data, session):
 
 def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=True):
     """Ingesting delivery"""
-    if not isinstance(ingest_data, dict):
+    if isinstance(ingest_data, (str, bytes)):
         ingest_data = json.loads(ingest_data)
 
     if not session:
@@ -918,6 +1041,7 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
 
     project = projects(project_id=project_id, session=session)["DB_ACTION_OUTPUT"][0]
 
+    check_payload_shape(ingest_data, "delivery")
     delete = ingest_data.get(vb.DELETE, True)
 
     operation, warning = Operation.from_attributes(
@@ -932,7 +1056,7 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
         ret["DB_ACTION_WARNING"].append(warning)
 
     try:
-        job_start_value = ingest_data.get(vb.JOB_START)
+        job_start_value = ingest_data.get(vb.JOB_START) or None
         if job_start_value is not None:
             job_start = datetime.strptime(job_start_value, vb.DATE_LONG_FMT)
         else:
@@ -940,7 +1064,7 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
     except TypeError:
         job_start = datetime.now()
     try:
-        job_stop_value = ingest_data.get(vb.JOB_STOP)
+        job_stop_value = ingest_data.get(vb.JOB_STOP) or None
         if job_stop_value is not None:
             job_stop = datetime.strptime(job_stop_value, vb.DATE_LONG_FMT)
         else:
@@ -968,6 +1092,8 @@ def ingest_delivery(project_id: str, ingest_data, session, check_readset_name=Tr
             Readset.deleted.is_(False)
         )
         readset = session.execute(stmt).scalar_one_or_none()
+        if not readset:
+            raise DidNotFindError(f"No 'Readset' with 'name' '{readset_name}'")
         readset_list.append(readset)
         for file_json in readset_json[vb.FILE]:
             src_uri = file_json[vb.SRC_LOCATION_URI]

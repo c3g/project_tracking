@@ -38,8 +38,9 @@ def db_label(db_uri: str) -> str:
     """Return a short human-readable label for a database URI."""
     parsed = urlparse(db_uri)
     if parsed.scheme.startswith("sqlite"):
-        return parsed.path.rsplit("/", maxsplit=1)[-1] or db_uri
-    return parsed.path.lstrip("/") or parsed.netloc or db_uri
+        return parsed.path.rsplit("/", maxsplit=1)[-1] or "sqlite"
+    # Never the netloc or the URI: they can hold the password
+    return parsed.path.lstrip("/") or parsed.hostname or "unknown"
 
 
 def _configured_db_uris(config):

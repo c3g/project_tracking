@@ -220,7 +220,8 @@ def test_access_log_says_who(auth_app, issuer, signing_key, opa, userinfo_state,
         client.get("/vocabulary/", headers=_bearer(_token(signing_key, issuer)))
         client.get("/vocabulary/")
         client.get("/vocabulary/", headers=_bearer(_token(signing_key, issuer, groups=["pt-admins"], jti="2")))
-    lines = [r.getMessage() for r in caplog.records if r.name == "app.access"]
+    # The access lines, not the line telling why the request without token was refused
+    lines = [r.getMessage() for r in caplog.records if r.name == "app.access" and "[source_file=" in r.getMessage()]
 
     assert "user=jdoe@mcgill.ca client=" in lines[0]
     assert "user=- client=-" in lines[1]

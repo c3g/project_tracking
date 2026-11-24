@@ -10,8 +10,10 @@ from urllib.parse import urlparse, urlunparse
 from flask import Flask, request, Response, make_response, json, jsonify, g
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
+from werkzeug.exceptions import HTTPException
 
 from . import db_actions
+from .db_actions.errors import error_reference
 from . import api
 from .api.decorators import TEXT_RESPONSE, openapi_doc
 from . import auth
@@ -53,6 +55,16 @@ def _load_prefixed_file_env(app, prefix="C3G"):
             raise RuntimeError(
                 f"Could not read secret file '{file_path}' for env var '{target_key}'."
             ) from exc
+
+
+# Query-level database failures named in the response; any other driver message stays in the log
+_KNOWN_DB_FAILURES = (
+    "canceling statement due to statement timeout",
+    "canceling statement due to lock timeout",
+    "canceling statement due to user request",
+    "deadlock detected",
+    "could not obtain lock",
+)
 
 
 _CONNECTION_ERROR_MARKERS = (
@@ -171,11 +183,12 @@ def create_app(test_config=None):
     @app.before_request
     def capture_source_file():
         """
-        Extract _source_file from JSON payload if present.
+        Extract _source_file from JSON payload if present. pt-cli sends its JSON without a JSON content type: any
+        body that parses as JSON counts.
         """
-        if request.is_json:
-            data = request.get_json(silent=True)
-            if data and '_source_file' in data:
+        data = request.get_json(force=True, silent=True) if request.get_data(cache=True) else None
+        if data is not None:
+            if isinstance(data, dict) and '_source_file' in data:
                 g.source_file = data['_source_file']
             else:
                 g.source_file = 'unknown_file'
@@ -221,6 +234,18 @@ def create_app(test_config=None):
             g.get('user') or '-',
             g.get('client_id') or '-',
         )
+        # Why a request failed, as the caller was told: the access lines' readers see it without the response.
+        # The details the response leaves out are logged where they happen, under the reference it gives.
+        if response.status_code >= 400 and response.is_json:
+            errors = (response.get_json(silent=True) or {}).get('DB_ACTION_ERROR') if not response.is_streamed else None
+            if errors:
+                logger.warning(
+                    "%s %s %s %s: %s [project=%s user=%s]",
+                    request.method, request.path, response.status_code,
+                    "failed" if response.status_code >= 500 else "refused",
+                    " | ".join(errors) if isinstance(errors, list) else errors,
+                    requested_project, g.get('user') or '-',
+                )
         return response
 
     @app.errorhandler(db_actions.Error)
@@ -231,9 +256,17 @@ def create_app(test_config=None):
 
     @app.errorhandler(OperationalError)
     def handle_operational_error(e):
-        """Return clearer API errors for common DB connectivity failures."""
+        """
+        Return clearer API errors for common DB connectivity failures. The driver's message goes to the log only
+        (it can hold host, role or SQL): the response names known failures, or gives the log's reference.
+        """
         raw_error = str(getattr(e, 'orig', e))
         lowered = raw_error.lower()
+        reference = error_reference()
+        app.logger.error("Database error %s on %s %s (project %s, database %s): %s", reference, request.method,
+                         request.path, getattr(g, 'requested_project', None),
+                         database.db_label(getattr(g, 'project_db_uri', None) or app.config.get('SQLALCHEMY_DATABASE_URI', '')),
+                         raw_error, exc_info=e)
         requested_project = getattr(g, 'requested_project', None)
         resolved_db_uri = getattr(g, 'project_db_uri', None)
         route_source = 'project_mapping' if resolved_db_uri else 'default'
@@ -261,13 +294,10 @@ def create_app(test_config=None):
                 'DB_ACTION_ERROR': errors
             }), 503
 
-        role_match = re.search(r'role\s+"([^"]+)"\s+does\s+not\s+exist', lowered)
-        if role_match:
-            role_name = role_match.group(1)
+        if re.search(r'role\s+"([^"]+)"\s+does\s+not\s+exist', lowered):
             errors = [
-                (
-                    f"Database role '{role_name}' does not exist. Create the PostgreSQL role or update the DB URI credentials."
-                )
+                f"The database role does not exist (logged, reference {reference}). Create the PostgreSQL role or "
+                "update the DB URI credentials."
             ]
             if context_msg:
                 errors.append(context_msg)
@@ -280,7 +310,8 @@ def create_app(test_config=None):
             errors = ['Database connection failed. Verify SQLALCHEMY_DATABASE_URI/PROJECT_DATABASES and PostgreSQL availability.']
             status = 503
         else:
-            errors = [f"Database error: {raw_error.strip().splitlines()[0] if raw_error.strip() else type(e).__name__}"]
+            known = next((failure for failure in _KNOWN_DB_FAILURES if failure in lowered), None)
+            errors = [f"Database error: {known}" if known else f"Database error (logged, reference {reference})"]
             status = 500
         if context_msg:
             errors.append(context_msg)
@@ -288,6 +319,25 @@ def create_app(test_config=None):
         return jsonify({
             'DB_ACTION_ERROR': errors
         }), status
+
+    @app.errorhandler(Exception)
+    def handle_unexpected_error(e):
+        """
+        Any other error is a bug: still a 500, but in the response envelope, so a pt-cli user gets a message
+        instead of Flask's HTML page. Only the error's type and a reference go back (its message can hold a URI,
+        a path or SQL); the traceback goes to the log under that reference.
+        """
+        if isinstance(e, HTTPException):
+            return e
+        reference = error_reference()
+        app.logger.exception("Exception %s on %s [%s]", reference, request.path, request.method)
+        return jsonify({
+            'DB_ACTION_ERROR': [
+                f"Internal error on {request.method} {request.path} ({type(e).__name__}, reference {reference}). "
+                "This is a bug of the API: report it with the reference and your payload, and check what was saved "
+                "before sending it again."
+            ]
+        }), 500
 
     @app.route('/')
     @openapi_doc(responses=TEXT_RESPONSE)
