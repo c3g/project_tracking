@@ -339,6 +339,7 @@ def test_vocabulary_route(app, client):
     assert "FlagEnum" in data["enums"] and "StatusEnum" in data["enums"]
     assert data["analysis_operations"]["genpipes"]["RnaSeq"] == ["stringtie", "variants", "cancer"]
     assert data["reserved_operation_names"] == ["run_processing", "transfer", "delivery"]
+    assert data["enums"]["PreservationEnum"] == ["FFPE", "FRESH_FROZEN"]
 
     app.config["ANALYSIS_OPERATIONS"] = {"custom_tool": {}}
     assert client.get("/vocabulary").json["DB_ACTION_OUTPUT"][0]["analysis_operations"] == {"custom_tool": {}}

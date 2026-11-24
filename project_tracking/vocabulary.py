@@ -74,6 +74,8 @@ READSET_QUALITY_OFFSET = "readset_quality_offset"
 READSET_STATE = "readset_state"
 READSET_PROJECT_YEAR = "readset_project_year"
 READSET_PROJECT_PHASE = "readset_project_phase"
+# How the biological material of the readset was preserved (model.PreservationEnum), missing = unknown
+READSET_PRESERVATION = "readset_preservation"
 
 # operation table
 OPERATION_PLATFORM = "operation_platform"

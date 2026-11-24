@@ -44,6 +44,16 @@ class NucleicAcidTypeEnum(enum.Enum):
         return self.value
 
 
+class PreservationEnum(enum.Enum):
+    """How the biological material of a readset was preserved"""
+    FFPE = "FFPE"  # Formalin-Fixed Paraffin-Embedded
+    FRESH_FROZEN = "FRESH_FROZEN"
+
+    def to_json(self):
+        """Serialize the enum to json"""
+        return self.value
+
+
 class LaneEnum(enum.Enum):
     """
     lane enum
@@ -702,6 +712,7 @@ class Readset(BaseTable):
         state state
         project_year text
         project_phase text
+        preservation preservation
         deprecated boolean
         deleted boolean
         creation timestamp
@@ -728,6 +739,7 @@ class Readset(BaseTable):
     state: Mapped[StateEnum] = mapped_column(default=StateEnum.VALID, nullable=True)
     project_year: Mapped[str] = mapped_column(default=None, nullable=True)
     project_phase: Mapped[str] = mapped_column(default=None, nullable=True)
+    preservation: Mapped[PreservationEnum] = mapped_column(default=None, nullable=True)
 
     sample: Mapped[Sample] = relationship(back_populates="readsets")
     experiment: Mapped[Experiment] = relationship(back_populates="readsets")

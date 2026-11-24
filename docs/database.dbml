@@ -98,6 +98,7 @@ Table readset {
   state state
   project_year text
   project_phase text
+  preservation preservation
 
   indexes {
     experiment_id [name: 'ix_readset_experiment_id']
@@ -255,6 +256,11 @@ Table location {
 Enum nucleic_acid_type {
   DNA
   RNA
+}
+
+Enum preservation {
+  FFPE
+  FRESH_FROZEN
 }
 
 Enum lane {

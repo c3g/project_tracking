@@ -23,6 +23,7 @@ from .. import vocabulary as vb
 from .. import database
 from ..model import (
     LaneEnum,
+    PreservationEnum,
     SequencingTypeEnum,
     StatusEnum,
     FlagEnum,
@@ -124,7 +125,7 @@ def check_run_processing_payload(ingest_data):
     """
     Check every enum field of a run_processing payload before anything is written; raises RequestError
     listing all invalid values. Values must be exact (e.g. 'ON_HOLD', lane '1'); readset_state and
-    metric_flag may be null or missing. Also trims readset_project_year and readset_project_phase (free text,
+    metric_flag and readset_preservation may be null or missing. Also trims readset_project_year and readset_project_phase (free text,
     a number becomes text, empty becomes None), rejecting other types, and checks every file's md5sum
     (check_md5sum). Returns the names of the files allowed without md5sum.
     """
@@ -146,6 +147,7 @@ def check_run_processing_payload(ingest_data):
                         invalid.append(f"'Readset' '{name}' has an invalid '{key}' {value!r} (expected text).")
                         continue
                     readset_json[key] = str(value).strip() or None
+                check_enum(invalid, PreservationEnum, readset_json.get(vb.READSET_PRESERVATION), vb.READSET_PRESERVATION, "Readset", name, optional=True)
                 for metric_json in readset_json[vb.METRIC]:
                     check_enum(invalid, FlagEnum, metric_json.get(vb.METRIC_FLAG), vb.METRIC_FLAG, "Metric", f"{metric_json[vb.METRIC_NAME]}' of 'Readset' '{name}", optional=True)
                 for file_json in readset_json[vb.FILE]:
@@ -396,6 +398,7 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                     state=StateEnum(readset_json.get(vb.READSET_STATE) or StateEnum.VALID.value),
                     project_year=readset_json.get(vb.READSET_PROJECT_YEAR),
                     project_phase=readset_json.get(vb.READSET_PROJECT_PHASE),
+                    preservation=PreservationEnum(readset_json[vb.READSET_PRESERVATION]) if readset_json.get(vb.READSET_PRESERVATION) else None,
                     sample=sample,
                     experiment=experiment,
                     run=run,

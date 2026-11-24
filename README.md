@@ -842,6 +842,22 @@ The project year (e.g. `Y1`, `Y2` for MoH) and phase a readset was sequenced for
 - They are set when the readset is created: a readset is never ingested twice. Change them with
   `pt-cli edit` on the `readset.project_year` or `readset.project_phase` column.
 
+### `readset_preservation`
+
+How the biological material of a readset was preserved, as an optional readset key of `run_processing`:
+
+```json
+{"readset_name": "SAMPLE-1-1DT.A00000_0001_1", "readset_preservation": "FFPE", ...}
+```
+
+- One of `FFPE` (Formalin-Fixed Paraffin-Embedded) or `FRESH_FROZEN`, stored in `readset.preservation`
+  (enum `PreservationEnum`, see [Enum values](#enum-values)): any other value, `ffpe` included, rejects the
+  whole payload before anything is written. A new value needs a migration and a release.
+- Missing or `null` means unknown, as for every readset ingested before this key existed.
+- It is kept per readset, not per sample: a top-up of the same sample can come from material preserved
+  another way, e.g. a fresh frozen first run and an FFPE top-up.
+- It is set when the readset is created. Change it with `pt-cli edit` on the `readset.preservation` column.
+
 ## File md5sums
 
 Every file of a `run_processing` or `analysis` payload needs a `file_md5sum`: 32 hexadecimal characters,
@@ -898,6 +914,7 @@ Enum fields only accept their exact values: no trimming, no case change, and a l
 | `run_processing` | `readset_lane` | `"1"` to `"8"` | error |
 | `run_processing` | `readset_sequencing_type` | `SINGLE_END`, `PAIRED_END` | error |
 | `run_processing` | `readset_state` | `VALID`, `ON_HOLD`, `INVALID`, `DELIVERED` | `VALID` |
+| `run_processing` | `readset_preservation` | `FFPE`, `FRESH_FROZEN` | unknown |
 | `transfer` | `readset_state` | same as `run_processing` | state unchanged |
 | `run_processing`, `analysis` | `metric_flag` | `PASS`, `WARNING`, `FAILED`, `MISSING`, `NOT_APPLICABLE` | no flag |
 | `analysis` | `job_status` | `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, `OUT_OF_MEMORY`, `CANCELLED` | job skipped |

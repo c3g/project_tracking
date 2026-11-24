@@ -681,6 +681,42 @@ def test_run_processing_readset_project_year_and_phase(not_app_db, run_processin
     assert projects[without[vb.READSET_NAME]] == (None, None)
 
 
+def test_run_processing_readset_preservation(not_app_db, run_processing_json):
+    """readset_preservation is optional; a top-up of the same sample may differ (e.g. FFPE)."""
+    project_id = _new_project(not_app_db, run_processing_json)
+    data = copy.deepcopy(run_processing_json)
+    first, second, without = _readsets(data)[:3]
+    first[vb.READSET_PRESERVATION], second[vb.READSET_PRESERVATION] = "FRESH_FROZEN", "FFPE"
+    db_actions.ingest_run_processing(project_id, data, not_app_db)
+
+    top_up = _new_run(data, "A01433_0998")
+    top_up_first = _readsets(top_up)[0]
+    top_up_first[vb.READSET_PRESERVATION] = "FFPE"
+    db_actions.ingest_run_processing(project_id, top_up, not_app_db)
+
+    stored = dict(not_app_db.execute(select(model.Readset.name, model.Readset.preservation)).all())
+    assert stored[first[vb.READSET_NAME]] == model.PreservationEnum.FRESH_FROZEN
+    assert stored[second[vb.READSET_NAME]] == model.PreservationEnum.FFPE
+    assert stored[without[vb.READSET_NAME]] is None
+    assert stored[top_up_first[vb.READSET_NAME]] == model.PreservationEnum.FFPE
+    sample_id = not_app_db.execute(select(model.Readset.sample_id).where(model.Readset.name == first[vb.READSET_NAME])).scalar_one()
+    assert not_app_db.execute(select(model.Readset.sample_id).where(model.Readset.name == top_up_first[vb.READSET_NAME])).scalar_one() == sample_id
+
+
+@pytest.mark.parametrize("preservation", ["formalin", "ffpe", " FFPE", "", 1])
+def test_run_processing_rejects_unknown_readset_preservation(not_app_db, run_processing_json, preservation):
+    project_id = _new_project(not_app_db, run_processing_json)
+    data = copy.deepcopy(run_processing_json)
+    readset = _readsets(data)[0]
+    readset[vb.READSET_PRESERVATION] = preservation
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_run_processing(project_id, data, not_app_db)
+    [message] = error.value.message
+    assert message.startswith(f"'Readset' '{readset[vb.READSET_NAME]}' has an invalid 'readset_preservation' {preservation!r}: expected one of")
+    assert "FFPE" in message and "FRESH_FROZEN" in message
+    assert not_app_db.execute(select(model.Readset)).first() is None
+
+
 def _ingest_run(not_app_db, run_processing_json):
     project_id = _new_project(not_app_db, run_processing_json)
     db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)

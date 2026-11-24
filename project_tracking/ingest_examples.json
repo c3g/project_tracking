@@ -38,6 +38,7 @@
                                 "readset_quality_offset": "33",
                                 "readset_project_year": "Y1",
                                 "readset_project_phase": "Phase 2",
+                                "readset_preservation": "FRESH_FROZEN",
                                 "file": [
                                     {
                                         "location_uri": "sequencer:///runs/250101_A00000_0001_BH0000AAXX/SAMPLE-1-1DN/SAMPLE-1-1DN_R1.fastq.gz",

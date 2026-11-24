@@ -569,6 +569,13 @@
           "nucleic_acid_type": {
             "readOnly": true
           },
+          "preservation": {
+            "enum": [
+              "FFPE",
+              "FRESH_FROZEN"
+            ],
+            "type": "string"
+          },
           "project_phase": {
             "nullable": true,
             "type": "string"
@@ -2404,6 +2411,7 @@
                             "readset_adapter2": "AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT",
                             "readset_lane": "1",
                             "readset_name": "SAMPLE-1-1DN.A00000_0001_1",
+                            "readset_preservation": "FRESH_FROZEN",
                             "readset_project_phase": "Phase 2",
                             "readset_project_year": "Y1",
                             "readset_quality_offset": "33",
