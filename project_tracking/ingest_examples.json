@@ -185,7 +185,7 @@
                                 ],
                                 "metric": [
                                     {
-                                        "metric_name": "median_coverage",
+                                        "metric_name": "dedup_coverage",
                                         "metric_value": "80",
                                         "metric_flag": "PASS",
                                         "metric_deliverable": true

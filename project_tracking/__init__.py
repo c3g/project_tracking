@@ -19,6 +19,7 @@ from .api.decorators import TEXT_RESPONSE, openapi_doc
 from . import auth
 from . import database
 from .analysis import DEFAULT_ANALYSIS_OPERATIONS, validate_analysis_operations
+from .metrics import DEFAULT_METRIC_VOCABULARY, validate_metric_vocabulary
 
 
 def _load_prefixed_file_env(app, prefix="C3G"):
@@ -157,6 +158,7 @@ def create_app(test_config=None):
     app.config.from_mapping(
         INGEST_FOLDER=app.instance_path,
         ANALYSIS_OPERATIONS=DEFAULT_ANALYSIS_OPERATIONS,
+        METRIC_VOCABULARY=DEFAULT_METRIC_VOCABULARY,
         SQLALCHEMY_DATABASE_URI=f'sqlite:///{os.path.join(app.instance_path, "tracking_db.sql")}',
         # Seconds a write waits for another write to the same database before a 503 (database.write_lock)
         WRITE_LOCK_TIMEOUT=60,
@@ -173,6 +175,7 @@ def create_app(test_config=None):
 
     # Fail at startup rather than at the first analysis ingest
     validate_analysis_operations(app.config["ANALYSIS_OPERATIONS"])
+    validate_metric_vocabulary(app.config["METRIC_VOCABULARY"])
     _log_database_configuration(app)
 
     try:

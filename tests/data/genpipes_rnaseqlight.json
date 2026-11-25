@@ -75,7 +75,7 @@
                             ],
                             "metric": [
                                 {
-                                    "metric_name": "kallisto_metric",
+                                    "metric_name": "ribosomal_contamination_count",
                                     "metric_value": "1234",
                                     "metric_deliverable": true,
                                     "metric_flag": "PASS"
@@ -146,7 +146,7 @@
                             ],
                             "metric": [
                                 {
-                                    "metric_name": "kallisto_metric",
+                                    "metric_name": "ribosomal_contamination_count",
                                     "metric_value": "1234",
                                     "metric_deliverable": true,
                                     "metric_flag": "PASS"
@@ -217,7 +217,7 @@
                             ],
                             "metric": [
                                 {
-                                    "metric_name": "kallisto_metric",
+                                    "metric_name": "ribosomal_contamination_count",
                                     "metric_value": "1234",
                                     "metric_deliverable": true,
                                     "metric_flag": "PASS"

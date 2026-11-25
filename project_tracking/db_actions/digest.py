@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from .errors import DidNotFindError, RequestError, EnumValueError
 from .utils import name_to_id
 from .. import vocabulary as vb
+from ..metrics import metric_level
 from ..model import (
     NucleicAcidTypeEnum,
     StateEnum,
@@ -938,6 +939,7 @@ def digest_delivery(project_id: str, digest_data, session):
 
     operations = []
     specimens = []
+    sample_metric_ids = {}
 
     for readset in readsets:
         readset_files = []
@@ -973,15 +975,23 @@ def digest_delivery(project_id: str, digest_data, session):
                         f"Looking for 'File' '{file.name}' for 'Sample' '{readset.sample.name}' and 'Readset' '{readset.name}' in '{location_endpoint}', file only exists on {[l.endpoint for l in file.locations]}."
                     )
 
-        # Collect deliverable metrics
+        # Collect deliverable metrics: a sample's (or several samples') metric goes once on the sample, below
+        sample_metrics = []
         for metric in readset.metrics:
-            if metric.deliverable:
-                readset_metrics.append({
+            if metric.deliverable and not metric.deprecated and not metric.deleted:
+                metric_json = {
                     "name": metric.name,
                     "value": metric.value,
-                    "aggregate": metric.aggregate,
-                    "flag": metric.flag.to_json()
-                })
+                    "aggregate": metric.aggregate.to_json() if metric.aggregate else None,
+                    "flag": metric.flag.to_json() if metric.flag else None
+                }
+                level = metric_level(metric.job.operation.name, metric.name)
+                if level in ("SAMPLE", "SAMPLE_GROUP"):
+                    if level == "SAMPLE_GROUP":
+                        metric_json["sample"] = sorted({r.sample.name for r in metric.readsets})
+                    sample_metrics.append((metric.id, metric_json))
+                else:
+                    readset_metrics.append(metric_json)
 
         # Build nested structure
         sample_name = readset.sample.name
@@ -1004,9 +1014,15 @@ def digest_delivery(project_id: str, digest_data, session):
             sample_entry = {
                 "name": sample_name,
                 "tumour": readset.sample.tumour,
+                "metric": [],
                 "readset": []
             }
             specimen_entry["sample"].append(sample_entry)
+            sample_metric_ids[sample_name] = set()
+        for metric_id, metric_json in sample_metrics:
+            if metric_id not in sample_metric_ids[sample_name]:
+                sample_metric_ids[sample_name].add(metric_id)
+                sample_entry["metric"].append(metric_json)
 
         if not readset_files:
             ret["DB_ACTION_WARNING"].append(

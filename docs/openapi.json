@@ -2087,7 +2087,7 @@
                               {
                                 "metric_deliverable": true,
                                 "metric_flag": "PASS",
-                                "metric_name": "median_coverage",
+                                "metric_name": "dedup_coverage",
                                 "metric_value": "80"
                               }
                             ]
@@ -7115,7 +7115,7 @@
     },
     "/vocabulary": {
       "get": {
-        "description": "```text\nGet the controlled vocabularies:\n    enums: values of the enum fields (e.g. readset_state, readset_lane), fixed in the code\n    analysis_operations: operation_name -> operation_pipeline -> allowed operation_protocol values accepted by\n        ingest_analysis, from the configuration in use\n    reserved_operation_names: operation names analyses can't use\n```",
+        "description": "```text\nGet the controlled vocabularies:\n    enums: values of the enum fields (e.g. readset_state, readset_lane), fixed in the code\n    analysis_operations: operation_name -> operation_pipeline -> allowed operation_protocol values accepted by\n        ingest_analysis, from the configuration in use\n    reserved_operation_names: operation names analyses can't use\n    metric_vocabulary: operation_name -> metric_name -> level, unit, applies_to (sample kinds) and aggregate,\n        from the configuration in use\n```",
         "operationId": "get_vocabulary",
         "responses": {
           "200": {

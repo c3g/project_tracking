@@ -107,6 +107,7 @@ DELIVERY = {"DB_ACTION_OUTPUT": [
                 "name":"MoHQ-JG-9-23",
                 "sample": [
                     {
+                        "metric": [],
                         "name":"MoHQ-JG-9-23-15000863775-19933DT",
                         "readset": [
                             {
@@ -118,13 +119,13 @@ DELIVERY = {"DB_ACTION_OUTPUT": [
                                 ],
                                 "metric": [
                                     {
-                                    "aggregate":None,
+                                    "aggregate":"SUM",
                                     "flag":"PASS",
                                     "name":"raw_reads_count",
                                     "value":"822429243"
                                     },
                                     {
-                                    "aggregate":None,
+                                    "aggregate":"AVERAGE",
                                     "flag":"PASS",
                                     "name":"raw_duplication_rate",
                                     "value":"9.0"
@@ -135,6 +136,7 @@ DELIVERY = {"DB_ACTION_OUTPUT": [
                         "tumour":True
                     },
                     {
+                        "metric": [],
                         "name":"MoHQ-JG-9-23-15000936286-19866DN",
                         "readset": [
                             {
@@ -146,13 +148,13 @@ DELIVERY = {"DB_ACTION_OUTPUT": [
                                 ],
                                 "metric":[
                                     {
-                                    "aggregate":None,
+                                    "aggregate":"SUM",
                                     "flag":"PASS",
                                     "name":"raw_reads_count",
                                     "value":"940464718"
                                     },
                                     {
-                                    "aggregate":None,
+                                    "aggregate":"AVERAGE",
                                     "flag":"WARNING",
                                     "name":"raw_duplication_rate",
                                     "value":"9.8"

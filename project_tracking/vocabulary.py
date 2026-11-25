@@ -126,6 +126,7 @@ METRIC_NAME = "metric_name"
 METRIC_VALUE = "metric_value"
 METRIC_FLAG = "metric_flag"
 METRIC_DELIVERABLE = "metric_deliverable"
+METRIC_LEVEL = "metric_level"
 # Following is not coming from JSON
 # Defining all metrics in the table?
 # METRIC_RAW_READS_COUNT = "metric_raw_reads_count"

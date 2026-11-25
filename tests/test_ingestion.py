@@ -607,11 +607,19 @@ def test_invalid_analysis_vocabulary_fails_at_startup(monkeypatch):
     assert "operation name 'delivery' is reserved" in str(error.value)
 
 
+def _drop_metrics(data):
+    for sample_json in data[vb.SAMPLE]:
+        for readset_json in sample_json[vb.READSET]:
+            for job_json in readset_json[vb.JOB]:
+                job_json.pop(vb.METRIC, None)
+
+
 def test_analysis_oncoanalyser_mode_as_pipeline(not_app_db, run_processing_json, genpipes_json):
     """oncoanalyser takes its mode (wgts or targeted) as pipeline, and no protocol."""
     project_id = _analysis_project(not_app_db, run_processing_json)
     data = copy.deepcopy(genpipes_json)
     data[vb.OPERATION_NAME], data[vb.OPERATION_PIPELINE] = "oncoanalyser", "wgts"
+    _drop_metrics(data)  # GenPipes metric names aren't in oncoanalyser's metric vocabulary
 
     with_protocol = copy.deepcopy(data)
     with pytest.raises(RequestError) as error:
@@ -911,6 +919,9 @@ def test_analysis_job_times_and_status_may_be_missing_or_empty(not_app_db, run_p
     jobs[0][vb.JOB_START] = jobs[0][vb.JOB_STOP] = ""
     for key in (vb.JOB_START, vb.JOB_STOP, vb.JOB_STATUS):
         jobs[1].pop(key, None)
+    # A job that didn't run has no metrics (test_metrics_need_a_completed_job_with_a_stop)
+    jobs[0].pop(vb.METRIC, None)
+    jobs[1].pop(vb.METRIC, None)
 
     result = db_actions.ingest_analysis(project_id, data, not_app_db)
 
@@ -918,6 +929,36 @@ def test_analysis_job_times_and_status_may_be_missing_or_empty(not_app_db, run_p
     assert any(job.start is None and job.stop is None for job in stored)
     assert f"'Job' with 'name' '{jobs[1][vb.JOB_NAME]}' with no status, skipping." in " ".join(result["DB_ACTION_WARNING"])
 
+
+
+@pytest.mark.parametrize("change", [{vb.JOB_STOP: ""}, {vb.JOB_STATUS: "FAILED"}, {vb.JOB_STATUS: None}])
+def test_metrics_need_a_completed_job_with_a_stop(not_app_db, run_processing_json, genpipes_json, change):
+    """The newest job's metric replaces older ones: a running or failed job can't carry metrics."""
+    project_id = _new_project(not_app_db, run_processing_json)
+    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+    data = copy.deepcopy(genpipes_json)
+    job = next(j for r in data[vb.SAMPLE][0][vb.READSET] for j in r[vb.JOB] if j.get(vb.METRIC))
+    job.update(change)
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_analysis(project_id, data, not_app_db)
+    assert f"only a COMPLETED job with a '{vb.JOB_STOP}' can carry metrics." in str(error.value.message)
+
+
+def test_metric_values_are_stripped(not_app_db, run_processing_json, genpipes_json):
+    """Spaces and line breaks around a metric value are dropped, at run_processing and analysis."""
+    project_id = _new_project(not_app_db, run_processing_json)
+    data = copy.deepcopy(run_processing_json)
+    metric_json = data[vb.SPECIMEN][0][vb.SAMPLE][0][vb.READSET][0][vb.METRIC][0]
+    metric_json[vb.METRIC_VALUE] = f" {metric_json[vb.METRIC_VALUE]}\n"
+    db_actions.ingest_run_processing(project_id, data, not_app_db)
+    analysis = copy.deepcopy(genpipes_json)
+    job = next(j for r in analysis[vb.SAMPLE][0][vb.READSET] for j in r[vb.JOB] if j.get(vb.METRIC))
+    for metric in job[vb.METRIC]:
+        metric[vb.METRIC_VALUE] = f"{metric[vb.METRIC_VALUE]}\n"
+    db_actions.ingest_analysis(project_id, analysis, not_app_db)
+    values = not_app_db.execute(select(model.Metric.value)).scalars().all()
+    assert values and not [v for v in values if v != v.strip()]
+    assert metric_json[vb.METRIC_VALUE].strip() in values
 
 def test_unexpected_error_is_json_without_its_message(client, monkeypatch, caplog, run_processing_json):
     """

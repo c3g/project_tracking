@@ -19,6 +19,8 @@ from .route import projects
 from .sample_group import check_sample_groups, add_samples_to_groups
 from .utils import check_enum, check_one_nucleic_acid_type, sample_nucleic_acid_types
 from ..analysis import RESERVED_OPERATION_NAMES, analysis_operations
+from ..metrics import metric_vocabulary
+from .metric_levels import NO_VALUE_FLAGS, check_metric_names, explains_no_value, has_value, store_metrics
 from .. import vocabulary as vb
 from .. import database
 from ..model import (
@@ -29,6 +31,7 @@ from ..model import (
     StatusEnum,
     FlagEnum,
     StateEnum,
+    AggregateEnum,
     Specimen,
     Sample,
     Experiment,
@@ -234,6 +237,13 @@ def _check_shape(invalid, obj, shape, where, own):
             _check_shape(invalid, item, sub, item_where, item_own)
 
 
+def strip_metric_value(metric_json):
+    """Drop the spaces and line breaks around a text metric value, e.g. '0.0001\\n' left by the tool's output."""
+    value = metric_json.get(vb.METRIC_VALUE)
+    if isinstance(value, str):
+        metric_json[vb.METRIC_VALUE] = value.strip()
+
+
 def check_run_processing_payload(ingest_data):
     """
     Check every enum field of a run_processing payload before anything is written; raises RequestError
@@ -263,6 +273,7 @@ def check_run_processing_payload(ingest_data):
                     readset_json[key] = str(value).strip() or None
                 check_enum(invalid, PreservationEnum, readset_json.get(vb.READSET_PRESERVATION), vb.READSET_PRESERVATION, "Readset", name, optional=True)
                 for metric_json in readset_json[vb.METRIC]:
+                    strip_metric_value(metric_json)
                     check_enum(invalid, FlagEnum, metric_json.get(vb.METRIC_FLAG), vb.METRIC_FLAG, "Metric", f"{metric_json[vb.METRIC_NAME]}' of 'Readset' '{name}", optional=True)
                 for file_json in readset_json[vb.FILE]:
                     check_md5sum(invalid, missing, file_json, allow_missing)
@@ -341,10 +352,15 @@ def check_analysis_payload(ingest_data):
             for job_json in readset_json[vb.JOB]:
                 name = f"{job_json[vb.JOB_NAME]}' of 'Readset' '{readset_json[vb.READSET_NAME]}"
                 check_enum(invalid, StatusEnum, job_json.get(vb.JOB_STATUS) or None, vb.JOB_STATUS, "Job", name, optional=True)
+                if job_json.get(vb.METRIC) and (job_json.get(vb.JOB_STATUS) != "COMPLETED" or not job_json.get(vb.JOB_STOP)):
+                    # The newest job's metric wins (metric_levels.py): only a finished job can carry one
+                    invalid.append(f"'Job' '{name}' has metrics: only a COMPLETED job with a '{vb.JOB_STOP}' can carry metrics.")
                 for metric_json in job_json.get(vb.METRIC, []):
+                    strip_metric_value(metric_json)
                     check_enum(invalid, FlagEnum, metric_json.get(vb.METRIC_FLAG), vb.METRIC_FLAG, "Metric", f"{metric_json[vb.METRIC_NAME]}' of 'Job' '{name}", optional=True)
                 for file_json in job_json.get(vb.FILE, []):
                     check_md5sum(invalid, missing, file_json, allow_missing)
+    check_metric_names(invalid, ingest_data, metric_vocabulary())
     if invalid:
         raise RequestError(message=invalid)
     return missing
@@ -406,6 +422,10 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
     check_sample_nucleic_acid_type(ingest_data, session)
     if missing_md5sum:
         ret["DB_ACTION_WARNING"].append(missing_md5sum_warning(missing_md5sum))
+    # Run metrics are always per readset: the vocabulary only gives their aggregate, an unlisted one is warned about
+    run_metrics = metric_vocabulary().get("run_processing", {})
+    unknown_run_metrics = set()
+    unexplained_run_metrics = set()
 
     operation, warning = Operation.from_attributes(
         platform=ingest_data[vb.OPERATION_PLATFORM],
@@ -567,12 +587,18 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                             location.deprecated = False
                         file.locations.append(location)
                 for metric_json in readset_json[vb.METRIC]:
+                    if not has_value(metric_json) and not explains_no_value(metric_json):
+                        unexplained_run_metrics.add(f"{metric_json[vb.METRIC_NAME]}' of 'Readset' '{readset.name}")
+                        continue
                     if vb.METRIC_DELIVERABLE in metric_json:
                         metric_deliverable = metric_json[vb.METRIC_DELIVERABLE]
                     else:
                         metric_deliverable = False
                     metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG]) if metric_json.get(vb.METRIC_FLAG) else None
-                    _, warning = Metric.get_or_create(
+                    entry = run_metrics.get(metric_json[vb.METRIC_NAME])
+                    if entry is None:
+                        unknown_run_metrics.add(metric_json[vb.METRIC_NAME])
+                    metric, warning = Metric.get_or_create(
                         name=metric_json[vb.METRIC_NAME],
                         value=metric_json[vb.METRIC_VALUE],
                         flag=metric_flag,
@@ -582,6 +608,8 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                         session=session,
                         dont_merge=True
                         )
+                    if entry and entry.get("aggregate"):
+                        metric.aggregate = AggregateEnum(entry["aggregate"])
                     if warning:
                         ret["DB_ACTION_WARNING"].append(warning)
 
@@ -602,6 +630,17 @@ def ingest_run_processing(project_id: str, ingest_data: dict, session):
                 raise UniqueConstraintError(message=message) from error
 
     ret["DB_ACTION_WARNING"].extend(add_samples_to_groups(samples_groups, session))
+    if unexplained_run_metrics:
+        ret["DB_ACTION_WARNING"].append(
+            f"'Metric' '{sorted(unexplained_run_metrics)[0]}'"
+            + (f" and {len(unexplained_run_metrics) - 1} more" if len(unexplained_run_metrics) > 1 else "")
+            + f" without value and without a flag among {sorted(NO_VALUE_FLAGS)} to explain it: not stored."
+        )
+    if unknown_run_metrics:
+        ret["DB_ACTION_WARNING"].append(
+            f"Metrics {sorted(unknown_run_metrics)} aren't in the run_processing metric vocabulary (GET /vocabulary): "
+            f"stored per readset, without unit nor aggregate."
+        )
 
     operation_id = operation.id
     job_id = job.id
@@ -895,6 +934,10 @@ def ingest_analysis(project_id: str, ingest_data, session):
     ))
 
     readset_list = []
+    # Metrics of an operation in the metric vocabulary are stored once the whole payload is read (store_metrics)
+    metrics_vocabulary = metric_vocabulary().get(operation.name)
+    pending_metrics = {}
+    unleveled_metrics = 0
     if not ingest_data[vb.SAMPLE]:
         raise RequestError("No 'Sample' found, this json won't be ingested.")
     for sample_json in ingest_data[vb.SAMPLE]:
@@ -989,8 +1032,12 @@ def ingest_analysis(project_id: str, ingest_data, session):
                                     ret["DB_ACTION_WARNING"].append(f"Existing deprecated location found for uri '{location.uri}', undeprecating it.")
                                     location.deprecated = False
                                 file.locations.append(location)
-                    if vb.METRIC in job_json:
+                    if vb.METRIC in job_json and metrics_vocabulary is not None:
                         for metric_json in job_json[vb.METRIC]:
+                            pending_metrics.setdefault((job, metric_json[vb.METRIC_NAME]), []).append((readset, metric_json))
+                    elif vb.METRIC in job_json:
+                        for metric_json in job_json[vb.METRIC]:
+                            unleveled_metrics += 1
                             metric_deliverable = metric_json.get(vb.METRIC_DELIVERABLE, False)
                             metric_flag = FlagEnum(metric_json[vb.METRIC_FLAG]) if metric_json.get(vb.METRIC_FLAG) else None
                             # Before adding a new metric for the current Readset make sure an existing one doesn't exist otherwise update it
@@ -1014,6 +1061,14 @@ def ingest_analysis(project_id: str, ingest_data, session):
                 if job is not None:
                     session.add(job)
                     session.flush()
+
+    if pending_metrics:
+        ret["DB_ACTION_WARNING"].extend(store_metrics(pending_metrics, metrics_vocabulary, operation.name, session, force=force))
+    if unleveled_metrics:
+        ret["DB_ACTION_WARNING"].append(
+            f"'Operation' '{operation.name}' has no metric vocabulary (GET /vocabulary): its {unleveled_metrics} "
+            f"metrics have no level, so a sample's metric isn't told apart from a readset's."
+        )
 
     # Get existing readset IDs from the relationship
     existing_readset_ids = {r.id for r in operation.readsets}

@@ -902,7 +902,8 @@ There are two kinds of controlled vocabularies. Pick the kind by what the code d
 
 Both kinds are checked before anything is written, accept exact values only, and list the allowed values
 in their errors. `GET /vocabulary` (`pt-cli vocabulary`) returns the values in use: every enum, the
-active analysis vocabulary (the config override when set) and the reserved operation names.
+active analysis vocabulary (the config override when set), the reserved operation names and the metric
+vocabulary.
 
 ### Enum values
 
@@ -985,6 +986,7 @@ The default vocabulary is `project_tracking/analysis_operations.json`. It lists:
   reference builder are left out: they aren't analyses of a readset. Put the DRAGEN version in the
   operation config, not in the protocol.
 - `djerba` (OICR's clinical report generator): no pipeline and no protocol.
+- `mhedal` (the MoH validation pipeline: NGSCheckMate, Conpair): no pipeline and no protocol.
 
 To change it without a release, copy the file, edit it and set it as `ANALYSIS_OPERATIONS` in the
 config, or as `C3G_ANALYSIS_OPERATIONS` / `C3G_ANALYSIS_OPERATIONS_FILE`. It replaces the whole
@@ -1002,6 +1004,53 @@ default, so later changes to the default don't reach a deployment that overrides
 - `{}`: the tool takes no `operation_pipeline`. `[]`: the pipeline takes no `operation_protocol`.
 - Names use letters, digits, `_`, `.` and `-`, 64 characters max. An invalid vocabulary stops the app
   at startup with the list of problems.
+
+### Metric vocabulary
+
+`project_tracking/metric_vocabulary.json` says, per operation and metric name, what a metric describes:
+
+```json
+"oncoanalyser": {"purity": {"level": "SAMPLE", "unit": "fraction", "applies_to": ["DNA_TUMOUR"]}},
+"mhedal": {"sample_identity": {"level": "SAMPLE_GROUP", "applies_to": ["DNA_TUMOUR", "DNA_NORMAL", "RNA"]}},
+"run_processing": {"raw_reads_count": {"level": "READSET", "unit": "count", "aggregate": "SUM"}}
+```
+
+- `level`: `READSET` (one readset), `SAMPLE` (one sample, whatever readsets it was computed from) or
+  `SAMPLE_GROUP` (several samples together, e.g. a tumour/normal pair: the samples of the job's readsets).
+  It isn't stored on the metric: it's read from the vocabulary, by operation and metric name, so a
+  vocabulary change applies to the metrics already stored.
+- `applies_to`: the kinds of sample the metric means, among `DNA_TUMOUR`, `DNA_NORMAL` (`sample_tumour`)
+  and `RNA` (not split: tumour and normal RNA aren't told apart); all of them when missing. A
+  `SAMPLE_GROUP` metric needs one of its samples of these kinds.
+- `unit`: free text for readers (`fraction`, `%`, `count`, `x`, `bp`); the API converts nothing.
+- `aggregate`: how readset metrics add up for the sample, `SUM`, `AVERAGE` or `N` (not added up).
+
+At `ingest_analysis`, for an operation in the vocabulary:
+
+- A metric it doesn't list, a metric sent for a sample of another kind, or two values of the same metric
+  for one readset, sample or set of samples in the payload (in one job or several) are refused with a 400: nothing is saved.
+  `metric_level` in a metric is optional and must match the vocabulary.
+- A metric without value (missing, empty or `nan`) is stored only with the flag `MISSING`, `FAILED` or
+  `NOT_APPLICABLE`, which says why; with another flag or none it isn't stored, with a warning (also at
+  `run_processing`). Such a metric replacing a live value is refused with a 400 unless `force`
+  is set. Spaces and line breaks around every value are dropped.
+- Two values are the same when they are the same number (`55000472` and `55000472.0`, `0.6` and
+  `0.60`), else the same text. The value is stored as first sent.
+- Each readset, sample or set of samples keeps one live value per metric. A value from another job
+  replaces it when that job stopped later (or has no stop time): the old value is deprecated, with a
+  warning. This includes values stored before the operation was in the vocabulary. A value from a job
+  that stopped earlier is stored deprecated, with a warning: sending an old
+  payload again doesn't bring back an old value.
+
+For every analysis operation, only a `COMPLETED` job with a `job_stop` can carry metrics: any other job
+with metrics is refused with a 400.
+
+An operation not in the vocabulary (e.g. `dragen` for now) stores its metrics as before, without
+a level, with one warning. `run_processing` metrics are always per readset: the vocabulary only gives
+their unit and aggregate, and an unlisted one is only warned about. `digest_delivery` lists sample and
+sample group metrics once on the sample (`metric`, with the `sample` names for a group), readset metrics
+on the readset. Override the vocabulary like the analysis one, with `METRIC_VOCABULARY`
+(`C3G_METRIC_VOCABULARY` / `C3G_METRIC_VOCABULARY_FILE`).
 
 ---
 

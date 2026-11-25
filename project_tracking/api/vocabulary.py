@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify
 
 from .. import model
 from ..analysis import RESERVED_OPERATION_NAMES, analysis_operations
+from ..metrics import metric_vocabulary
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +34,12 @@ def vocabulary():
         analysis_operations: operation_name -> operation_pipeline -> allowed operation_protocol values accepted by
             ingest_analysis, from the configuration in use
         reserved_operation_names: operation names analyses can't use
+        metric_vocabulary: operation_name -> metric_name -> level, unit, applies_to (sample kinds) and aggregate,
+            from the configuration in use
     """
     return jsonify({"DB_ACTION_OUTPUT": [{
         "enums": model_enums(),
         "analysis_operations": analysis_operations(),
         "reserved_operation_names": list(RESERVED_OPERATION_NAMES),
+        "metric_vocabulary": metric_vocabulary(),
     }]})
