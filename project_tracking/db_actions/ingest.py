@@ -849,6 +849,24 @@ def ingest_analysis(project_id: str, ingest_data, session):
 
     job = None
 
+    config_md5sum = ingest_data[vb.OPERATION_CONFIG_MD5SUM]
+    same_md5sum = config_md5sum and session.scalars(
+        select(OperationConfig).where(OperationConfig.md5sum == config_md5sum)
+    ).first()
+    if same_md5sum and (
+        same_md5sum.name, same_md5sum.version, same_md5sum.data, same_md5sum.deprecated, same_md5sum.deleted
+    ) != (
+        ingest_data[vb.OPERATION_CONFIG_NAME], ingest_data[vb.OPERATION_CONFIG_VERSION],
+        bytes(ingest_data[vb.OPERATION_CONFIG_DATA], 'utf-8'), False, False
+    ):
+        # md5sum is unique: without this check the insert below fails with an IntegrityError (500)
+        raise RequestError(message=(
+            f"'OperationConfig' with 'md5sum' '{config_md5sum}' already exists as '{same_md5sum.name}' version "
+            f"'{same_md5sum.version}' (id {same_md5sum.id}{', deprecated' if same_md5sum.deprecated else ''}"
+            f"{', deleted' if same_md5sum.deleted else ''}) with another name, version or content: send the md5sum "
+            f"of this config file."
+        ))
+
     operation_config, warning = OperationConfig.from_attributes(
         name=ingest_data[vb.OPERATION_CONFIG_NAME],
         version=ingest_data[vb.OPERATION_CONFIG_VERSION],

@@ -583,6 +583,22 @@ def test_analysis_vocabulary_from_config(app, client, run_processing_json, genpi
     assert (operation["name"], operation["analysis"], operation["pipeline"]) == ("custom_tool", True, None)
 
 
+def test_operation_config_md5sum_names_existing_config(client, run_processing_json, genpipes_json):
+    """A config whose md5sum belongs to another config gets a 400 naming it, not a 500 IntegrityError."""
+    project_name = run_processing_json[vb.PROJECT_NAME]
+    client.post(f'admin/create_project/{project_name}')
+    client.post(f'project/{project_name}/ingest_run_processing', data=json.dumps(run_processing_json))
+    data = copy.deepcopy(genpipes_json)
+    data[vb.OPERATION_CONFIG_MD5SUM] = "0" * 32
+    assert client.post(f'project/{project_name}/ingest_analysis', data=json.dumps(data)).status_code == 200
+
+    data[vb.OPERATION_CONFIG_NAME] = "other_ini"
+    response = client.post(f'project/{project_name}/ingest_analysis', data=json.dumps(data))
+    assert response.status_code == 400
+    error = json.loads(response.data)["DB_ACTION_ERROR"]
+    assert f"'OperationConfig' with 'md5sum' '{'0' * 32}' already exists as 'genpipes_ini'" in str(error)
+
+
 def test_invalid_analysis_vocabulary_fails_at_startup(monkeypatch):
     monkeypatch.setenv("C3G_ANALYSIS_OPERATIONS", json.dumps({"genpipes": {"Rna Seq": ["default"]}, "delivery": {}}))
     with pytest.raises(ValueError) as error:
