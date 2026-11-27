@@ -1,4 +1,5 @@
 import copy
+from datetime import datetime
 import json
 import logging
 
@@ -911,12 +912,14 @@ def test_ingest_rejects_payload_not_an_object(not_app_db, run_processing_json):
 
 
 def test_analysis_job_times_and_status_may_be_missing_or_empty(not_app_db, run_processing_json, genpipes_json):
-    """GenPipes sends empty job_start/job_stop for a job that didn't run; missing ones are the same as null."""
+    """Empty job_start/job_stop are the same as null (a PENDING job has neither); a job without status is skipped."""
     project_id = _new_project(not_app_db, run_processing_json)
     db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
     data = copy.deepcopy(genpipes_json)
     jobs = data[vb.SAMPLE][0][vb.READSET][0][vb.JOB]
     jobs[0][vb.JOB_START] = jobs[0][vb.JOB_STOP] = ""
+    # Its own name: the same name elsewhere in the payload as COMPLETED would move this PENDING job forward
+    jobs[0][vb.JOB_STATUS], jobs[0][vb.JOB_NAME] = "PENDING", "never_started"
     for key in (vb.JOB_START, vb.JOB_STOP, vb.JOB_STATUS):
         jobs[1].pop(key, None)
     # A job that didn't run has no metrics (test_metrics_need_a_completed_job_with_a_stop)
@@ -1118,3 +1121,70 @@ def test_transfer_over_another_files_location_moves_it(not_app_db, run_processin
     assert sorted(location.uri for location in rerun.locations) == sorted([f"abacus:///rerun/{first.name}", dest])
     assert not first.deprecated
     assert warnings[0].startswith(f"Location '{dest}' moved from 'File' {first.id} to 'File' {rerun.id}")
+
+
+def _one_job_payload(genpipes_json, status, start=None, stop=None):
+    """genpipes_json reduced to one readset with one job 'attempt', without metrics nor files."""
+    data = copy.deepcopy(genpipes_json)
+    data[vb.SAMPLE] = data[vb.SAMPLE][:1]
+    readset = data[vb.SAMPLE][0][vb.READSET][0]
+    data[vb.SAMPLE][0][vb.READSET] = [readset]
+    readset[vb.JOB] = [{vb.JOB_NAME: "attempt", vb.JOB_STATUS: status, vb.JOB_START: start, vb.JOB_STOP: stop}]
+    return data
+
+
+T1, T2, T3, T4 = "2026-11-27 10:00:00", "2026-11-27 11:00:00", "2026-11-27 12:00:00", "2026-11-27 13:00:00"
+
+
+@pytest.mark.parametrize("sends, expected", [
+    # The same attempt progressing: one job, updated in place
+    ([("PENDING", None, None), ("RUNNING", T1, None), ("COMPLETED", T1, T2)], [("COMPLETED", T1, T2)]),
+    ([("PENDING", None, None), ("FAILED", T1, T2)], [("FAILED", T1, T2)]),
+    ([("RUNNING", T1, None), ("COMPLETED", T1, T2)], [("COMPLETED", T1, T2)]),
+    # The same payload sent again
+    ([("COMPLETED", T1, T2), ("COMPLETED", T1, T2)], [("COMPLETED", T1, T2)]),
+    # An older payload sent late: nothing changes
+    ([("COMPLETED", T1, T2), ("PENDING", None, None)], [("COMPLETED", T1, T2)]),
+    ([("COMPLETED", T1, T2), ("RUNNING", T1, None)], [("COMPLETED", T1, T2)]),
+    ([("RUNNING", T2, None), ("RUNNING", T1, None)], [("RUNNING", T2, None)]),
+    ([("RUNNING", T1, None), ("PENDING", None, None)], [("RUNNING", T1, None)]),
+    # A new attempt: a new job
+    ([("RUNNING", T1, None), ("RUNNING", T2, None)], [("RUNNING", T1, None), ("RUNNING", T2, None)]),
+    ([("RUNNING", T1, None), ("COMPLETED", T2, T3)], [("RUNNING", T1, None), ("COMPLETED", T2, T3)]),
+    ([("FAILED", T1, T2), ("RUNNING", T3, None), ("COMPLETED", T3, T4)], [("FAILED", T1, T2), ("COMPLETED", T3, T4)]),
+    ([("FAILED", T1, T2), ("COMPLETED", T3, T4)], [("FAILED", T1, T2), ("COMPLETED", T3, T4)]),
+])
+def test_job_sent_again_is_updated_only_while_the_same_attempt(not_app_db, run_processing_json, genpipes_json,
+                                                               sends, expected):
+    project_id = _new_project(not_app_db, run_processing_json)
+    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+    for status, start, stop in sends:
+        db_actions.ingest_analysis(project_id, _one_job_payload(genpipes_json, status, start, stop), not_app_db)
+
+    def when(value):
+        return datetime.strptime(value, vb.DATE_LONG_FMT) if value else None
+    jobs = not_app_db.execute(
+        select(model.Job).where(model.Job.name == "attempt").order_by(model.Job.id)).scalars().all()
+    assert [(job.status.value, job.start, job.stop) for job in jobs] == [
+        (status, when(start), when(stop)) for status, start, stop in expected]
+
+
+@pytest.mark.parametrize("status, start, stop", [
+    ("PENDING", T1, None), ("PENDING", None, T2), ("RUNNING", None, None), ("RUNNING", T1, T2),
+    ("COMPLETED", T1, None), ("FAILED", None, None), ("CANCELLED", T1, ""),
+])
+def test_job_times_must_fit_its_status(not_app_db, run_processing_json, genpipes_json, status, start, stop):
+    project_id = _new_project(not_app_db, run_processing_json)
+    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+    with pytest.raises(RequestError) as error:
+        db_actions.ingest_analysis(project_id, _one_job_payload(genpipes_json, status, start, stop), not_app_db)
+    assert error.value.message == [next(m for m in error.value.message if f"'attempt' of 'Readset'" in m)]
+    assert f"is {status}" in error.value.message[0]
+    assert not_app_db.execute(select(model.Job).where(model.Job.name == "attempt")).first() is None
+
+
+def test_a_cancelled_job_may_have_no_start(not_app_db, run_processing_json, genpipes_json):
+    project_id = _new_project(not_app_db, run_processing_json)
+    db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
+    db_actions.ingest_analysis(project_id, _one_job_payload(genpipes_json, "CANCELLED", None, T2), not_app_db)
+    assert not_app_db.execute(select(model.Job).where(model.Job.name == "attempt")).scalar_one().start is None

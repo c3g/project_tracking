@@ -352,6 +352,7 @@ def check_analysis_payload(ingest_data):
             for job_json in readset_json[vb.JOB]:
                 name = f"{job_json[vb.JOB_NAME]}' of 'Readset' '{readset_json[vb.READSET_NAME]}"
                 check_enum(invalid, StatusEnum, job_json.get(vb.JOB_STATUS) or None, vb.JOB_STATUS, "Job", name, optional=True)
+                check_job_times(invalid, job_json, name)
                 if job_json.get(vb.METRIC) and (job_json.get(vb.JOB_STATUS) != "COMPLETED" or not job_json.get(vb.JOB_STOP)):
                     # The newest job's metric wins (metric_levels.py): only a finished job can carry one
                     invalid.append(f"'Job' '{name}' has metrics: only a COMPLETED job with a '{vb.JOB_STOP}' can carry metrics.")
@@ -364,6 +365,23 @@ def check_analysis_payload(ingest_data):
     if invalid:
         raise RequestError(message=invalid)
     return missing
+
+
+def check_job_times(invalid, job_json, name):
+    """
+    A job's times must fit its status: PENDING has no job_start nor job_stop, RUNNING a job_start and no job_stop,
+    a finished job a job_stop (a CANCELLED one may never have started). GenPipes sends a job that
+    didn't run without status: it is skipped. Job.from_attributes relies on it to tell
+    the same attempt progressing from a new one.
+    """
+    status = job_json.get(vb.JOB_STATUS) or None
+    start, stop = bool(job_json.get(vb.JOB_START)), bool(job_json.get(vb.JOB_STOP))
+    if status == StatusEnum.PENDING.value and (start or stop):
+        invalid.append(f"'Job' '{name}' is PENDING: it can't have a '{vb.JOB_START}' nor a '{vb.JOB_STOP}'.")
+    elif status == StatusEnum.RUNNING.value and (not start or stop):
+        invalid.append(f"'Job' '{name}' is RUNNING: it needs a '{vb.JOB_START}' and no '{vb.JOB_STOP}'.")
+    elif status in {s.value for s in StatusEnum} - {"PENDING", "RUNNING"} and not stop:
+        invalid.append(f"'Job' '{name}' is {status}: it needs a '{vb.JOB_STOP}'.")
 
 
 def check_transfer_payload(ingest_data):

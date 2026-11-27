@@ -1066,24 +1066,44 @@ class Job(BaseTable):
         deleted=False
         ):
         """
-        get job if it exist, set it if it does not exist
+        get job if it exist, set it if it does not exist. The newest job of that operation and name is updated in
+        place when the payload is the same attempt progressing: it was PENDING, or RUNNING with the same start. A
+        PENDING or RUNNING payload for a job already further along (not a newer start) is an old one: nothing changes.
+        Any other difference is a new attempt (a new job). Times fit the status (ingest.check_job_times).
         """
         warning = None
         if not session:
             session = database.get_session()
-        job = session.query(cls).filter(
+        same_job = (
             cls.operation == operation,
             cls.name == name,
-            cls.start == start,
-            cls.stop == stop,
-            cls.status == status,
             cls.type == type,
             cls.deprecated.is_(deprecated),
             cls.deleted.is_(deleted)
-        ).first()
+        )
+        job = session.query(cls).filter(*same_job, cls.start == start, cls.stop == stop, cls.status == status).first()
 
         if job:
             warning = f"Job with id {job.id} and name {job.name} already exists, informations will be attached to this one."
+            return job, warning
+
+        latest = session.query(cls).filter(*same_job).order_by(cls.id.desc()).first()
+        unfinished = (StatusEnum.PENDING, StatusEnum.RUNNING)
+        if latest is not None and (
+            latest.status == StatusEnum.PENDING
+            or (latest.status == StatusEnum.RUNNING and status != StatusEnum.PENDING and start == latest.start)
+        ):
+            warning = (f"Job with id {latest.id} and name {latest.name} goes from {latest.status.value} to "
+                       f"{status.value if status else None}.")
+            latest.status, latest.start, latest.stop = status, start, stop
+            return latest, warning
+        last_time = latest and (latest.stop or latest.start)
+        if latest is not None and status in unfinished and (
+            status == StatusEnum.PENDING or last_time is None or start is None or start <= last_time
+        ):
+            warning = (f"Job with id {latest.id} and name {latest.name} is already {latest.status.value}: this "
+                       f"{status.value} payload is older, nothing changed.")
+            return latest, warning
 
         if not job:
             # Create new job

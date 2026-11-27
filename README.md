@@ -1056,6 +1056,23 @@ At `ingest_analysis`, for an operation in the vocabulary:
 For every analysis operation, only a `COMPLETED` job with a `job_stop` can carry metrics: any other job
 with metrics is refused with a 400.
 
+### Analysis jobs sent several times
+
+At `ingest_analysis`, a job's times must fit its status, else the payload is refused with a 400:
+`PENDING` has no `job_start` nor `job_stop`, `RUNNING` has a `job_start` and no `job_stop`, a finished job
+(`COMPLETED`, `FAILED`, `OUT_OF_MEMORY`, `CANCELLED`) has a `job_stop`. A job without `job_status` (GenPipes'
+jobs that didn't run) is skipped. A tool can send its payload while it runs and again when it ends; the
+newest job of the operation with that name is then:
+
+- updated in place when it's the same attempt progressing: it was `PENDING`, or `RUNNING` with the same
+  `job_start`;
+- left as it is when the payload is older: `PENDING`, or `RUNNING` with a `job_start` no later than the
+  job's last time;
+- kept, with a new job beside it, for a new attempt (another `job_start`, or both finished with other
+  times).
+
+An update in place or an older payload returns a warning.
+
 An operation not in the vocabulary (e.g. `dragen` for now) stores its metrics as before, without
 a level, with one warning. `run_processing` metrics are always per readset: the vocabulary only gives
 their unit and aggregate, and an unlisted one is only warned about. `digest_delivery` lists sample and
