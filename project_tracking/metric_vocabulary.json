@@ -58,6 +58,7 @@
         "bases_over_q30": {"aggregate": "AVERAGE", "level": "READSET", "unit": "%"},
         "exonic_rate": {"aggregate": "AVERAGE", "applies_to": ["RNA"], "level": "READSET", "unit": "fraction"},
         "freemix": {"aggregate": "AVERAGE", "level": "READSET", "unit": "fraction"},
+        "inferred_sex": {"aggregate": "N", "level": "READSET"},
         "raw_clusters": {"aggregate": "SUM", "level": "READSET", "unit": "count"},
         "raw_duplication_rate": {"aggregate": "AVERAGE", "level": "READSET", "unit": "%"},
         "raw_mean_coverage": {"aggregate": "SUM", "level": "READSET", "unit": "x"},
@@ -65,7 +66,7 @@
         "raw_median_insert_size": {"aggregate": "AVERAGE", "level": "READSET", "unit": "bp"},
         "raw_reads_count": {"aggregate": "SUM", "level": "READSET", "unit": "count"},
         "rrna_rate": {"aggregate": "AVERAGE", "applies_to": ["RNA"], "level": "READSET", "unit": "fraction"},
-        "sex_check": {"aggregate": "N", "level": "READSET"},
+        "sex_concordance": {"aggregate": "N", "level": "READSET"},
         "species_check": {"aggregate": "N", "level": "READSET"}
     }
 }
