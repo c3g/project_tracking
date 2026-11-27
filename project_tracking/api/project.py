@@ -9,7 +9,7 @@ from flask import Blueprint, current_app, request, jsonify, g
 
 from .. import db_actions
 from .. import auth
-from ..database import db_label, session_scope, set_project_db_from_name, write_lock
+from ..database import _configured_db_uris, db_label, session_scope, set_project_db_from_name, write_lock
 from ..schema import serialize
 from .decorators import openapi_doc, parse_json_input, parse_json_get
 
@@ -277,6 +277,26 @@ def resolve_project_scope(project_id, digest_data=None):
     names = parse_names(project_name)
     return db_actions.name_to_id("Project", names)
 
+
+def projects_of_databases(readable=None):
+    """
+    The projects of every configured database (only those labelled in readable, unless None), serialized, each with
+    the '_database' label it is in.
+    """
+    output = []
+    for db_uri in _configured_db_uris(current_app.config):
+        label = db_label(db_uri)
+        if readable is not None and label not in readable:
+            continue
+        with session_scope(db_uri=db_uri, dry_run=True) as session:
+            rows = serialize(db_actions.projects(project_id=None, session=session).get("DB_ACTION_OUTPUT", []),
+                             include_relationships=False, context={"session": session})
+        for row in rows if isinstance(rows, list) else [rows] if rows else []:
+            row["_database"] = label
+            output.append(row)
+    return output
+
+
 @bp.route('/', methods=['GET'])
 @bp.route('/<string:project>', methods=['GET'])
 @convcheck_project
@@ -297,9 +317,16 @@ def projects(project_id=None, digest_data=None):
     If no project_id or project_name is provided, it will return all projects.
     If the project does not exist, it will return a warning with available projects.
     """
+    if not (request.view_args or {}).get("project") and len(_configured_db_uris(current_app.config)) > 1:
+        # Without a project in the URL: the projects of every database the caller may read
+        names = {name.lower() for name in parse_names((digest_data or {}).get("project_name") or "")}
+        rows = projects_of_databases(auth.readable_databases())
+        rows = [row for row in rows if not names or row["name"].lower() in names]
+        return sanity_check("Project", {"DB_ACTION_OUTPUT": rows} if rows else [])
+
     project_id = resolve_project_scope(project_id, digest_data)
 
-    # Without a project in the URL, the list comes from the default database: only for who may read it
+    # Without a project in the URL, the list comes from the only database: only for who may read it
     readable = auth.readable_databases()
     if readable is not None and not (request.view_args or {}).get("project"):
         if db_label(current_app.config["SQLALCHEMY_DATABASE_URI"]) not in readable:

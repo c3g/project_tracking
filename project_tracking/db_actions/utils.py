@@ -201,7 +201,7 @@ def name_to_id(model_class, name, session=None):
 
 def project_name_to_id(name, session=None):
     """
-    Id of the project named name, ignoring case like the database routing (PROJECT_DATABASES): 'moh-q' finds 'MOH-Q'.
+    Id of the project named name, ignoring case like the database routing (project_database): 'moh-q' finds 'MOH-Q'.
     An exact match wins over projects whose names only differ by case; several of those are ambiguous.
     """
     if session is None:

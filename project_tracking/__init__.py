@@ -176,6 +176,7 @@ def create_app(test_config=None):
     # Fail at startup rather than at the first analysis ingest
     validate_analysis_operations(app.config["ANALYSIS_OPERATIONS"])
     validate_metric_vocabulary(app.config["METRIC_VOCABULARY"])
+    database.validate_project_databases(app.config)
     _log_database_configuration(app)
 
     try:
@@ -210,7 +211,10 @@ def create_app(test_config=None):
 
         if resolved_db_uri:
             resolved_db_label = database.db_label(resolved_db_uri)
-            db_route_source = 'project_mapping'
+            db_route_source = 'project'
+        elif len(database._configured_db_uris(app.config)) > 1:
+            # Several databases: a request without a project used none, or each one it named itself
+            resolved_db_label, db_route_source = '-', 'none'
         else:
             resolved_db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', 'unknown')
             resolved_db_label = database.db_label(resolved_db_uri)
@@ -272,7 +276,7 @@ def create_app(test_config=None):
                          raw_error, exc_info=e)
         requested_project = getattr(g, 'requested_project', None)
         resolved_db_uri = getattr(g, 'project_db_uri', None)
-        route_source = 'project_mapping' if resolved_db_uri else 'default'
+        route_source = 'project' if resolved_db_uri else 'default'
         resolved_db_label = database.db_label(resolved_db_uri) if resolved_db_uri else database.db_label(
             app.config.get('SQLALCHEMY_DATABASE_URI', 'unknown')
         )

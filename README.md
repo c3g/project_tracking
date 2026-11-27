@@ -111,8 +111,12 @@ The app reads config in this order:
 
 Because `instance/config.py` is loaded last, values in that file override `C3G_` env vars.
 
-**Role of `SQLALCHEMY_DATABASE_URI` in multi-db mode:**
-`SQLALCHEMY_DATABASE_URI` is a required base URI — it is always present and is used in single-db mode (e.g. local dev with SQLite) where all projects share one database. In a multi-db production deployment, every project should have an explicit entry in `PROJECT_DATABASES`. If a project name has no matching entry, the request silently falls through to `SQLALCHEMY_DATABASE_URI` as a catch-all, which is not the intended behavior in production. Do not rely on this fallback: always map every project explicitly.
+**Databases and projects:** `SQLALCHEMY_DATABASE_URI` is always required. Alone (e.g. local dev with SQLite), it is the only database and holds every project. `PROJECT_DATABASES` adds more databases: it is a JSON **list of URIs**, and holds no project names. A project lives in the database that holds its `project` row, and the API finds it there by its name (any case) on every request:
+- a name in no database: 404, never another database;
+- a name in two databases: 409 (`db-revisions` lists them);
+- a name in none of the databases that could be read, while one couldn't: 503.
+
+A database is named by its **label**, the database name from its URI (e.g. `project_tracking_cphi`): OPA's rights, `create_project`'s `database` and `/admin/projects/by-id` use it. Two databases with the same label, or a `PROJECT_DATABASES` that isn't a list (the `{name: URI}` map before 4.0.0), stop the API at startup.
 
 ### Local development
 
@@ -126,23 +130,20 @@ SQLALCHEMY_DATABASE_URI = "postgresql+psycopg2://<USER>:<PW>@<HOST>/<DEFAULT_DB>
 # PostgreSQL identifiers are easiest to operate if you keep DB/user names in
 # lowercase snake_case (avoids quoting surprises).
 # Each DB has its own dedicated role, named to match: project_tracking_<name>
-# (see "Adding a new database and rotating secrets" below). PROJ-B and PROJ-C
-# below share one DB/role (project_tracking_grp) on purpose, to illustrate
-# that routing is per project name, not necessarily one DB per project.
-# Routing map used by the API:
-# - exact project-name match only (case-insensitive)
-PROJECT_DATABASES = {
-        "PROJ-A": "postgresql+psycopg2://project_tracking_prja:<PW>@<HOST>/project_tracking_prja?client_encoding=utf8",
-        "PROJ-B": "postgresql+psycopg2://project_tracking_grp:<PW>@<HOST>/project_tracking_grp?client_encoding=utf8",
-        "PROJ-C": "postgresql+psycopg2://project_tracking_grp:<PW>@<HOST>/project_tracking_grp?client_encoding=utf8",
-}
+# (see "Adding a new database and rotating secrets" below).
+# The other databases: projects are found in the one holding their row, e.g.
+# PROJ-A in project_tracking_prja, PROJ-B and PROJ-C both in project_tracking_grp.
+PROJECT_DATABASES = [
+        "postgresql+psycopg2://project_tracking_prja:<PW>@<HOST>/project_tracking_prja?client_encoding=utf8",
+        "postgresql+psycopg2://project_tracking_grp:<PW>@<HOST>/project_tracking_grp?client_encoding=utf8",
+]
 ```
 
 You can also use env vars only:
 
 ```bash
 export C3G_SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://<USER>:<PW>@<HOST>/<DEFAULT_DB>?client_encoding=utf8"
-export C3G_PROJECT_DATABASES='{"PROJ-A":"postgresql+psycopg2://project_tracking_prja:<PW>@<HOST>/project_tracking_prja?client_encoding=utf8","PROJ-B":"postgresql+psycopg2://project_tracking_grp:<PW>@<HOST>/project_tracking_grp?client_encoding=utf8","PROJ-C":"postgresql+psycopg2://project_tracking_grp:<PW>@<HOST>/project_tracking_grp?client_encoding=utf8"}'
+export C3G_PROJECT_DATABASES='["postgresql+psycopg2://project_tracking_prja:<PW>@<HOST>/project_tracking_prja?client_encoding=utf8","postgresql+psycopg2://project_tracking_grp:<PW>@<HOST>/project_tracking_grp?client_encoding=utf8"]'
 ```
 
 ### init-db and --flush in multi-database setups
@@ -193,41 +194,48 @@ Admin endpoint:
 POST /admin/create_project/<project_name>
 ```
 
-Optional metadata must be provided in the POST JSON body:
+JSON body:
 
-- `ext_id` (integer)
-- `ext_src` (string)
+- `database` (string): label of the database the project goes in, e.g. `project_tracking_grp`. Required when several databases are configured; with one, it is that one.
+- `ext_id` (integer), `ext_src` (string): optional metadata.
 
-Important behavior with multi-database routing:
-1. Project-to-database routing is exact-name only and case-insensitive.
-2. The API stores project names exactly as provided in the route argument.
-3. If a project name has no entry in `PROJECT_DATABASES`, the request falls through to `SQLALCHEMY_DATABASE_URI` as a catch-all. In a properly configured deployment, every project should be explicitly mapped — do not rely on this fallback. `create_project` returns a warning naming the default database when it creates a project there.
+Behavior:
+1. The name is stored exactly as given, and is unique across all databases ignoring case: a name already in another database gets 409, the same name in the same database returns the existing project.
+2. A missing or unknown `database` gets 400 with the labels; a database that can't be read gets 503 (the name can't be checked).
+3. The response gives the project with `_database`, the label it went in.
 
-Recommended workflow when adding a new project:
-1. Decide which DB should own that project.
-2. Add or update the exact project-name key in `PROJECT_DATABASES` (env/secret/config).
-3. Create the schema on any new, empty database, then bring every database to the latest revision:
+#### Adding a project
+
+Everyone who may read a database reads all its projects: rights are per database (OPA). Choose the database with that in mind.
+
+The label to give is the database's name. To list them, with their projects (empty databases included):
 
 ```bash
-flask --app project_tracking init-all-dbs     # creates + stamps empty DBs, skips the others
-flask --app project_tracking upgrade-all-dbs  # applies pending migrations everywhere
+pt-cli --url-root <API> admin databases      # or GET /admin/databases
 ```
 
-4. Restart/redeploy so the API reads updated config.
-5. Create the project row with the admin endpoint.
-
-Example:
+**In an existing database** (e.g. a new phase of a project, or a project of the same group): one call, no restart and no OPA change, as the project gets that database's rights.
 
 ```bash
-curl -X POST "http://localhost:8000/admin/create_project/PROJ-B"
-
-curl -X POST "http://localhost:8000/admin/create_project/PROJ-B" \
+pt-cli --url-root <API> admin create-project --name PROJ-C --database project_tracking_grp
+# or
+curl -X POST "http://localhost:8000/admin/create_project/PROJ-C" \
         -H "Content-Type: application/json" \
-        -d '{"ext_id":123,"ext_src":"lims"}'
+        -d '{"database":"project_tracking_grp","ext_id":123,"ext_src":"lims"}'
 ```
 
-If `PROJ-B` is mapped to `project_tracking_grp` in `PROJECT_DATABASES`, it is created in `project_tracking_grp`.
-If `PROJ-B` has no `PROJECT_DATABASES` entry, the request falls through to `SQLALCHEMY_DATABASE_URI`. Always add the mapping before creating a project.
+**In a new database:** an admin step on the server first.
+1. Create its role and database, named `project_tracking_<name>` (owner: its own role, `REVOKE CONNECT ... FROM PUBLIC`), and give read-only access to any viewer (e.g. pgweb): see "Adding a new database and rotating secrets".
+2. Add its URI to `PROJECT_DATABASES` (the secret or config the API reads), and restart the API.
+3. Create its schema, and bring every database to the latest one (`init-all-dbs` creates and stamps a new, empty database and skips the others):
+
+```bash
+flask --app project_tracking init-all-dbs
+flask --app project_tracking upgrade-all-dbs
+```
+
+4. In `oidc` mode, give the database's groups their rights in the OPA policy data.
+5. Create the project in it, as above, with `--database project_tracking_<name>`.
 
 ### Project routing policy (name-based on public routes)
 
@@ -262,7 +270,9 @@ To list the projects of every configured database (each row gets a `_database` f
 GET /admin/projects/across-databases
 ```
 
-The project in the URL path selects the database. GET routes also accept a `project_name` filter
+`GET /project/` without a project lists the same, limited to the databases the caller may read.
+
+The project in the URL path selects the database that holds it. GET routes also accept a `project_name` filter
 to query several projects **stored in that same database** at once:
 
 ```http
@@ -307,9 +317,9 @@ request was refused. Nothing is saved then: each request commits once, at its en
 |---|---|
 | 200 | Done, possibly with `DB_ACTION_WARNING` (e.g. skipped readsets) |
 | 400 | Invalid request or data: invalid JSON or keys, a missing key, list or malformed date in an ingest payload (e.g. `'Metric' 'reads' of 'Readset' 'R1' has no 'metric_value'.`), invalid enum value, a row the payload refers to doesn't exist, a modification or curate refused |
-| 404 | The project in the URL doesn't exist (the payload's rows give 400) |
-| 409 | Duplicate, e.g. readsets already ingested |
-| 503 | The database can't be reached (connection refused, authentication failure, missing database or role), with a hint on which database the project resolved to |
+| 404 | The project in the URL doesn't exist in any database (the payload's rows give 400) |
+| 409 | Duplicate, e.g. readsets already ingested, or the project in the URL is in several databases |
+| 503 | The database can't be reached (connection refused, authentication failure, missing database or role), with a hint on which database the project resolved to; or the project wasn't found while a database couldn't be read |
 | 500 | Other database errors: a known one is named (e.g. a lock or statement timeout), any other gets a reference to the API's log; any other error is a bug of the API, given as `Internal error on <method> <path> (<error type>, reference <id>)`. Responses never carry the database's or the error's own message (it can hold a host, a role, a password or SQL): look the reference up in the API's log |
 
 pt-cli reads the envelope, and exits with an error when `DB_ACTION_ERROR` is set.
@@ -358,17 +368,19 @@ pt-cli reads the envelope, and exits with an error when `DB_ACTION_ERROR` is set
   else gets 401.
 - **Rights are per database:** the projects of one database share them. The policy gives each COmanage group a role
   per database, read < ingest < modify, each including the ones below. Global admins can do everything, including
-  the `/admin` routes. OPA gets the Flask endpoint, the database the project routes to, the project, the groups and
-  the token's client. A refusal is a 403 naming the route, the project and its database. If OPA can't be reached,
+  the `/admin` routes. OPA gets the Flask endpoint, the database that holds the project (looked up on every request,
+  never cached; for `create_project`, the database its payload names), the project, the groups and the token's
+  client. A refusal is a 403 naming the route, the project and its database. If OPA can't be reached,
   every request but the public ones is refused.
-- **`GET /project/`** lists the default database's projects only for those who may read that database.
+- **`GET /project/`** lists the projects of the databases the caller may read.
+- **A logged-in caller can tell whether a project name exists** (404 or 403), never its data.
 - **`/health`** answers 200, or 503 when the default database or, with `oidc`, OPA can't be reached. It gives no
   detail, so it is public.
 
 ## Concurrent writes
 
 Writes (every `POST`: ingest, modification, sample groups, `admin/create_project`) run one at a time per database:
-each takes a PostgreSQL advisory lock on the database its project routes to, and releases it when it ends (PostgreSQL
+each takes a PostgreSQL advisory lock on the database that holds its project, and releases it when it ends (PostgreSQL
 releases it too if the worker dies). Reads never take it, and writes to other databases don't wait. So the API can
 run several workers, and an ingest doesn't hold up the queries of others.
 
@@ -399,8 +411,8 @@ holds the lock.
 Use environment/secret injection from your orchestrator (podman secrets, Kubernetes secrets, etc.) and keep DB credentials out of the repository.
 
 Recommended pattern:
-1. Set `C3G_SQLALCHEMY_DATABASE_URI` to the base URI. Every project must also have an explicit entry in `PROJECT_DATABASES` — do not rely on the catch-all fallback in production.
-2. Set `C3G_PROJECT_DATABASES` (JSON) with all routing entries.
+1. Set `C3G_SQLALCHEMY_DATABASE_URI` to one database (e.g. the first project's).
+2. Set `C3G_PROJECT_DATABASES` (a JSON list) with the URIs of the other databases. Projects are created in them with `create_project` (see "Adding a project").
 3. Run schema upgrades on all configured DBs during deployment:
 
 ```bash
@@ -560,12 +572,12 @@ flask --app project_tracking init-all-dbs
 
 #### 3 — Update secret files on the VM
 
-Edit the JSON secret file to add the new mapping:
+Edit the JSON secret file to add the new database's URI to the list:
 
 ```bash
 sudo vi /etc/project_tracking/secrets/C3G_PROJECT_DATABASES
-# Add the new entry, e.g.:
-# {"PROJ-A":"...","PROJ-B":"...","PROJ-C":"...","NEWPROJECT":"postgresql+psycopg2://project_tracking_newdb:PW@DBHOST/project_tracking_newdb?client_encoding=utf8"}
+# Add the new URI, e.g.:
+# ["...prja...","...grp...","postgresql+psycopg2://project_tracking_newdb:PW@DBHOST/project_tracking_newdb?client_encoding=utf8"]
 ```
 
 #### 4 — Rotate Podman secrets
@@ -633,10 +645,8 @@ Use the same image tag as the running service, so the migrations match the deplo
 
 `flask db-revisions` lists every configured database with its Alembic revision and state
 (`up to date`, `BEHIND`, `NOT STAMPED` or `UNREACHABLE`), and exits with an error if any database is not
-at the latest revision. It also lists the projects stored in another database than the one their name routes
-to (its `PROJECT_DATABASES` entry, any case, else the default database), and exits with an error then too. The
-routes never reach such a project, and a project of the same name in the routed database gets its requests:
-move its rows, or fix the entry. The container runs `db-revisions` at every start, after the migrations, and
+at the latest revision. It also lists the project names (any case) found in several databases, and exits with
+an error then too: the routes refuse such a project (409) until an admin removes all but one. The container runs `db-revisions` at every start, after the migrations, and
 only logs a warning when it finds problems.
 
 #### Use case A — Regular restart/deploy
@@ -701,15 +711,16 @@ flask --app project_tracking init-all-dbs --flush --yes-i-really-mean-flush
 
 Only use the flush form in disposable/test environments.
 
-#### Use case E — Create a new project row after mapping is added
+#### Use case E — Create a new project
 
-After DB mapping is in place and service restarted, create the project:
+Name the database it goes in (its label); no restart is needed when the database is already configured:
 
 ```bash
-curl -X POST "http://localhost:8000/admin/create_project/NEWPROJECT"
+curl -X POST "http://localhost:8000/admin/create_project/NEWPROJECT" \
+        -H "Content-Type: application/json" -d '{"database":"project_tracking_newdb"}'
 ```
 
-Because routing is exact-name based, `NEWPROJECT` must exist as an exact key in `PROJECT_DATABASES`.
+See "Adding a project".
 
 #### Use case F — Check that every database is tracked by Alembic
 

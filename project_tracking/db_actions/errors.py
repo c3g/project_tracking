@@ -55,6 +55,12 @@ class DatabaseBusyError(Error):
         )
         self.headers = {"Retry-After": str(retry_after)}
 
+
+class DatabaseUnavailableError(Error):
+    """DatabaseUnavailableError: a database the request needs couldn't be read (HTTP 503): nothing was done"""
+    status_code = 503
+
+
 class UniqueConstraintError(Error):
     """UniqueConstraintError: the request conflicts with an existing row (HTTP 409)"""
     status_code = 409

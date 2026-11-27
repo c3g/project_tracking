@@ -6,7 +6,8 @@ from project_tracking import create_app
 def test_loads_c3g_file_backed_env_vars(monkeypatch, tmp_path):
     """C3G_*_FILE values should populate regular C3G_* config keys."""
     uri_value = "postgresql+psycopg2://user:pw@host/default_db?client_encoding=utf8"
-    mapping_value = '{"PROJ-A":"postgresql+psycopg2://user:pw@host/PRJA_DB?client_encoding=utf8","GRP":"postgresql+psycopg2://user:pw@host/GRP_DB?client_encoding=utf8"}'
+    mapping_value = ('["postgresql+psycopg2://user:pw@host/PRJA_DB?client_encoding=utf8",'
+                     '"postgresql+psycopg2://user:pw@host/GRP_DB?client_encoding=utf8"]')
 
     uri_file = tmp_path / "c3g_sqlalchemy_database_uri.secret"
     map_file = tmp_path / "c3g_project_databases.secret"
@@ -21,10 +22,10 @@ def test_loads_c3g_file_backed_env_vars(monkeypatch, tmp_path):
     app = create_app(test_config={})
 
     assert app.config["SQLALCHEMY_DATABASE_URI"] == uri_value
-    assert app.config["PROJECT_DATABASES"] == {
-        "PROJ-A": "postgresql+psycopg2://user:pw@host/PRJA_DB?client_encoding=utf8",
-        "GRP": "postgresql+psycopg2://user:pw@host/GRP_DB?client_encoding=utf8",
-    }
+    assert app.config["PROJECT_DATABASES"] == [
+        "postgresql+psycopg2://user:pw@host/PRJA_DB?client_encoding=utf8",
+        "postgresql+psycopg2://user:pw@host/GRP_DB?client_encoding=utf8",
+    ]
 
 
 def test_file_backed_env_beats_plain_env(monkeypatch, tmp_path):

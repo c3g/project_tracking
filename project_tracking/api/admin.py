@@ -5,12 +5,18 @@ import logging
 from typing import Any, cast
 
 from flask import Blueprint, current_app, g, jsonify, request
+from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 
 from .. import db_actions
 
-from ..database import _configured_db_uris, db_label, session_scope, set_project_db_from_name, write_lock
+from ..database import (
+    _configured_db_uris, create_project_database, databases_holding_project, db_label, session_scope, write_lock
+)
+from ..model import Project
 from ..schema import serialize
 from .decorators import TEXT_RESPONSE, openapi_doc, parse_json_input
+from .project import projects_of_databases
 
 log = logging.getLogger(__name__)
 
@@ -58,24 +64,26 @@ def list_projects_across_databases():
     The response includes a `_database` field on each serialized project so
     callers can tell which configured database produced the row.
     """
+    output = projects_of_databases()
+
+    return jsonify({"DB_ACTION_OUTPUT": output})
+
+
+@bp.route('/databases', methods=['GET'])
+def list_databases():
+    """
+    return: every configured database: its label (create_project's 'database') and its project names, empty ones too
+    """
     output = []
-
     for db_uri in _configured_db_uris(current_app.config):
-        with session_scope(db_uri=db_uri, dry_run=True) as session:
-            result = db_actions.projects(project_id=None, session=session)
-            serialized = serialize(
-                result.get("DB_ACTION_OUTPUT", []),
-                include_relationships=False,
-                context={"session": session}
-            )
-            if not serialized:
-                continue
-            rows = cast(list[dict[str, Any]], serialized if isinstance(serialized, list) else [serialized])
-            label = db_label(db_uri)
-            for row in rows:
-                row["_database"] = label
-                output.append(row)
-
+        entry = {"database": db_label(db_uri), "projects": []}
+        try:
+            with session_scope(db_uri=db_uri, dry_run=True) as session:
+                entry["projects"] = sorted(session.scalars(select(Project.name)).all())
+        except OperationalError:
+            log.exception("Database %s not read for /admin/databases", entry["database"])
+            entry["error"] = "couldn't be read (logged)"
+        output.append(entry)
     return jsonify({"DB_ACTION_OUTPUT": output})
 
 
@@ -120,7 +128,7 @@ def project_by_id(project_id: int):
 
 
 @bp.route('/create_project/<string:project_name>', methods=['POST'])
-@parse_json_input(expected_keys={"ext_id", "ext_src"})
+@parse_json_input(expected_keys={"database", "ext_id", "ext_src"})
 def create_project(project_name: str, ingest_data=None):
     """
     Create or fetch a project by name.
@@ -129,12 +137,15 @@ def create_project(project_name: str, ingest_data=None):
         project_name (str): Project name to create. If it already exists,
             the existing row is returned.
 
-    Optional metadata (preferred source is JSON body):
+    JSON body:
+        database (str): Label of the database the project goes in (GET /admin/databases lists them,
+            e.g. project_tracking_cphi). Required when several databases are configured.
         ext_id (int): External identifier for the project.
         ext_src (str): External source/system label for ext_id.
 
     Request body (application/json):
         {
+            "database": "project_tracking_grp",
             "ext_id": 123,
             "ext_src": "lims"
         }
@@ -142,13 +153,15 @@ def create_project(project_name: str, ingest_data=None):
     Returns:
         200: JSON payload with DB_ACTION_OUTPUT containing one serialized
              project object.
-        400: JSON payload with DB_ACTION_ERROR if ext_id is not an integer.
+        400: JSON payload with DB_ACTION_ERROR if ext_id is not an integer, or database is missing or unknown.
+        409: the name (ignoring case) is already a project of another database.
+        503: a database couldn't be read, so the name can't be checked.
 
     Notes:
         - project_name is stored exactly as provided in the route.
         - Optional metadata must be sent in the JSON body.
-        - The project is created in its PROJECT_DATABASES database, where the /project/<project_name>/ routes look
-          for it; a name without an entry goes to the default database, with a warning.
+        - The /project/<project_name>/ routes find a project in the database that holds its row: everyone who may
+          read that database reads the project (README "Adding a project"). A name is in one database only.
     """
     payload = ingest_data or {}
 
@@ -162,11 +175,30 @@ def create_project(project_name: str, ingest_data=None):
         except (TypeError, ValueError):
             return jsonify({"DB_ACTION_ERROR": ["ext_id must be an integer when provided."]}), 400
 
-    # Same database as the /project/<project_name>/ routes (convcheck_project)
     g.requested_project = project_name
-    set_project_db_from_name(project_name)
-    unmapped = current_app.config.get("PROJECT_DATABASES") and not g.get("project_db_uri")
+    uri = create_project_database(current_app.config, payload)
+    if uri is None:
+        labels = sorted(db_label(u) for u in _configured_db_uris(current_app.config))
+        given = payload.get("database")
+        return jsonify({"DB_ACTION_ERROR": [
+            (f"Unknown database '{given}'" if given else "'database' is required with several databases")
+            + f": one of {labels}."
+        ]}), 400
+    found, unreachable = databases_holding_project(current_app.config, project_name)
+    elsewhere = sorted(db_label(u) for u in found if u != uri)
+    if elsewhere:
+        return jsonify({"DB_ACTION_ERROR": [
+            f"'Project' '{project_name}' already exists in database {elsewhere}: a name is in one database only."
+        ]}), 409
+    if unreachable and uri not in found:
+        return jsonify({"DB_ACTION_ERROR": [
+            f"Databases {sorted(db_label(u) for u in unreachable)} couldn't be read to check that '{project_name}' "
+            f"isn't there: nothing created, try again later."
+        ]}), 503
+    g.project_db_uri = uri
 
+    # shortcut: two admins creating one name in two databases at the same moment both succeed (the routes then
+    # answer 409 and db-revisions lists it); add a lock across databases if creating projects ever gets frequent
     with write_lock(), session_scope() as session:
         result = db_actions.create_project(
             project_name=project_name,
@@ -183,12 +215,8 @@ def create_project(project_name: str, ingest_data=None):
                 context={"session": session}
             )
             result["DB_ACTION_OUTPUT"] = serialized if isinstance(serialized, list) else [serialized]
+            for row in result["DB_ACTION_OUTPUT"]:
+                row["_database"] = db_label(uri)
         else:
             result["DB_ACTION_OUTPUT"] = []
-
-    if unmapped:
-        result.setdefault("DB_ACTION_WARNING", []).append(
-            f"'Project' '{project_name}' has no PROJECT_DATABASES entry: it is in the default database "
-            f"'{db_label(current_app.config['SQLALCHEMY_DATABASE_URI'])}'."
-        )
     return jsonify(result)

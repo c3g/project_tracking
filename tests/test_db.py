@@ -3,10 +3,12 @@ import os
 import tempfile
 import contextlib
 
+import pytest
 import sqlalchemy
 from sqlalchemy.exc import OperationalError
 
 from project_tracking import model
+from project_tracking.db_actions.errors import DidNotFindError
 from project_tracking.database import db_label, get_session, init_db, session_scope, set_project_db_from_name
 
 
@@ -52,7 +54,7 @@ def _make_app(default_uri, project_databases, **extra_config):
 def test_exact_name_routes_to_correct_database():
     """PROJ-A is mapped by its full exact name → distinct DB from the default."""
     with _tmp_db() as default_uri, _tmp_db() as prja_uri:
-        app = _make_app(default_uri, {'PROJ-A': prja_uri})
+        app = _make_app(default_uri, [prja_uri])
 
         with app.app_context():
             init_db(default_uri)
@@ -78,10 +80,7 @@ def test_two_exact_names_can_route_to_same_database():
     rows — exactly the behaviour you want when one DB holds multiple projects.
     """
     with _tmp_db() as default_uri, _tmp_db() as shared_uri:
-        app = _make_app(default_uri, {
-            'PROJECT ALPHA': shared_uri,
-            'Project Beta': shared_uri,
-        })
+        app = _make_app(default_uri, [shared_uri])
 
         with app.app_context():
             init_db(default_uri)
@@ -106,63 +105,107 @@ def test_two_exact_names_can_route_to_same_database():
 
 
 def test_partial_name_does_not_match():
-    """A partial name should not route; only exact matches are supported."""
-    with _tmp_db() as default_uri, _tmp_db() as mapped_uri, _tmp_db() as other_uri:
-        app = _make_app(default_uri, {
-            'PROJECT': mapped_uri,
-            'PROJECT ALPHA': other_uri,
-        })
+    """Only the whole name (any case) finds a project: no prefix match, no default database."""
+    with _tmp_db() as default_uri, _tmp_db() as one_uri, _tmp_db() as other_uri:
+        app = _make_app(default_uri, [one_uri, other_uri])
 
         with app.app_context():
-            init_db(default_uri)
-            init_db(mapped_uri)
-            init_db(other_uri)
-
-            # Seed each DB with a sentinel row.
-            with session_scope(no_app=True, db_uri=default_uri) as s:
-                s.add(model.Project(name='in-default-db'))
-            with session_scope(no_app=True, db_uri=mapped_uri) as s:
-                s.add(model.Project(name='in-mapped-db'))
+            for uri in (default_uri, one_uri, other_uri):
+                init_db(uri)
+            with session_scope(no_app=True, db_uri=one_uri) as s:
+                s.add(model.Project(name='PROJECT'))
             with session_scope(no_app=True, db_uri=other_uri) as s:
-                s.add(model.Project(name='in-other-db'))
+                s.add(model.Project(name='PROJECT ALPHA'))
 
-        # Exact match should route correctly.
         with app.app_context():
-            set_project_db_from_name('PROJECT')
-            names = [p.name for p in get_session().query(model.Project).all()]
-        assert names == ['in-mapped-db']
+            set_project_db_from_name('project')
+            assert [p.name for p in get_session().query(model.Project).all()] == ['PROJECT']
 
-        # Partial name should NOT match PROJECT nor PROJECT ALPHA.
         with app.app_context():
-            set_project_db_from_name('PROJECT-XYZ')
-            names = [p.name for p in get_session().query(model.Project).all()]
-        assert names == ['in-default-db']
+            with pytest.raises(DidNotFindError):
+                set_project_db_from_name('PROJECT-XYZ')
 
 
-def test_unknown_project_falls_back_to_default_database():
-    """A project name with no mapping falls through to the app default DB."""
+def test_unknown_project_is_not_found_and_never_uses_the_default_database():
+    """With several databases, an unknown name is a 404, and a request that chose no database can't open a session."""
     with _tmp_db() as default_uri, _tmp_db() as other_uri:
-        app = _make_app(default_uri, {'OTHER': other_uri})
-
+        app = _make_app(default_uri, [other_uri])
         with app.app_context():
             init_db(default_uri)
+            init_db(other_uri)
+        _add_specimen(default_uri, 'DEFAULT-PROJECT', 'SPECIMEN-D')
 
-            with session_scope(no_app=True, db_uri=default_uri) as s:
-                s.add(model.Project(name='DEFAULT-PROJECT'))
+        response = app.test_client().get('/project/UNKNOWN-XYZ/specimens')
+        assert response.status_code == 404
+        assert response.get_json()['DB_ACTION_ERROR'] == "'Project' 'UNKNOWN-XYZ' doesn't exist."
 
-            set_project_db_from_name('UNKNOWN-XYZ')
-            names = [p.name for p in get_session().query(model.Project).all()]
+        with app.test_request_context('/anything'):
+            with pytest.raises(RuntimeError, match="No database chosen"):
+                get_session()
 
-        assert names == ['DEFAULT-PROJECT']
+
+def test_project_in_two_databases_is_refused():
+    """A name in two databases (ignoring case) gets a 409 naming both: no guess."""
+    with _tmp_db() as default_uri, _tmp_db() as other_uri:
+        app = _make_app(default_uri, [other_uri])
+        with app.app_context():
+            init_db(default_uri)
+            init_db(other_uri)
+        _add_specimen(default_uri, 'PROJ-A', 'SPECIMEN-1')
+        _add_specimen(other_uri, 'proj-a', 'SPECIMEN-2')
+
+        response = app.test_client().get('/project/PROJ-A/specimens')
+
+        assert response.status_code == 409
+        message = response.get_json()['DB_ACTION_ERROR']
+        assert db_label(default_uri) in message and db_label(other_uri) in message
+
+
+def test_unreadable_database_is_a_503_only_when_the_project_is_found_nowhere():
+    with _tmp_db() as default_uri:
+        missing = "postgresql+psycopg2://someone:s3cret@127.0.0.1:1/project_tracking_missing?connect_timeout=2"
+        app = _make_app(default_uri, [missing])
+        with app.app_context():
+            init_db(default_uri)
+        _add_specimen(default_uri, 'PROJ-A', 'SPECIMEN-1')
+        client = app.test_client()
+
+        assert client.get('/project/PROJ-A/specimens').status_code == 200
+        response = client.get('/project/PROJ-B/specimens')
+        assert response.status_code == 503
+        assert 'project_tracking_missing' in response.get_json()['DB_ACTION_ERROR']
+        assert 's3cret' not in response.get_data(as_text=True)
+
+
+def test_project_databases_must_be_a_list_with_distinct_labels():
+    with _tmp_db() as default_uri, _tmp_db() as other_uri:
+        with pytest.raises(RuntimeError, match="list of database URIs"):
+            _make_app(default_uri, {'PROJ-A': other_uri})
+        with pytest.raises(RuntimeError, match="label"):
+            _make_app(default_uri, [other_uri, other_uri.replace('sqlite:///', 'sqlite:////tmp/../')])
+
+
+def test_project_list_without_project_covers_every_database():
+    with _tmp_db() as default_uri, _tmp_db() as other_uri:
+        app = _make_app(default_uri, [other_uri])
+        with app.app_context():
+            init_db(default_uri)
+            init_db(other_uri)
+        _add_specimen(default_uri, 'PROJ-A', 'SPECIMEN-1')
+        _add_specimen(other_uri, 'PROJ-B', 'SPECIMEN-2')
+        client = app.test_client()
+
+        rows = client.get('/project').get_json()['DB_ACTION_OUTPUT']
+        assert sorted((row['name'], row['_database']) for row in rows) == sorted(
+            [('PROJ-A', db_label(default_uri)), ('PROJ-B', db_label(other_uri))])
+        rows = client.get('/project?json={"project_name": "proj-b"}').get_json()['DB_ACTION_OUTPUT']
+        assert [row['name'] for row in rows] == ['PROJ-B']
 
 
 def test_cross_project_query_within_same_database_uses_project_name_filter():
     """One anchor project can query multiple projects that share the same DB."""
     with _tmp_db() as default_uri, _tmp_db() as shared_uri:
-        app = _make_app(default_uri, {
-            'PROJECT ALPHA': shared_uri,
-            'PROJECT BETA': shared_uri,
-        })
+        app = _make_app(default_uri, [shared_uri])
 
         with app.app_context():
             init_db(default_uri)
@@ -185,7 +228,7 @@ def test_cross_project_query_within_same_database_uses_project_name_filter():
 def test_cross_db_projects_route_aggregates_results():
     """Admin projects route fans out across all configured databases."""
     with _tmp_db() as default_uri, _tmp_db() as shared_uri:
-        app = _make_app(default_uri, {'PROJECT ALPHA': shared_uri})
+        app = _make_app(default_uri, [shared_uri])
 
         with app.app_context():
             init_db(default_uri)
@@ -210,7 +253,7 @@ def test_cross_db_projects_route_aggregates_results():
 def test_public_project_route_rejects_numeric_project_identifier():
     """Public /project routes must use project names, not numeric IDs."""
     with _tmp_db() as default_uri:
-        app = _make_app(default_uri, {})
+        app = _make_app(default_uri, [])
 
         with app.app_context():
             init_db(default_uri)
@@ -227,7 +270,7 @@ def test_public_project_route_rejects_numeric_project_identifier():
 def test_admin_project_by_id_route_requires_database_selector_and_returns_scoped_result():
     """Admin /projects/by-id requires explicit db selector and scopes lookup to that DB."""
     with _tmp_db() as default_uri, _tmp_db() as shared_uri:
-        app = _make_app(default_uri, {'PROJECT ALPHA': shared_uri})
+        app = _make_app(default_uri, [shared_uri])
 
         with app.app_context():
             init_db(default_uri)
@@ -259,7 +302,7 @@ def test_admin_project_by_id_route_requires_database_selector_and_returns_scoped
 def test_missing_database_operational_error_returns_user_friendly_message():
     """OperationalError for missing DB returns clear DB_ACTION_ERROR payload."""
     with _tmp_db() as default_uri:
-        app = _make_app(default_uri, {})
+        app = _make_app(default_uri, [])
 
         @app.route('/_raise_missing_db')
         def _raise_missing_db():
@@ -285,7 +328,7 @@ def test_missing_database_operational_error_returns_user_friendly_message():
 def _app_raising(orig_message):
     """App whose test route raises an OperationalError wrapping orig_message."""
     tmp = tempfile.NamedTemporaryFile(suffix='.sql', delete=False)
-    app = _make_app(f"sqlite:///{tmp.name}", {})
+    app = _make_app(f"sqlite:///{tmp.name}", [])
 
     @app.route('/_raise_operational')
     def _raise_operational():
@@ -369,7 +412,7 @@ def test_init_db_stamps_only_databases_it_creates():
     """A fresh (or flushed) DB is stamped at head; an existing DB keeps its revision so upgrades still run."""
     from sqlalchemy import create_engine, text
     with _tmp_db() as db_uri:
-        runner = _make_app(db_uri, {}).test_cli_runner()
+        runner = _make_app(db_uri, []).test_cli_runner()
 
         result = runner.invoke(args=['init-db', '--db-uri', db_uri])
         assert result.exit_code == 0, result.output
@@ -398,7 +441,7 @@ def test_init_db_stamps_only_databases_it_creates():
 def test_db_revisions_reports_each_database_state():
     from sqlalchemy import create_engine, text
     with _tmp_db() as default_uri, _tmp_db() as project_uri:
-        runner = _make_app(default_uri, {'PROJECT ALPHA': project_uri}).test_cli_runner()
+        runner = _make_app(default_uri, [project_uri]).test_cli_runner()
         assert runner.invoke(args=['init-all-dbs']).exit_code == 0
         default_label = default_uri.rsplit('/', 1)[-1]
         project_label = project_uri.rsplit('/', 1)[-1]
@@ -426,7 +469,7 @@ def test_db_revisions_reports_each_database_state():
 def test_db_revisions_reports_unreachable_database_without_credentials():
     with _tmp_db() as default_uri:
         missing = "postgresql+psycopg2://someone:s3cret@127.0.0.1:1/project_tracking_missing?connect_timeout=2"
-        runner = _make_app(default_uri, {'PROJECT ALPHA': missing}).test_cli_runner()
+        runner = _make_app(default_uri, [missing]).test_cli_runner()
         runner.invoke(args=['init-db'])
         result = runner.invoke(args=['db-revisions'])
         assert result.exit_code == 1
@@ -439,41 +482,70 @@ def _project_names(db_uri):
         return [p.name for p in s.query(model.Project).all()]
 
 
-def test_create_project_goes_to_its_mapped_database():
-    """create_project uses the database the /project/<name>/ routes use, so the project is found there."""
+def test_admin_databases_lists_every_database_with_its_projects():
+    """Labels to give create_project, empty databases included; an unreadable one is named, without credentials."""
+    with _tmp_db() as default_uri, _tmp_db() as empty_uri:
+        missing = "postgresql+psycopg2://someone:s3cret@127.0.0.1:1/project_tracking_missing?connect_timeout=2"
+        app = _make_app(default_uri, [empty_uri, missing])
+        with app.app_context():
+            init_db(default_uri)
+            init_db(empty_uri)
+        _add_specimen(default_uri, 'PROJ-B', 'SPECIMEN-1')
+        _add_specimen(default_uri, 'PROJ-A', 'SPECIMEN-2')
+
+        response = app.test_client().get('/admin/databases')
+
+        assert response.status_code == 200
+        rows = {row['database']: row for row in response.get_json()['DB_ACTION_OUTPUT']}
+        assert rows[db_label(default_uri)] == {'database': db_label(default_uri), 'projects': ['PROJ-A', 'PROJ-B']}
+        assert rows[db_label(empty_uri)] == {'database': db_label(empty_uri), 'projects': []}
+        assert 'error' in rows['project_tracking_missing']
+        assert 's3cret' not in response.get_data(as_text=True)
+
+
+def test_create_project_goes_to_the_database_it_names():
+    """create_project writes to the database its payload names; the routes then find the project there."""
     with _tmp_db() as default_uri, _tmp_db() as prja_uri:
-        app = _make_app(default_uri, {'PROJ-A': prja_uri})
+        app = _make_app(default_uri, [prja_uri])
         with app.app_context():
             init_db(default_uri)
             init_db(prja_uri)
         client = app.test_client()
 
-        response = client.post('/admin/create_project/PROJ-A')
+        response = client.post('/admin/create_project/PROJ-A', json={'database': db_label(prja_uri).upper()})
 
+        assert response.status_code == 200, response.get_json()
         assert response.get_json()['DB_ACTION_OUTPUT'][0]['name'] == 'PROJ-A'
-        assert 'DB_ACTION_WARNING' not in response.get_json()
+        assert response.get_json()['DB_ACTION_OUTPUT'][0]['_database'] == db_label(prja_uri)
         assert _project_names(prja_uri) == ['PROJ-A']
         assert _project_names(default_uri) == []
         samples = client.get('/project/PROJ-A/samples').get_json()
         assert 'DB_ACTION_ERROR' not in samples, samples
-        # The mapping ignores case, like the project routes: no second project
-        client.post('/admin/create_project/proj-a')
+        # Ignoring case, like the routes: no second project
+        assert client.post('/admin/create_project/proj-a', json={'database': db_label(prja_uri)}).status_code == 200
         assert _project_names(prja_uri) == ['PROJ-A']
 
 
-def test_create_project_without_mapping_warns():
-    """With PROJECT_DATABASES set, a name without an entry goes to the default database, with a warning."""
+def test_create_project_needs_a_known_database_and_a_free_name():
     with _tmp_db() as default_uri, _tmp_db() as prja_uri:
-        app = _make_app(default_uri, {'PROJ-A': prja_uri})
+        app = _make_app(default_uri, [prja_uri])
         with app.app_context():
             init_db(default_uri)
             init_db(prja_uri)
+        client = app.test_client()
 
-        response = app.test_client().post('/admin/create_project/PROJ-B')
+        response = client.post('/admin/create_project/PROJ-B')
+        assert response.status_code == 400
+        assert "'database' is required" in response.get_json()['DB_ACTION_ERROR'][0]
+        response = client.post('/admin/create_project/PROJ-B', json={'database': 'nope'})
+        assert response.status_code == 400
+        assert "Unknown database 'nope'" in response.get_json()['DB_ACTION_ERROR'][0]
 
-        assert _project_names(default_uri) == ['PROJ-B']
-        assert _project_names(prja_uri) == []
-        assert "'Project' 'PROJ-B' has no PROJECT_DATABASES entry" in response.get_json()['DB_ACTION_WARNING'][0]
+        client.post('/admin/create_project/PROJ-B', json={'database': db_label(prja_uri)})
+        response = client.post('/admin/create_project/proj-b', json={'database': db_label(default_uri)})
+        assert response.status_code == 409
+        assert _project_names(default_uri) == []
+        assert _project_names(prja_uri) == ['PROJ-B']
 
 
 def _add_specimen(db_uri, project_name, specimen_name):
@@ -496,7 +568,7 @@ def _rename_specimen(client, project_name, specimen_id, new):
 def test_modification_routes_use_the_project_database():
     """Row ids are per database: the project in the URL selects the database the rows are changed in."""
     with _tmp_db() as default_uri, _tmp_db() as prja_uri:
-        app = _make_app(default_uri, {'PROJ-A': prja_uri})
+        app = _make_app(default_uri, [prja_uri])
         with app.app_context():
             init_db(default_uri)
             init_db(prja_uri)
@@ -519,7 +591,7 @@ def test_modification_routes_use_the_project_database():
 def test_modification_reaches_every_project_of_its_database():
     """Rights are per database: through any project of a database, rows of its other projects can be changed."""
     with _tmp_db() as default_uri, _tmp_db() as shared_uri:
-        app = _make_app(default_uri, {'PROJ-A': shared_uri, 'PROJ-A-PHASE2': shared_uri})
+        app = _make_app(default_uri, [shared_uri])
         with app.app_context():
             init_db(default_uri)
             init_db(shared_uri)
@@ -530,10 +602,10 @@ def test_modification_reaches_every_project_of_its_database():
         assert _specimen_names(shared_uri) == ['SPECIMEN-A', 'SPECIMEN-P2-RENAMED']
 
 
-def test_db_revisions_reports_projects_outside_their_database():
-    """A project row in another database than the one its name routes to is reported, and fails the command."""
+def test_db_revisions_reports_projects_in_several_databases():
+    """A project name (ignoring case) in several databases is reported, and fails the command."""
     with _tmp_db() as default_uri, _tmp_db() as prja_uri:
-        app = _make_app(default_uri, {'PROJ-A': prja_uri})
+        app = _make_app(default_uri, [prja_uri])
         runner = app.test_cli_runner()
         runner.invoke(args=['init-all-dbs'])
         result = runner.invoke(args=['db-revisions'])
@@ -546,7 +618,6 @@ def test_db_revisions_reports_projects_outside_their_database():
 
         assert result.exit_code == 1
         default_label, prja_label = db_label(default_uri), db_label(prja_uri)
-        assert f"'Project' 'proj-a' is in '{default_label}' but its name routes to '{prja_label}'." in result.output
-        assert f"'Project' 'PROJ-B' is in '{prja_label}' but its name routes to '{default_label}'." in result.output
-        assert "'PROJ-A' is in" not in result.output
-        assert "2 misplaced project(s)" in result.output
+        assert f"'proj-a' in '{default_label}'" in result.output and f"'PROJ-A' in '{prja_label}'" in result.output
+        assert "PROJ-B" not in result.output
+        assert "1 project(s) in several databases" in result.output

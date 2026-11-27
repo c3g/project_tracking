@@ -14,7 +14,7 @@ import sqlalchemy
 from sqlalchemy import text
 
 from project_tracking import create_app
-from project_tracking.database import WRITE_LOCK_KEY, Engine, init_db
+from project_tracking.database import WRITE_LOCK_KEY, Engine, db_label, init_db
 
 SERVER = os.getenv("PT_TEST_POSTGRES")
 pytestmark = pytest.mark.skipif(not SERVER, reason="PT_TEST_POSTGRES not set: the write lock needs PostgreSQL")
@@ -39,13 +39,13 @@ def databases():
 
 @pytest.fixture()
 def client(databases):
-    """PROJ-A in database a (also the default), PROJ-B in database b; a write waits 1 s for the lock."""
+    """PROJ-A in database a (the default), PROJ-B in database b; a write waits 1 s for the lock."""
     uri_a, uri_b = databases
     app = create_app({
         "TESTING": True,
         "SECRET_KEY": "test",
         "SQLALCHEMY_DATABASE_URI": uri_a,
-        "PROJECT_DATABASES": {"PROJ-A": uri_a, "PROJ-B": uri_b},
+        "PROJECT_DATABASES": [uri_b],
         "WRITE_LOCK_TIMEOUT": 1,
         "WRITE_LOCK_RETRY_AFTER": 5,
     })
@@ -53,8 +53,8 @@ def client(databases):
         init_db(uri_a)
         init_db(uri_b)
     client = app.test_client()
-    for project in ("PROJ-A", "PROJ-B"):
-        assert client.post(f"/admin/create_project/{project}").status_code == 200
+    for project, uri in (("PROJ-A", uri_a), ("PROJ-B", uri_b)):
+        assert client.post(f"/admin/create_project/{project}", json={"database": db_label(uri)}).status_code == 200
     yield client
     for engine in [*Engine.ENGINES.values(), *Engine.LOCK_ENGINES.values()]:
         engine.dispose()

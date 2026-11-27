@@ -110,7 +110,7 @@ def auth_app(issuer, opa):
         "TESTING": True,
         "SECRET_KEY": "test",
         "SQLALCHEMY_DATABASE_URI": default_uri,
-        "PROJECT_DATABASES": {"MY-PROJECT": project_uri},
+        "PROJECT_DATABASES": [project_uri],
         "AUTH_MODE": "oidc",
         "OIDC_ISSUER": issuer,
         "OIDC_CLIENT_ID": CLIENT_ID,
@@ -153,10 +153,18 @@ def test_a_route_needs_a_valid_token(auth_app, issuer, signing_key, opa):
     assert opa["inputs"] == []
 
 
+def _project_label(auth_app):
+    return os.path.basename(auth_app.config["PROJECT_DATABASES"][0].removeprefix("sqlite:///"))
+
+
 def test_opa_decides_with_the_policy_input(auth_app, issuer, signing_key, opa):
     client = auth_app.test_client()
     token = _token(signing_key, issuer, groups=["pt-admins", "pt-my-project-read"])
-    assert client.post("/admin/create_project/MY-PROJECT", headers=_bearer(token)).status_code == 200
+    response = client.post("/admin/create_project/MY-PROJECT", headers=_bearer(token),
+                           json={"database": _project_label(auth_app)})
+    assert response.status_code == 200
+    # Not created yet: OPA gets the database the payload names
+    assert opa["inputs"][-1]["database"] == _project_label(auth_app)
     opa["inputs"].clear()
 
     response = client.get("/project/my-project/samples", headers=_bearer(token))
@@ -164,9 +172,29 @@ def test_opa_decides_with_the_policy_input(auth_app, issuer, signing_key, opa):
     assert response.status_code == 200
     assert opa["inputs"] == [{
         "method": "GET", "path": "/project/my-project/samples", "endpoint": "project.samples",
-        "database": os.path.basename(auth_app.config["PROJECT_DATABASES"]["MY-PROJECT"].removeprefix("sqlite:///")),
+        "database": _project_label(auth_app),
         "project": "my-project", "groups_header": "pt-admins,pt-my-project-read", "client_id": None,
     }]
+
+
+def test_opa_gets_the_database_holding_the_project_now(auth_app, issuer, signing_key, opa):
+    """No routing cache: a project moved to another database is authorized against that database at once."""
+    from project_tracking.database import session_scope
+    from project_tracking import model
+    client = auth_app.test_client()
+    token = _bearer(_token(signing_key, issuer, groups=["pt-admins"]))
+    default_uri, project_uri = auth_app.config["SQLALCHEMY_DATABASE_URI"], auth_app.config["PROJECT_DATABASES"][0]
+    with session_scope(no_app=True, db_uri=project_uri) as session:
+        session.add(model.Project(name="MOVING"))
+    assert client.get("/project/MOVING/samples", headers=token).status_code == 200
+    assert opa["inputs"][-1]["database"] == _project_label(auth_app)
+
+    with session_scope(no_app=True, db_uri=project_uri) as session:
+        session.query(model.Project).filter_by(name="MOVING").delete()
+    with session_scope(no_app=True, db_uri=default_uri) as session:
+        session.add(model.Project(name="MOVING"))
+    assert client.get("/project/MOVING/samples", headers=token).status_code == 200
+    assert opa["inputs"][-1]["database"] == os.path.basename(default_uri.removeprefix("sqlite:///"))
 
 
 def test_opa_refusal_is_a_403_in_the_envelope(auth_app, issuer, signing_key, opa):
@@ -290,7 +318,7 @@ def test_login_routes_only_forward_device_code_and_refresh(auth_app):
     assert response.status_code == 400 and response.get_json()["error"] == "unsupported_grant_type"
 
 
-def test_project_list_only_for_readers_of_the_default_database(auth_app, issuer, signing_key, opa):
+def test_project_list_only_from_the_databases_the_caller_reads(auth_app, issuer, signing_key, opa):
     client = auth_app.test_client()
     client_headers = _bearer(_token(signing_key, issuer, groups=["pt-my-project-read"]))
     with auth_app.app_context():
@@ -303,7 +331,8 @@ def test_project_list_only_for_readers_of_the_default_database(auth_app, issuer,
     opa["readable"] = []
     assert "DB_ACTION_OUTPUT" not in client.get("/project/", headers=client_headers).get_json()
     opa["readable"] = [default_label]
-    assert client.get("/project/", headers=client_headers).get_json()["DB_ACTION_OUTPUT"][0]["name"] == "BASE-PROJECT"
+    rows = client.get("/project/", headers=client_headers).get_json()["DB_ACTION_OUTPUT"]
+    assert [(row["name"], row["_database"]) for row in rows] == [("BASE-PROJECT", default_label)]
 
 
 def test_health_reports_opa(auth_app, opa):

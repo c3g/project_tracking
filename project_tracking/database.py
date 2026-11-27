@@ -44,70 +44,128 @@ def db_label(db_uri: str) -> str:
 
 
 def _configured_db_uris(config):
-    """Collect unique DB URIs from default config and PROJECT_DATABASES mapping."""
-    uris = {config['SQLALCHEMY_DATABASE_URI']}
-    for uri in config.get('PROJECT_DATABASES', {}).values():
-        uris.add(uri)
-    return sorted(uris)
+    """The databases: SQLALCHEMY_DATABASE_URI and the PROJECT_DATABASES list, without duplicates."""
+    return sorted({config['SQLALCHEMY_DATABASE_URI'], *(config.get('PROJECT_DATABASES') or [])})
 
 
-def resolve_db_uri(db_uri=None, project_id=None):
-    """Resolve DB URI from, in order of priority:
-    1. Explicit db_uri argument.
-    2. flask.g.project_db_uri set by set_project_db_from_name() for the current request.
-    3. Legacy project_id lookup (kept for backwards compat in no-app contexts).
-    4. App-level SQLALCHEMY_DATABASE_URI default.
+def validate_project_databases(config):
+    """
+    Fail at startup on a PROJECT_DATABASES that isn't a list of URIs (before 4.0.0 it mapped project names to URIs:
+    projects are now found in the database that holds their row), or on two databases with the same label: OPA rights
+    and create_project's 'database' name a database by its label.
+    """
+    databases = config.get('PROJECT_DATABASES') or []
+    if not isinstance(databases, (list, tuple)) or not all(isinstance(uri, str) for uri in databases):
+        raise RuntimeError(
+            "PROJECT_DATABASES must be a JSON list of database URIs: since 4.0.0 a project is found in the database "
+            "that holds its row, so the configuration no longer names projects (README, Adding a project)."
+        )
+    labels = {}
+    for uri in _configured_db_uris(config):
+        labels.setdefault(db_label(uri).lower(), []).append(uri)
+    shared = sorted(label for label, uris in labels.items() if len(uris) > 1)
+    if shared:
+        raise RuntimeError(f"Several databases have the label {shared}: give each database its own name.")
+
+
+def database_by_label(config, label):
+    """The URI of the configured database with this label (any case), or None."""
+    return next((uri for uri in _configured_db_uris(config) if db_label(uri).lower() == str(label).lower()), None)
+
+
+def create_project_database(config, payload):
+    """
+    The URI of the database create_project writes to: the one its payload's 'database' names (a label), the only one
+    when there is one, else None.
+    """
+    label = (payload or {}).get("database") if isinstance(payload, dict) else None
+    if label:
+        return database_by_label(config, label)
+    databases = _configured_db_uris(config)
+    return databases[0] if len(databases) == 1 else None
+
+
+def databases_holding_project(config, name):
+    """
+    (URIs of the databases with a project named name, ignoring case; URIs of the databases that couldn't be read).
+    One small query per database, on every call: no cache, so OPA always decides on the database that holds the
+    project now.
+    """
+    from sqlalchemy import func, select
+    from .model import Project
+
+    found, unreachable = [], []
+    for uri in _configured_db_uris(config):
+        try:
+            with get_engine(uri).connect() as connection:
+                stmt = select(Project.id).where(func.lower(Project.name) == name.lower()).limit(1)
+                if connection.execute(stmt).first() is not None:
+                    found.append(uri)
+        except OperationalError as error:
+            logging.error("Project lookup: %s not read: %s", db_label(uri), str(getattr(error, 'orig', error)).strip())
+            unreachable.append(uri)
+    return found, unreachable
+
+
+def project_database(config, name):
+    """
+    The URI of the database that holds the project named name (any case). With one database, that database.
+    Raises DidNotFindError (404) when no database has it, UniqueConstraintError (409) when several do, and
+    DatabaseUnavailableError (503) when it is in none of the databases that could be read.
+    """
+    from .db_actions.errors import DatabaseUnavailableError, DidNotFindError, UniqueConstraintError
+
+    databases = _configured_db_uris(config)
+    if len(databases) == 1:
+        return databases[0]
+    found, unreachable = databases_holding_project(config, name)
+    if len(found) > 1:
+        raise UniqueConstraintError(
+            f"'Project' '{name}' is in several databases {sorted(db_label(uri) for uri in found)}: an admin has to "
+            f"remove all but one."
+        )
+    if found:
+        return found[0]
+    if unreachable:
+        raise DatabaseUnavailableError(
+            f"'Project' '{name}' wasn't found, and databases {sorted(db_label(uri) for uri in unreachable)} couldn't "
+            f"be read: try again later."
+        )
+    raise DidNotFindError(f"'Project' '{name}' doesn't exist.", status_code=404)
+
+
+def resolve_db_uri(db_uri=None, project_id=None):  # noqa: project_id kept for compat
+    """
+    The database of a session: db_uri, else the one set_project_db_from_name() chose for this request, else
+    SQLALCHEMY_DATABASE_URI. With several databases, a request must have chosen one: the default database is
+    another project's database, never a fallback.
     """
     if db_uri is not None:
         return db_uri
 
-    # Primary: project name was resolved before the first DB access (see convcheck_project).
     project_db_uri = flask.g.get('project_db_uri')
     if project_db_uri is not None:
         return project_db_uri
 
-    # Legacy fallback: avoid breakage if project_id is passed directly.
-    if project_id is not None:
-        mapping = flask.current_app.config.get('PROJECT_DATABASES', {})
-        resolved = mapping.get(str(project_id))
-        if resolved is not None:
-            return resolved
-
-    return flask.current_app.config["SQLALCHEMY_DATABASE_URI"]
+    config = flask.current_app.config
+    if flask.has_request_context() and len(_configured_db_uris(config)) > 1:
+        raise RuntimeError(f"No database chosen for {flask.request.method} {flask.request.path}: pass db_uri or call "
+                           f"set_project_db_from_name() first.")
+    return config["SQLALCHEMY_DATABASE_URI"]
 
 
 def set_project_db_from_name(project_name: str) -> None:
-    """Set the DB URI for this request based on the project *name* from the URL.
-
-    Must be called before opening any session.  Stored in flask.g so every
-    session_scope() call in the same request automatically uses it.
-
-    Resolution order:
-    1. Exact match in PROJECT_DATABASES (case-insensitive).
-    2. Fall through: leave flask.g untouched → app default will be used.
-
-    Example config (instance/config.py or C3G_ env vars)::
-
-        PROJECT_DATABASES = {
-            # Exact names only (no prefix matching).
-            'PROJ-A':    'postgresql+psycopg2://user:pw@host/prja_db',
-            'ANY FREE PROJECT NAME': 'postgresql+psycopg2://user:pw@host/shared_db',
-        }
+    """
+    Choose the database of this request: the one that holds the project named project_name (project_database). Must
+    be called before opening any session. Looked up once per request (auth and convcheck_project both call it), never
+    cached across requests.
     """
     if not project_name:
         return
-    mapping = flask.current_app.config.get('PROJECT_DATABASES', {})
-    if not mapping:
+    if flask.g.get('project_db_uri') is not None and flask.g.get('project_db_name') == project_name:
         return
-
-    upper = project_name.upper()
-
-    # 1. Exact name match (case-insensitive).
-    # Normalize config keys here so operators can keep natural casing in config.
-    normalized_mapping = {str(name).upper(): uri for name, uri in mapping.items()}
-    resolved = normalized_mapping.get(upper)
-    if resolved is not None:
-        flask.g.project_db_uri = resolved
+    flask.g.project_db_uri = project_database(flask.current_app.config, project_name)
+    flask.g.project_db_name = project_name
 
 
 def get_engine(db_uri):
@@ -402,26 +460,16 @@ def upgrade_all_dbs_command(revision):
     click.echo(f'All {len(uris)} database(s) upgraded to {revision!r}.')
 
 
-def project_db_uri(config, project_name):
-    """The database URI the routes use for project_name: its PROJECT_DATABASES entry (any case), else the default."""
-    mapping = {str(name).upper(): uri for name, uri in config.get('PROJECT_DATABASES', {}).items()}
-    return mapping.get(str(project_name).upper(), config['SQLALCHEMY_DATABASE_URI'])
-
-
-def misplaced_projects(config, project_names_by_uri):
+def duplicate_projects(project_names_by_uri):
     """
-    Projects stored in a database other than the one their name routes to, e.g. left in the default database after
-    being given a PROJECT_DATABASES entry: the routes never reach them, and a same-named project in the routed database
-    would take their requests. project_names_by_uri maps each reachable database URI to its project names.
-    Returns one message per misplaced project.
+    Projects whose name (ignoring case) is in several databases: the routes refuse them (409). project_names_by_uri
+    maps each reachable database URI to its project names. Returns one message per name.
     """
-    problems = []
+    where = {}
     for uri, names in project_names_by_uri.items():
-        for name in sorted(names):
-            routed = project_db_uri(config, name)
-            if routed != uri:
-                problems.append(f"'Project' '{name}' is in '{db_label(uri)}' but its name routes to '{db_label(routed)}'.")
-    return problems
+        for name in names:
+            where.setdefault(name.lower(), []).append(f"'{name}' in '{db_label(uri)}'")
+    return [f"Project {', '.join(sorted(places))}." for _, places in sorted(where.items()) if len(places) > 1]
 
 
 @click.command('db-revisions')
@@ -464,15 +512,15 @@ def db_revisions_command():
             problems += 1
         click.echo(f'  {db_label(uri)}: {revision or "-"} ({state})')
 
-    misplaced = misplaced_projects(flask.current_app.config, project_names)
-    if misplaced:
-        click.echo('Projects outside the database their name routes to:')
-        for message in misplaced:
+    duplicates = duplicate_projects(project_names)
+    if duplicates:
+        click.echo('Projects in several databases (the routes refuse them):')
+        for message in duplicates:
             click.echo(f'  {message}')
 
-    if problems or misplaced:
+    if problems or duplicates:
         raise click.ClickException(
-            f'{problems} database(s) not at the latest revision, {len(misplaced)} misplaced project(s).'
+            f'{problems} database(s) not at the latest revision, {len(duplicates)} project(s) in several databases.'
         )
 
 

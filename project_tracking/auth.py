@@ -70,7 +70,13 @@ def request_database():
     project = args.get("project") or args.get("project_name")
     if not project:
         return None, None
-    return database.db_label(database.project_db_uri(current_app.config, project)), project
+    if request.endpoint == "admin_api.create_project":
+        # Not created yet: the database is the one the payload names (create_project refuses an unknown one)
+        uri = database.create_project_database(current_app.config, request.get_json(force=True, silent=True))
+        return (database.db_label(uri) if uri else None), project
+    # The database holding the project now (404, 409 or 503 otherwise), looked up again on every request
+    database.set_project_db_from_name(project)
+    return database.db_label(g.project_db_uri), project
 
 
 def opa_input(groups_header):
