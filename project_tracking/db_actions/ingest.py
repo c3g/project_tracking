@@ -399,20 +399,26 @@ def check_transfer_payload(ingest_data):
 
 def analysis_operation_status(ingest_data):
     """
-    Status of an analysis operation: operation_status when given, otherwise COMPLETED when every job of the payload
-    is COMPLETED and RUNNING when any job isn't (failed, pending or without status: the run isn't finished).
+    Status of an analysis operation: operation_status when given, otherwise from the payload's jobs with a status
+    (GenPipes' jobs that didn't run have none): RUNNING when one runs, FAILED when one failed (FAILED, OUT_OF_MEMORY
+    or CANCELLED: the jobs after it stay PENDING for good), RUNNING when one is PENDING or none has a status, else
+    COMPLETED.
     """
     if ingest_data.get(vb.OPERATION_STATUS):
         return StatusEnum(ingest_data[vb.OPERATION_STATUS])
-    statuses = [
+    statuses = {
         job_json.get(vb.JOB_STATUS)
         for sample_json in ingest_data[vb.SAMPLE]
         for readset_json in sample_json[vb.READSET]
         for job_json in readset_json[vb.JOB]
-    ]
-    if statuses and all(status == StatusEnum.COMPLETED.value for status in statuses):
-        return StatusEnum.COMPLETED
-    return StatusEnum.RUNNING
+    } - {None, ""}
+    if StatusEnum.RUNNING.value in statuses:
+        return StatusEnum.RUNNING
+    if statuses & {StatusEnum.FAILED.value, StatusEnum.OUT_OF_MEMORY.value, StatusEnum.CANCELLED.value}:
+        return StatusEnum.FAILED
+    if not statuses or StatusEnum.PENDING.value in statuses:
+        return StatusEnum.RUNNING
+    return StatusEnum.COMPLETED
 
 
 def ingest_run_processing(project_id: str, ingest_data: dict, session):

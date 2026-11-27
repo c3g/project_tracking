@@ -970,9 +970,11 @@ protocol:
   whole payload is rejected before anything is written, with the allowed values in the error.
   `run_processing`, `transfer` and `delivery` are reserved for the other ingest routes.
 - The stored operation has `analysis = true`. `digest_unanalyzed` uses this flag, not operation names.
-- The operation status is `operation_status` when given. Otherwise it's `COMPLETED` when every job of
-  the payload is `COMPLETED`, and `RUNNING` when any job isn't (failed, pending or without status): the
-  run isn't finished.
+- The operation status is `operation_status` when given. Otherwise it comes from the payload's jobs that
+  have a status (GenPipes' jobs that didn't run have none), in this order: `RUNNING` when a job is
+  `RUNNING`; `FAILED` when a job is `FAILED`, `OUT_OF_MEMORY` or `CANCELLED` (the jobs after a failure stay
+  `PENDING` for good); `RUNNING` when a job is `PENDING` or no job has a status; else `COMPLETED`. Each
+  ingest sets it from its own payload, so the last payload sent decides.
 - Re-ingesting reuses the existing operation, matched on its name, command line, platform, config and
   project, and updates its status with a warning. A run ingested while `RUNNING`, then once
   `COMPLETED`, stays one operation. An empty pipeline or protocol is filled in. A **different** stored value

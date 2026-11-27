@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from project_tracking import model, db_actions
 from project_tracking import vocabulary as vb
 from project_tracking import create_app
+from project_tracking.db_actions import ingest
 from project_tracking.db_actions.errors import RequestError
 
 logger = logging.getLogger(__name__)
@@ -416,7 +417,7 @@ def test_genpipes_rejects_invalid_enum_values(not_app_db, run_processing_json, g
 
 
 def test_analysis_operation_status(not_app_db, run_processing_json, genpipes_json):
-    """operation_status when given, otherwise COMPLETED only when every job is; re-ingesting updates the same operation."""
+    """operation_status when given, otherwise from the jobs; re-ingesting updates the same operation."""
     project_id = _new_project(not_app_db, run_processing_json)
     db_actions.ingest_run_processing(project_id, run_processing_json, not_app_db)
 
@@ -431,19 +432,33 @@ def test_analysis_operation_status(not_app_db, run_processing_json, genpipes_jso
     job = data[vb.SAMPLE][0][vb.READSET][0][vb.JOB][0]
     job[vb.JOB_STATUS] = "FAILED"
     db_actions.ingest_analysis(project_id, data, not_app_db)
-    assert operation().status == model.StatusEnum.RUNNING
-
-    job[vb.JOB_STATUS] = None
-    db_actions.ingest_analysis(project_id, data, not_app_db)
-    assert operation().status == model.StatusEnum.RUNNING
+    assert operation().status == model.StatusEnum.FAILED
 
     out = db_actions.ingest_analysis(project_id, genpipes_json, not_app_db)
     assert operation().status == model.StatusEnum.COMPLETED
-    assert any("Its status changes from RUNNING to COMPLETED." in w for w in out["DB_ACTION_WARNING"])
+    assert any("Its status changes from FAILED to COMPLETED." in w for w in out["DB_ACTION_WARNING"])
 
-    data[vb.OPERATION_STATUS] = "FAILED"
-    db_actions.ingest_analysis(project_id, data, not_app_db)
+    db_actions.ingest_analysis(project_id, genpipes_json | {vb.OPERATION_STATUS: "FAILED"}, not_app_db)
     assert operation().status == model.StatusEnum.FAILED
+
+
+@pytest.mark.parametrize("statuses, expected", [
+    (["COMPLETED", "COMPLETED"], "COMPLETED"),
+    (["COMPLETED", None], "COMPLETED"),
+    (["COMPLETED", ""], "COMPLETED"),
+    ([None, None], "RUNNING"),
+    (["COMPLETED", "PENDING"], "RUNNING"),
+    (["COMPLETED", "RUNNING"], "RUNNING"),
+    (["FAILED", "RUNNING"], "RUNNING"),
+    (["FAILED", "PENDING"], "FAILED"),
+    (["COMPLETED", "FAILED"], "FAILED"),
+    (["COMPLETED", "OUT_OF_MEMORY"], "FAILED"),
+    (["COMPLETED", "CANCELLED"], "FAILED"),
+])
+def test_analysis_operation_status_from_the_jobs(statuses, expected):
+    data = {vb.SAMPLE: [{vb.READSET: [{vb.JOB: [{vb.JOB_STATUS: status} for status in statuses]}]}]}
+    assert ingest.analysis_operation_status(data).value == expected
+    assert ingest.analysis_operation_status(data | {vb.OPERATION_STATUS: "COMPLETED"}).value == "COMPLETED"
 
 
 def test_analysis_rejects_invalid_operation_status(not_app_db, run_processing_json, genpipes_json):
